@@ -78,9 +78,9 @@ static void mqttTestStartFn(void *params)
         status =  mqttSysNetconnStart( m_client );
         if( status == MQTT_RESP_OK ) {
             mqttTestRunPatterns( &testPatternSet, m_client );
-            num_iter--;
         }
         mqttSysNetconnStop( m_client );
+        num_iter--;
     } // end of while-loop
     mqttClientDeinit( m_client ); // TODO: should we de-init system before terminating this thread ?
     m_client = NULL;

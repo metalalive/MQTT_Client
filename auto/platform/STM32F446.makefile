@@ -78,4 +78,14 @@ MCU = $(CPU) -mthumb $(FPU) $(FLOAT-ABI)
 OPENOCD_CFG_FILES =  -f $(OPENOCD_HOME)/tcl/board/st_nucleo_f4.cfg \
                      -f $(OPENOCD_HOME)/tcl/interface/stlink-v2-1.cfg 
 
+REMOTE_DEBUGGER_CMD = openocd
+
+DBG_SERVER_CMD = $(REMOTE_DEBUGGER_CMD) $(OPENOCD_CFG_FILES)  -c init -c "reset init"
+
+GDB_CMD = gdb-multiarch
+
+GDB_SCRIPT_PATH = ./auto/platform/utility.gdb
+
+DBG_CLIENT_CMD = $(GDB_CMD) -x $(GDB_SCRIPT_PATH)
+
 

@@ -340,6 +340,8 @@ mqttRespStatus  mqttSysInit( void )
 
 mqttRespStatus  mqttSysDeInit( void )
 {
+    espRes_t  response = eESPdeinit();
+    XASSERT( response == espOK );
     return  mqttPlatformDeInit();
 } // end of mqttSysDeInit
 

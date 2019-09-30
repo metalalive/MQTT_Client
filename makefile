@@ -5,6 +5,8 @@
 # extra defined parameters users want to specify
 PLUS_C_DEFS ?= 
 
+DEBUG ?= no
+
 BUILD_DIR = build
 
 TARGET_LIB_PATH = $(BUILD_DIR)/libmqttclient.a
@@ -89,12 +91,15 @@ HEX = $(CP) -O ihex
 
 BIN = $(CP) -O binary -S
 
+# optimization
+OPT = -Og
+
 # compile gcc flags
 ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
 
 CFLAGS = $(MCU) $(C_DEFS) $(C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections -Wint-to-pointer-cast
 
-ifeq ($(DEBUG), 1)
+ifeq ($(DEBUG), yes)
 CFLAGS += -g -gdwarf-2
 endif
 
@@ -111,7 +116,7 @@ LIBS = -lc -lm -lnosys
 LIBDIR =
 
 # TODO: xxx.map should be platform-specific 
-LDFLAGS = $(MCU) -specs=nano.specs -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$(BUILD_DIR)/$(TARGET).map,--cref -Wl,--gc-sections
+LDFLAGS = $(MCU) -specs=nano.specs -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$<.map,--cref -Wl,--gc-sections 
 
 
 
@@ -172,6 +177,12 @@ download_3party:
 # optional function for those who use code navigation tools e.g. ctags
 update_navigator:
 	@ctags -R ./generate ./include ./src ./tests ./third_party
+
+dbg_server:
+	@$(DBG_SERVER_CMD)
+
+dbg_client:
+	@$(DBG_CLIENT_CMD)
 
 
 
