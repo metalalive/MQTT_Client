@@ -348,10 +348,10 @@ static HAL_StatusTypeDef  STM32_HAL_periph_Init( void )
     __HAL_RCC_GPIOB_CLK_ENABLE();
     __HAL_RCC_GPIOC_CLK_ENABLE();
     // Configure GPIO pin Output Level
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9 | GPIO_PIN_4, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
     // Configure GPIO pins : PB10 PB4 
-    GPIO_InitStruct.Pin = GPIO_PIN_9 | GPIO_PIN_4;
+    GPIO_InitStruct.Pin = GPIO_PIN_9 ;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -427,7 +427,7 @@ mqttRespStatus  mqttPlatformPktSend( void* data, size_t len, uint32_t timeout )
 
 
 
-// PB4 can be wired to reset pin (RST) of network device. TODO: change to PB9, left PB4 for SPI1
+// PB4 can be wired to reset pin (RST) of network device.
 mqttRespStatus  mqttPlatformNetworkModRst( uint8_t state )
 {
     // at here, state = 0 means reset assertion, non-zero value means reset de-assertion.
@@ -456,6 +456,7 @@ word32  mqttPlatformRNG( word32 maxnum )
     word32         start_time = 0;
     word32         stop_time  = 0;
     word32         pulse_duration  = 0;
+    const  word32  max_wait_time   = HAL_RCC_GetPCLK1Freq() >> 8;
     GPIO_PinState  echo_state;
     uint8_t        idx = 0;
 
@@ -463,19 +464,24 @@ word32  mqttPlatformRNG( word32 maxnum )
         HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
         mqttSysDelay(1);
         HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
+        pulse_duration = max_wait_time;
         do { // wait for signal assertion on ECHO pin
             start_time = __HAL_TIM_GET_COUNTER(&htim2);
             echo_state = HAL_GPIO_ReadPin( GPIOC, GPIO_PIN_9 );
-        } while(echo_state == GPIO_PIN_RESET);
+            pulse_duration--;
+        } while(echo_state == GPIO_PIN_RESET && pulse_duration > 0);
+        pulse_duration = max_wait_time;
         do {// wait for signal de-assertion on ECHO pin
             stop_time  = __HAL_TIM_GET_COUNTER(&htim2);
             echo_state = HAL_GPIO_ReadPin( GPIOC, GPIO_PIN_9 );
-        } while(echo_state == GPIO_PIN_SET);
+            pulse_duration--;
+        } while(echo_state == GPIO_PIN_SET && pulse_duration > 0);
         pulse_duration = (stop_time < start_time) ? (htim2.Init.Period - start_time + stop_time) : (stop_time - start_time);
         rand_val_record[idx] = pulse_duration;
+        out |= (pulse_duration & 0x3) << (idx << 0x2) ;
         mqttSysDelay(5);
     } // end of for-loop
-    out = rand_val_record[0] % maxnum + 1;
+    out = out % (maxnum + 1);
     return out;
 } // end of  mqttPlatformRNG
 #undef NUM_RAND_VALUE_RECORD
@@ -483,7 +489,7 @@ word32  mqttPlatformRNG( word32 maxnum )
 
 mqttRespStatus  mqttPlatformInit( void )
 {
-    HAL_StatusTypeDef  status;
+    HAL_StatusTypeDef  status = HAL_OK;
     // MCU Configuration--------------------------------------------------------  
     // Reset of all peripherals, Initializes the Flash interface and the Systick. 
     STM32_HAL_Init();
