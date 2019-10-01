@@ -71,10 +71,11 @@ static espRes_t  eESPdefaultEvtCallBack( espEvt_t*  evt )
 
 
 
-static mqttRespStatus mqttSysRespCvt(espRes_t in)
+static mqttRespStatus mqttSysRespCvtFromESPresp(espRes_t in)
 {
     mqttRespStatus out = MQTT_RESP_OK;
     switch(in) {
+        case espERRNOAP:
         case espERRNODEVICE:
             out = MQTT_RESP_NO_NET_DEV;    break;
         case espOK:
@@ -84,20 +85,51 @@ static mqttRespStatus mqttSysRespCvt(espRes_t in)
             out = MQTT_RESP_ERRMEM;        break;
         case espERRARGS:
             out = MQTT_RESP_ERRARGS;       break;
+        case espBUSY:
+            out = MQTT_RESP_BUSY;          break;
         case espTIMEOUT:
             out = MQTT_RESP_TIMEOUT;       break;
+        case espERRCONNFAIL :
+        case espERRWIFINOTCONNECTED:
+            out = MQTT_RESP_ERR_CONN;      break;
         default:
             out = MQTT_RESP_ERR;           break;
     }
     return out;
-} // end of mqttSysRespCvt
+} // end of mqttSysRespCvtFromESPresp
+
+
+
+static espRes_t  mqttSysRespCvtToESPresp(mqttRespStatus in)
+{
+    espRes_t out ;
+    switch(in) {
+        case MQTT_RESP_NO_NET_DEV :
+            out = espERRNODEVICE;    break;
+        case MQTT_RESP_OK :
+            out = espOK;             break;
+        case MQTT_RESP_ERRMEM:
+            out = espERRMEM ;        break;
+        case MQTT_RESP_ERRARGS:
+            out = espERRARGS;        break;
+        case MQTT_RESP_BUSY:
+            out = espBUSY;           break;
+        case MQTT_RESP_TIMEOUT:
+            out = espTIMEOUT ;       break;
+        case MQTT_RESP_ERR_CONN:
+            out = espERRCONNFAIL;    break;
+        default:
+            out = espERR;            break;
+    }
+    return out;
+} // end of  mqttSysRespCvtToESPresp
 
 
 
 static espRes_t  mqttSysConnectToAP( espIp_t *out_ip, espMac_t *out_mac )
 { // we better determine maximum number of times to rescan APs or reconnect to the preferred AP
-#define  MQTT_SYS_MAXTIMES_RECONNECT_AP    3
-#define  MQTT_SYS_MAXTIMES_RESCAN_APS      4
+#define  MQTT_SYS_MAXTIMES_RECONNECT_AP    2
+#define  MQTT_SYS_MAXTIMES_RESCAN_APS      3
     mqttStr_t  *wifiSSID   = NULL;
     mqttStr_t  *wifiPasswd = NULL;
     espIp_t     dummy_ip  ;
@@ -202,7 +234,7 @@ static espRes_t  mqttSysCreateTCPconn(mqttCtx_t *mctx)
 espRes_t   eESPlowLvlRecvStartFn( void )
 {
     mqttRespStatus response  = mqttPlatformPktRecvEnable();
-    return  mqttSysRespCvt(response);
+    return  mqttSysRespCvtToESPresp(response);
 } // end of  eESPlowLvlRecvStartFn 
 
 
@@ -219,7 +251,7 @@ void    vESPlowLvlRecvStopFn( void )
 espRes_t   eESPlowLvlSendFn( void* data, size_t len, uint32_t timeout )
 {
     mqttRespStatus response  = mqttPlatformPktSend( data, len, timeout );
-    return  mqttSysRespCvt(response);
+    return  mqttSysRespCvtToESPresp(response);
 } // end of eESPlowLvlSendFn
 
 
@@ -229,7 +261,7 @@ espRes_t   eESPlowLvlSendFn( void* data, size_t len, uint32_t timeout )
 espRes_t   eESPlowLvlRstFn( uint8_t state )
 {
     mqttRespStatus response  = mqttPlatformNetworkModRst( state );
-    return  mqttSysRespCvt(response);
+    return  mqttSysRespCvtToESPresp(response);
 } // end of eESPlowLvlRstFn
 
 
@@ -237,7 +269,7 @@ espRes_t   eESPlowLvlRstFn( uint8_t state )
 espRes_t  eESPlowLvlDevInit(void *params)
 {
     mqttRespStatus response  = mqttPlatformInit();
-    return  mqttSysRespCvt(response);
+    return  mqttSysRespCvtToESPresp(response);
 }
 
 
@@ -251,7 +283,7 @@ void  mqttSysDelay(uint32_t ms) {
 mqttRespStatus  mqttSysPktRecvHandler( uint8_t* data, uint16_t data_len )
 {
     espRes_t  response = eESPappendRecvRespISR( data, data_len );
-    return  mqttSysRespCvt(response);
+    return  mqttSysRespCvtFromESPresp(response);
 } // end of mqttSysPktRecvHandler
 
 
@@ -272,7 +304,7 @@ mqttRespStatus  mqttSysThreadCreate( const char* name, mqttSysThreFn thread_fn,
     }
     // in some system port e.g. FreeRTOS, 
     // CPU might never arrive in here after thread scheduler  is running
-    return  mqttSysRespCvt(response);
+    return  mqttSysRespCvtFromESPresp(response);
 } // end of mqttSysThreadCreate
 
 
@@ -281,7 +313,7 @@ mqttRespStatus  mqttSysThreadDelete( void *out_thread_ptr )
 {
     espRes_t  response ;
     response = eESPsysThreadDelete( (espSysThread_t *)out_thread_ptr );
-    return  mqttSysRespCvt(response);
+    return  mqttSysRespCvtFromESPresp(response);
 } // end of mqttSysThreadDelete
 
 
@@ -303,7 +335,7 @@ mqttRespStatus  mqttSysNetconnStart( mqttCtx_t *mqt_ctx )
         // set up a TCP connection to remote peer (MQTT broker, in this case)
         response = mqttSysCreateTCPconn( mqt_ctx );
     }
-    return  mqttSysRespCvt( response );
+    return  mqttSysRespCvtFromESPresp( response );
 } // end of mqttSysNetconnStart
 
 
@@ -311,8 +343,6 @@ mqttRespStatus  mqttSysNetconnStart( mqttCtx_t *mqt_ctx )
 mqttRespStatus  mqttSysNetconnStop( mqttCtx_t *mqt_ctx )
 {
     espRes_t   response = espOK;
-    uint8_t    devPresent ;
-
     if(mqt_ctx == NULL) { return MQTT_RESP_ERRARGS; }
     // close TCP connection
     eESPconnClientClose( (espConn_t *)mqt_ctx->ext_sysobjs[1],
@@ -320,10 +350,9 @@ mqttRespStatus  mqttSysNetconnStop( mqttCtx_t *mqt_ctx )
     // de-initialize network connection object used in ESP parser.
     eESPnetconnDelete( (espNetConnPtr)mqt_ctx->ext_sysobjs[0] );
     // quit from AP, reset ESP device again
-    devPresent = 0x0;
-    response = eESPdeviceSetPresent( devPresent, NULL, NULL );
+    response = eESPcloseDevice( );
     
-    return  mqttSysRespCvt( response );
+    return  mqttSysRespCvtFromESPresp( response );
 } // end of mqttSysNetconnStop
 
 
@@ -421,7 +450,7 @@ int  mqttPktLowLvlWrite( struct __mqttCtx *mctx, byte *buf, word32 buf_len )
         return MQTT_RESP_ERRMEM;
     }
     response = eESPconnClientSend( espconn,  buf,  buf_len, NULL, NULL, ESP_AT_CMD_BLOCKING );
-    return  (response == espOK ? buf_len : mqttSysRespCvt(response));
+    return  (response == espOK ? buf_len : mqttSysRespCvtFromESPresp(response));
 } // end of mqttPktLowLvlWrite
 
 
