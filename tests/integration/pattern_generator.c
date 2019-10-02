@@ -259,6 +259,7 @@ static void mqttTestRandSetupProp( mqttProp_t *curr_prop )
 } // end of mqttTestRandSetupProp
 
 
+
 static mqttRespStatus mqttTestRandSetupProps( mqttPropertyType  *given_arr, mqttProp_t **head_prop )
 {
     uint8_t  num_props  = 0;
@@ -274,12 +275,14 @@ static mqttRespStatus mqttTestRandSetupProps( mqttPropertyType  *given_arr, mqtt
     
     for(idx=0; idx<num_props; idx++) {
         // select a property that hasn't been chosen in current packet
-        select_idx  = (uint8_t) mqttSysRNG(list_size);
+        select_idx  = (uint8_t) mqttSysRNG(list_size - 1);
         // swap the chosen property with the latest one, decrease number of the available array item
         // so the available items become given_arr[0] ... given_arr[list_size - 2] in next iteration.
-        select_type              = given_arr[select_idx];
-        given_arr[select_idx]    = given_arr[list_size - 1];
-        given_arr[list_size - 1] = select_type;
+        select_type  = given_arr[select_idx];
+        if(select_idx < (list_size - 1)) {
+            given_arr[select_idx]    = given_arr[list_size - 1];
+            given_arr[list_size - 1] = select_type;
+        }
         list_size--;
         // start generating random data to each property structure
         curr_prop = NULL; 

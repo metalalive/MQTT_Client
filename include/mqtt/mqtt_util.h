@@ -52,22 +52,22 @@ extern "C" {
 // extract "rd_len" number of bits, starting from "offset" of the variable "bitmap", write it to "out"
 #define XBIT_READ(bitmap, offset, rd_len, out) \
 {                                              \
-    word32 mask = (0x1 << rd_len) - 0x1;       \
-    out = (bitmap >> offset) & mask;           \
+    word32 mask = (0x1 << (rd_len)) - 0x1;     \
+    (out) = ((bitmap) >> (offset)) & mask;     \
 }
 
 
-#define XBIT_SET( bitmap, offset, len ) \
-{                                       \
-    word32 wr_b = (0x1 << len) - 0x1;   \
-    bitmap     |= wr_b << offset;       \
+#define XBIT_SET( bitmap, offset, len )  \
+{                                        \
+    word32 wr_b = (0x1 << (len)) - 0x1;  \
+    (bitmap)   |= wr_b << (offset);      \
 }
 
 
 #define XBIT_CLEAR( bitmap, offset, len ) \
 {                                         \
-    word32 wr_b = (0x1 << len) - 0x1;     \
-    bitmap     &= ~(wr_b << offset);      \
+    word32 wr_b = (0x1 << (len)) - 0x1;   \
+    (bitmap)   &= ~(wr_b << (offset));    \
 }
 
 

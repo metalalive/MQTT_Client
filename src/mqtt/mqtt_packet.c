@@ -144,11 +144,8 @@ int mqttEncodeProps( byte *buf, mqttProp_t *props )
     mqttProp_t *curr_prop   = NULL;
     word32      total_len   = 0;
     word32      len         = 0;
-    if((buf == NULL) || (props == NULL)){
-        return MQTT_RESP_ERRARGS;
-    }
     for( curr_prop = props; curr_prop != NULL ; curr_prop = curr_prop->next ) 
-    {   
+    {
         // get property type (ID code)
         len        = mqttEncodeVarBytes( buf, (word32)curr_prop->type );
         total_len += len;
