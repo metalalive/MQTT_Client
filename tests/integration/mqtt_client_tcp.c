@@ -5,26 +5,41 @@ static mqttTestPatt testPatternSet;
 static mqttCtx_t *m_client;
 
 
-static void mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mctx )
+
+static mqttRespStatus mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mctx )
 {
     mqttRespStatus status =  MQTT_RESP_OK;
     uint8_t  num_pub_msg_sent =  4 + mqttSysRNG(5);
     uint8_t  num_pub_msg_recv =  4 + mqttSysRNG(5);
     uint8_t  num_ping_sent    =  0 + mqttSysRNG(2);
+    patt_in->connack       = NULL; 
+    patt_in->suback        = NULL;
+    patt_in->unsuback      = NULL;
 
     // -------- send CONNECT packet to broker --------
     mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_CONNECT );
     status = mqttSendConnect( mctx, &patt_in->connack );
     mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_CONNECT);
-    if((status < 0) || (patt_in->connack == NULL)) { return; }
+    if((status < 0) || (patt_in->connack == NULL)) { goto disconnect_server; }
+    status = mqttChkReasonCode(patt_in->connack->reason_code);
+    if( status != MQTT_RESP_OK ){
+        mctx->err_info.reason_code = patt_in->connack->reason_code;
+        goto disconnect_server;
+    }
     // do something after we get connack_out, check reason code, or any property sent by MQTT broker
     mqttSysDelay(200);
     // -------- send PUBLISH packet to broker --------
     while(num_pub_msg_sent > 0) {
+        patt_in->pubresp       = NULL;
         mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_PUBLISH );
         status = mqttSendPublish( mctx, &patt_in->pubresp );
         mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_PUBLISH );
-        if((status < 0) || (patt_in->pubresp == NULL)) { return; }
+        if((status < 0) || (patt_in->pubresp == NULL)) { goto disconnect_server; }
+        status = mqttChkReasonCode(patt_in->pubresp->reason_code);
+        if( status != MQTT_RESP_OK ){
+            mctx->err_info.reason_code = patt_in->pubresp->reason_code;
+            goto disconnect_server;
+        }
         mqttSysDelay(2000);
         num_pub_msg_sent--;
     } // end of while-loop
@@ -32,24 +47,39 @@ static void mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mctx )
     mqttSysDelay(200);
     mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_SUBSCRIBE );
     status = mqttSendSubscribe( mctx, &patt_in->suback );
-    if((status < 0) || (patt_in->suback==NULL)) { return; }
-    // wait for incoming PUBLISH packet
+    if((status < 0) || (patt_in->suback==NULL)) {
+        mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_SUBSCRIBE );
+        goto disconnect_server;
+    }
+    status = mqttChkReasonCode(patt_in->suback->return_codes[0]);
+    if( status != MQTT_RESP_OK ){
+        mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_SUBSCRIBE );
+        mctx->err_info.reason_code = patt_in->suback->return_codes[0];
+        goto disconnect_server;
+    }
+    // --------- wait for incoming PUBLISH packet ---------
     mctx->cmd_timeout_ms = MQTT_SYS_MAX_TIMEOUT;
     // TODO: write script to mock another client sending PUBLISH packet to this subsriber...
     while(num_pub_msg_recv > 0) {
         patt_in->pubmsg_recv = NULL;
         status = mqttClientWaitPkt( mctx, MQTT_PACKET_TYPE_PUBLISH, 0, (void **)&patt_in->pubmsg_recv );
-        if((status < 0) || (patt_in->pubmsg_recv==NULL)) { break; }
+        if((status < 0) || (patt_in->pubmsg_recv==NULL)) { goto disconnect_server; }
         num_pub_msg_recv--;
     } // end of while-loop
+    mctx->cmd_timeout_ms = MQTT_TEST_CMD_TIMEOUT_MS;
     // -------- send UNSUBSCRIBE packet to broker --------
     mqttSysDelay(200);
-    mctx->cmd_timeout_ms = MQTT_TEST_CMD_TIMEOUT_MS;
     mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_UNSUBSCRIBE );
     status = mqttSendUnsubscribe( mctx, &patt_in->unsuback );
-    if((status < 0) || (patt_in->unsuback==NULL)) { return; }
     mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_UNSUBSCRIBE );
     mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_SUBSCRIBE );
+    if((status < 0) || (patt_in->unsuback==NULL)) { goto disconnect_server; }
+    status = mqttChkReasonCode(patt_in->unsuback->return_codes[0]);
+    if( status != MQTT_RESP_OK ){
+        mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_SUBSCRIBE );
+        mctx->err_info.reason_code = patt_in->unsuback->return_codes[0];
+        goto disconnect_server;
+    }
     // -------- send optional PING packet to broker --------
     mqttSysDelay(200);
     while(num_ping_sent > 0) {
@@ -57,11 +87,13 @@ static void mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mctx )
         num_ping_sent--;
     } // end of while-loop
     // -------- send DISCONNET packet to broker --------
+disconnect_server :
     mqttSysDelay(200);
     mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_DISCONNECT );
     mqttSendDisconnect( mctx );
     mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_DISCONNECT );
     mqttSysDelay(1000);
+    return status;
 } // end of mqttTestRunPatterns
 
 

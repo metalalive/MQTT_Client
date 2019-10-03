@@ -260,18 +260,16 @@ static void mqttTestRandSetupProp( mqttProp_t *curr_prop )
 
 
 
-static mqttRespStatus mqttTestRandSetupProps( mqttPropertyType  *given_arr, mqttProp_t **head_prop )
+static mqttRespStatus mqttTestRandSetupProps( mqttPropertyType  *given_arr, size_t list_size, mqttProp_t **head_prop )
 {
     uint8_t  num_props  = 0;
-    uint8_t  list_size  = 0;
     uint8_t  select_idx = 0;
     uint8_t idx     = 0;
     mqttRespStatus      status = MQTT_RESP_OK;
     mqttPropertyType    select_type ;
     mqttProp_t         *curr_prop ;
 
-    list_size = XGETARRAYSIZE(given_arr); // verify this part
-    num_props = mqttSysRNG( list_size );
+    num_props = mqttSysRNG((word32)list_size);
     
     for(idx=0; idx<num_props; idx++) {
         // select a property that hasn't been chosen in current packet
@@ -312,7 +310,8 @@ static mqttRespStatus  mqttTestGenPattConnect( mqttConn_t *mconn )
     mconn->clean_session   = mqttSysRNG(1);
     mconn->keep_alive_sec  = MQTT_DEFAULT_KEEPALIVE_SEC + mqttSysRNG(30);
     // re-allocate number of properties
-    status = mqttTestRandSetupProps( (mqttPropertyType *)&connectPropTypeList, &mconn->props );
+    status = mqttTestRandSetupProps((mqttPropertyType *)&connectPropTypeList,
+                                     XGETARRAYSIZE(connectPropTypeList), &mconn->props );
     if(status < 0) { return status; }
 
     str_len = 8 + mqttSysRNG(8);
@@ -352,7 +351,8 @@ static mqttRespStatus  mqttTestGenPattPublish( mqttMsg_t *pubmsg )
     pubmsg->duplicate  = mqttSysRNG(1);
     pubmsg->qos        = mqttSysRNG(MQTT_QOS_2);
     // re-allocate number of properties
-    status = mqttTestRandSetupProps( (mqttPropertyType *)&publishPropTypeList, &pubmsg->props );
+    status = mqttTestRandSetupProps( (mqttPropertyType *)&publishPropTypeList,
+                                      XGETARRAYSIZE(publishPropTypeList), &pubmsg->props );
     if(status < 0) { return status; }
     status = mqttTestRandGenTopic( &pubmsg->topic );
     if(status < 0) { return status; }
@@ -377,7 +377,8 @@ static mqttRespStatus  mqttTestGenPattSubscribe(mqttPktSubs_t *subs)
 {
     mqttRespStatus  status = MQTT_RESP_OK;
     subs->topic_cnt = 1 + mqttSysRNG( 2 );
-    status = mqttTestRandSetupProps( (mqttPropertyType *)&subscribePropTypeList, &subs->props );
+    status = mqttTestRandSetupProps( (mqttPropertyType *)&subscribePropTypeList,
+                                     XGETARRAYSIZE(subscribePropTypeList), &subs->props );
     if(status < 0) { return status; }
     status = mqttTestRandGenSubsTopics( &subs->topics, subs->topic_cnt);
     return status;
@@ -392,7 +393,8 @@ static mqttRespStatus mqttTestGenPattUnsubscribe( mqttPktUnsubs_t *unsubs_out, c
     size_t          topics_len;
     word16          idx;
 
-    status = mqttTestRandSetupProps( (mqttPropertyType *)&unsubscribePropTypeList, &unsubs_out->props );
+    status = mqttTestRandSetupProps( (mqttPropertyType *)&unsubscribePropTypeList,
+                                     XGETARRAYSIZE(unsubscribePropTypeList), &unsubs_out->props );
     if(status < 0) { return status; }
     // copy topic filters from subs_in
     unsubs_out->topic_cnt = subs_in->topic_cnt ;
@@ -415,7 +417,8 @@ static mqttRespStatus  mqttTestGenPattDisconnect(mqttPktDisconn_t *disconn)
 {
     mqttRespStatus  status = MQTT_RESP_OK;
 
-    status = mqttTestRandSetupProps( (mqttPropertyType *)&disconnPropTypeList, &disconn->props );
+    status = mqttTestRandSetupProps( (mqttPropertyType *)&disconnPropTypeList,
+                                     XGETARRAYSIZE(disconnPropTypeList), &disconn->props );
     if(status < 0) { return status; }
     return status;
 } // end of mqttTestGenPattDisconnect
@@ -476,11 +479,6 @@ mqttRespStatus  mqttTestCleanupPatterns( mqttTestPatt *patt_in, mqttCtrlPktType 
 {
     mqttRespStatus status = MQTT_RESP_OK;
     if(patt_in == NULL){ return MQTT_RESP_ERRARGS; }
-    patt_in->connack       = NULL; // our MQTT core functions will handle memory free tasks
-    patt_in->suback        = NULL;
-    patt_in->unsuback      = NULL;
-    patt_in->pubresp       = NULL;
-    patt_in->pubmsg_recv   = NULL;
 
     switch(cmdtype) {
         case MQTT_PACKET_TYPE_CONNECT       :
