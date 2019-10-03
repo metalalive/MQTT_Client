@@ -20,6 +20,9 @@ extern "C" {
 // max number of properties used in this MQTT client
 #define  MQTT_MAX_NUM_PROPS              32
 
+// greatest normal reason code 
+#define  MQTT_GREATEST_NORMAL_REASON_CODE  0x79
+
 // ------- topic naming rule --------
 // use English letters / numbers for each level of topic string, forward slashes for levels separator.
 // Do not start name with forward slash (/) or $ (reserved for broker)
@@ -47,7 +50,7 @@ extern "C" {
 
 #define XMAX(x, y)          ((x) > (y) ? (x) : (y))
 
-#define XGETARRAYSIZE(x)    (sizeof(x) / sizeof(x[0]))
+#define XGETARRAYSIZE(x)    (sizeof((x)) / sizeof((x)[0]))
 
 // extract "rd_len" number of bits, starting from "offset" of the variable "bitmap", write it to "out"
 #define XBIT_READ(bitmap, offset, rd_len, out) \
@@ -77,6 +80,9 @@ extern "C" {
 // find property structure with given type, by looking for a given linked list, 
 // return the property item whenever it is found.
 mqttProp_t*  mqttGetPropByType( mqttProp_t* head, mqttPropertyType type );
+
+mqttRespStatus mqttChkReasonCode( mqttReasonCode reason_code );
+
 
 
 #ifdef __cplusplus

@@ -488,9 +488,7 @@ void   mqttPropertyDel( mqttProp_t *head )
 
 mqttRespStatus  mqttPropErrChk( mqttCtx_t *mctx,  mqttCtrlPktType cmdtype, mqttProp_t *prop_head )
 {
-    if((mctx == NULL) || (prop_head == NULL)){
-        return MQTT_RESP_ERRARGS;
-    }
+    if(mctx == NULL) { return MQTT_RESP_ERRARGS; }
     word32            prop_present_flgs[(MQTT_PROP_MAX_ID >> 5) + 1] = {0};
     word32            rd_out_flg   = 0;
     mqttRespStatus    status       = MQTT_RESP_OK;

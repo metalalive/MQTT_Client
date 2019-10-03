@@ -4,13 +4,6 @@ extern const mqttDataType mqttQueryPropDataType[];
 
 static word16 __mqtt_global_packet_id = 0;
 
-static mqttRespStatus mqttChkReasonCode( mqttReasonCode reason_code )
-{
-#define  MQTT_NORMAL_REASON_CODE  0x80
-    return  (reason_code < MQTT_NORMAL_REASON_CODE ? MQTT_RESP_OK : MQTT_RESP_ERR);
-#undef   MQTT_NORMAL_REASON_CODE
-} // end of mqttChkReasonCode
-
 
 
 word32 mqttEncodeVarBytes( byte *buf, word32  value )
@@ -174,7 +167,7 @@ int mqttEncodeProps( byte *buf, mqttProp_t *props )
                 len  = mqttEncodeStr( buf, (const byte *)curr_prop->body.strpair[0].data,  curr_prop->body.strpair[0].len );
                 if(buf != NULL){ buf  += len; }
                 total_len += len;
-                len += mqttEncodeStr( buf, (const byte *)curr_prop->body.strpair[1].data,  curr_prop->body.strpair[1].len );
+                len  = mqttEncodeStr( buf, (const byte *)curr_prop->body.strpair[1].data,  curr_prop->body.strpair[1].len );
                 break;
             default:
                 len = 0;
@@ -1117,6 +1110,7 @@ mqttRespStatus  mqttPktRead( struct __mqttCtx *mctx, byte *buf, word32 buf_max_l
     int     rd_len     = 0;
     word16  idx        = 0;
     const   byte  continuation_bit = 0x80;
+    const mqttPktFxHead_t  *header = (mqttPktFxHead_t *) buf;
 
     *copied_len = 0;
     // ----------- get fixed header -----------
@@ -1128,7 +1122,6 @@ mqttRespStatus  mqttPktRead( struct __mqttCtx *mctx, byte *buf, word32 buf_max_l
     buf_max_len -= rd_len;
 
     // ----------- get remaining length ----------- 
-    const mqttPktFxHead_t  *header = (mqttPktFxHead_t *) buf;
     // read from the 2nd byte, determined remain length encoded in variable bytes.
     for(idx=0; idx<MQTT_PKT_MAX_BYTES_REMAIN_LEN ; idx++) {
         rd_len = mqttPktLowLvlRead( mctx, &buf[idx], 0x1 );
