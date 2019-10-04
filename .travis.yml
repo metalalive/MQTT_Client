@@ -1,5 +1,9 @@
 language: c
 
+compiler:
+    - gcc
+    - arm-none-eabi-gcc
+
 before_install:
     - make  download_3party
 
