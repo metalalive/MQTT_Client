@@ -1,0 +1,10 @@
+language: c
+
+before_install:
+    - make  download_3party
+
+script:
+    - make
+    - make  tests  PLUS_C_DEFS="MQTT_CFG_RUN_TEST_THREAD "
+
+
