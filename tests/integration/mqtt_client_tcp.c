@@ -26,25 +26,29 @@ static mqttRespStatus mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mct
         mctx->err_info.reason_code = patt_in->connack->reason_code;
         goto disconnect_server;
     }
-    // do something after we get connack_out, check reason code, or any property sent by MQTT broker
-    mqttSysDelay(200);
     // -------- send PUBLISH packet to broker --------
     while(num_pub_msg_sent > 0) {
-        patt_in->pubresp       = NULL;
+        mqttSysDelay(2000);
+        num_pub_msg_sent--;
+        patt_in->pubresp = NULL;
         mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_PUBLISH );
         status = mqttSendPublish( mctx, &patt_in->pubresp );
         mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_PUBLISH );
-        if((status < 0) || (patt_in->pubresp == NULL)) { goto disconnect_server; }
+        if(status < 0) { goto disconnect_server; }
+        if(patt_in->pubmsg_send.qos == MQTT_QOS_0) {
+            continue; // skip checking publish response, prepare for next PUBLISH packet
+        }
+        else {
+            if(patt_in->pubresp == NULL) { goto disconnect_server;  }
+        }
         status = mqttChkReasonCode(patt_in->pubresp->reason_code);
         if( status != MQTT_RESP_OK ){
             mctx->err_info.reason_code = patt_in->pubresp->reason_code;
             goto disconnect_server;
         }
-        mqttSysDelay(2000);
-        num_pub_msg_sent--;
     } // end of while-loop
     // -------- send SUBSCRIBE packet, and wait for incoming PUBLISH packet (from broker) --------
-    mqttSysDelay(200);
+    mqttSysDelay(1000);
     mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_SUBSCRIBE );
     status = mqttSendSubscribe( mctx, &patt_in->suback );
     if((status < 0) || (patt_in->suback==NULL)) {

@@ -55,7 +55,12 @@ static void mqttTestRandGenStr( byte* dst, word32 len )
     word32 idx = 0;
     for(idx = 0; idx < len; idx++) {
         // write digit 0-9 , A-Z , a-z, other symbols
-        dst[idx] = '0' + mqttSysRNG(0x4a);
+        if((idx%2) == 0) {
+            dst[idx] = '0' + mqttSysRNG(0x49);
+        }
+        else{
+            dst[idx] = dst[idx-1] + 1;
+        }
     } // end of for-loop
 } // end of mqttTestRandGenStr
 
@@ -193,10 +198,10 @@ static void mqttTestRandSetupProp( mqttProp_t *curr_prop )
             }
             break;
         case MQTT_PROP_TOPIC_ALIAS_MAX  :
-            curr_prop->body.u16 = 1 + mqttSysRNG(0xf);
+            curr_prop->body.u16 = 1 + mqttSysRNG(0x8);
             break;
         case MQTT_PROP_TOPIC_ALIAS      :
-            curr_prop->body.u16 = 1 + mqttSysRNG(0xf);
+            curr_prop->body.u16 = 1 + mqttSysRNG(0x8);
             break;
         case MQTT_PROP_REQ_RESP_INFO    :
         case MQTT_PROP_REQ_PROBLEM_INFO :
@@ -348,7 +353,7 @@ static mqttRespStatus  mqttTestGenPattPublish( mqttMsg_t *pubmsg )
     byte    *app_data     = NULL;
 
     pubmsg->retain     = mqttSysRNG(1);
-    pubmsg->duplicate  = mqttSysRNG(1);
+    pubmsg->duplicate  = 0;
     pubmsg->qos        = mqttSysRNG(MQTT_QOS_2);
     // re-allocate number of properties
     status = mqttTestRandSetupProps( (mqttPropertyType *)&publishPropTypeList,
@@ -358,7 +363,7 @@ static mqttRespStatus  mqttTestGenPattPublish( mqttMsg_t *pubmsg )
     if(status < 0) { return status; }
 
     // total length of the application specific data 
-    app_data_len = (MQTT_RECV_PKT_MAXBYTES >> 1) + mqttSysRNG(MQTT_RECV_PKT_MAXBYTES >> 4);
+    app_data_len = (MQTT_RECV_PKT_MAXBYTES >> 1) + mqttSysRNG(MQTT_RECV_PKT_MAXBYTES >> 2);
     app_data     = (byte *)XMALLOC(sizeof(byte) * app_data_len);
     if(app_data == NULL){ return MQTT_RESP_ERRMEM; }
     XMEMCPY( app_data, "{ mockdata:[", 12);
@@ -416,7 +421,7 @@ static mqttRespStatus mqttTestGenPattUnsubscribe( mqttPktUnsubs_t *unsubs_out, c
 static mqttRespStatus  mqttTestGenPattDisconnect(mqttPktDisconn_t *disconn)
 {
     mqttRespStatus  status = MQTT_RESP_OK;
-
+    disconn->reason_code = MQTT_REASON_NORMAL_DISCONNECTION;
     status = mqttTestRandSetupProps( (mqttPropertyType *)&disconnPropTypeList,
                                      XGETARRAYSIZE(disconnPropTypeList), &disconn->props );
     if(status < 0) { return status; }
