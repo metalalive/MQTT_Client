@@ -20,6 +20,15 @@ static espAP_t      foundAPs[ MAX_NUM_AP_FOUND ];
 // network connection object that is internally used in ESP AT parser
 static espNetConnPtr   espNetconn ;
 
+// used for Linear congruential generator to generate random bits,
+// TODO: will change implemention for cryptographic purpose.
+static word32  mqtt_sys_rng__coeff[2] ;
+static word32  mqtt_sys_rng__x[2] ;
+static word32  mqtt_sys_rng__modular ;
+// it's time to refresh division variables above every time when this countdown timer reaches zero
+static byte    mqtt_sys_rng__cntdown_timer;
+// this value is fed to the countdown timer above as the next reset value , when the countdown timer reaches zero
+static byte    mqtt_sys_rng__timer_nxt_rst;
 
 
 static espRes_t  eESPdefaultEvtCallBack( espEvt_t*  evt )
@@ -362,7 +371,8 @@ mqttRespStatus  mqttSysNetconnStop( mqttCtx_t *mqt_ctx )
     if((void *)mqt_ctx->ext_sysobjs[1] != NULL) {
         espConn_t *conn =  (espConn_t *) mqt_ctx->ext_sysobjs[1];
         if(conn->pbuf != NULL) {
-            vESPpktBufChainDelete( conn->pbuf );
+            //TODO: figure out why there is missing memory checks here that cause hardware fault
+            vESPpktBufChainDelete( conn->pbuf ); 
         } // release packet buffer list that hasn't been freed.
         XMEMSET(conn, 0x00, sizeof(espConn_t)); 
     }
@@ -378,6 +388,11 @@ mqttRespStatus  mqttSysInit( void )
 {
     espRes_t  response = eESPinit( eESPdefaultEvtCallBack );
     XASSERT( response == espOK );
+    mqtt_sys_rng__coeff[0] = 13 ;
+    mqtt_sys_rng__coeff[1] = 17 ;
+    mqtt_sys_rng__x[0]     = 31 ;
+    mqtt_sys_rng__cntdown_timer = 0;
+    mqtt_sys_rng__timer_nxt_rst = 0;
     return  MQTT_RESP_OK ;
 } // end of mqttSysInit
 
@@ -395,7 +410,32 @@ mqttRespStatus  mqttSysDeInit( void )
 
 word32  mqttSysRNG( word32 maxnum )
 {
-    return  mqttPlatformRNG( maxnum );
+    word32  update_flg = 0;
+
+    update_flg = mqtt_sys_rng__cntdown_timer % 0x60;
+    switch( update_flg ) {
+        case 0x0:
+            mqtt_sys_rng__modular  = (mqttPlatformRNG(0xff0000) + 0xffff)  | 0x1 ;
+            mqtt_sys_rng__x[0]     = 0xf + mqttPlatformRNG(mqtt_sys_rng__modular - 0xf) ;
+            break;
+        case 0x20:
+            mqtt_sys_rng__coeff[0] = 0xf + mqttPlatformRNG(mqtt_sys_rng__modular - 0xf) ;
+            break;
+        case 0x40:
+            mqtt_sys_rng__coeff[1] = (0xf + mqttPlatformRNG(mqtt_sys_rng__modular - 0xf)) | 0x1 ;
+            break;
+        default: break;
+    }  // end of switch-case
+    if(mqtt_sys_rng__cntdown_timer > 0) {
+        mqtt_sys_rng__cntdown_timer--;
+    }
+    else{
+        mqtt_sys_rng__timer_nxt_rst  = 0x60 + mqttPlatformRNG(0x60);
+        mqtt_sys_rng__cntdown_timer = mqtt_sys_rng__timer_nxt_rst ;
+    }
+    mqtt_sys_rng__x[1] = (mqtt_sys_rng__coeff[1] * mqtt_sys_rng__x[0] + mqtt_sys_rng__coeff[0]) % mqtt_sys_rng__modular ;
+    mqtt_sys_rng__x[0] = mqtt_sys_rng__x[1] ;
+    return  (mqtt_sys_rng__x[1] % (maxnum + 1));
 } // end of mqttUtilPRNG
 
 

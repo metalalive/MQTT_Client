@@ -447,7 +447,7 @@ mqttRespStatus  mqttPlatformNetworkModRst( uint8_t state )
 // value. This can be useful for those embedded boards that don't include built-in hardware RNG.
 //
 // You should modify the code here based on your hardware set-up.
-#define  NUM_RAND_VALUE_RECORD  10
+#define  NUM_RAND_VALUE_RECORD   11
 static volatile  word32 rand_val_record[NUM_RAND_VALUE_RECORD] = {0};
 
 word32  mqttPlatformRNG( word32 maxnum )
@@ -456,11 +456,11 @@ word32  mqttPlatformRNG( word32 maxnum )
     word32         start_time = 0;
     word32         stop_time  = 0;
     word32         pulse_duration  = 0;
-    const  word32  max_wait_time   = HAL_RCC_GetPCLK1Freq() >> 8;
+    const  word32  max_wait_time   = HAL_RCC_GetPCLK1Freq() >> 5;
     GPIO_PinState  echo_state;
     uint8_t        idx = 0;
 
-    for(idx=0; idx<NUM_RAND_VALUE_RECORD; idx++) {
+    for(idx=0; idx<NUM_RAND_VALUE_RECORD && out<maxnum; idx++) {
         HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
         mqttSysDelay(1);
         HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
@@ -478,8 +478,8 @@ word32  mqttPlatformRNG( word32 maxnum )
         } while(echo_state == GPIO_PIN_SET && pulse_duration > 0);
         pulse_duration = (stop_time < start_time) ? (htim2.Init.Period - start_time + stop_time) : (stop_time - start_time);
         rand_val_record[idx] = pulse_duration;
-        out |= (pulse_duration & 0x3) << (idx << 0x2) ;
-        mqttSysDelay(5);
+        out |= (pulse_duration & 0x7) << (idx << 0x3);
+        mqttSysDelay(2);
     } // end of for-loop
     out = out % (maxnum + 1);
     return out;

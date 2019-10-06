@@ -390,7 +390,7 @@ int  mqttGetPktLenPubResp ( mqttPktPubResp_t *resp, word32 max_pkt_sz )
     uint8_t   head_len    = 0;
 
     remain_len  = 2;  // 2 bytes for packet ID
-    if(resp->reason_code != MQTT_REASON_SUCCESS) {
+    if(resp->reason_code != MQTT_REASON_SUCCESS || resp->props != NULL) {
         remain_len += 1; // 1 byte for reason code 
     }
     if(resp->props != NULL) {
@@ -499,10 +499,12 @@ int  mqttGetPktLenDisconn ( mqttPktDisconn_t *disconn, word32 max_pkt_sz )
     word32   props_len   = 0;
     uint8_t  head_len    = 0;
     byte     reason_code = disconn->reason_code;
-    // if reason code is 0x0 (normal disconnection), then there's no need to put reason code
-    // and extra properties into DISCONNECT packet, therefore hte remaining length should be
-    // zero.
-    if(reason_code != MQTT_REASON_NORMAL_DISCONNECTION ) {
+    // if reason code is 0x0 (normal disconnection), and there's no property to send, then
+    // the reason code field can be omitted in the DISCONNECT packet, in such case the
+    // remaining length should be zero.
+    // Otherwise if there's property to send, then reason code field should be present
+    // regardless of its value
+    if(reason_code != MQTT_REASON_NORMAL_DISCONNECTION || disconn->props!=NULL) {
         // 1 byte is preserved for non-zero reason code
         remain_len +=  1;
     }
@@ -662,8 +664,8 @@ int  mqttEncodePktDisconn( byte *tx_buf, word32 tx_buf_len, mqttPktDisconn_t *di
     fx_head_len = mqttEncodeFxHeader( tx_buf, tx_buf_len, remain_len, 
                                       MQTT_PACKET_TYPE_DISCONNECT,  0, 0, 0 );
     curr_buf_pos = &tx_buf[fx_head_len];
-    if(reason_code != MQTT_REASON_NORMAL_DISCONNECTION){
-        // 1 byte is preserved for non-zero reason code, TODO: test
+    if(reason_code != MQTT_REASON_NORMAL_DISCONNECTION || disconn->props!=NULL) {
+        // 1 byte is preserved for non-zero reason code
         *curr_buf_pos++  = reason_code;
     }
     if(disconn->props!=NULL) {
@@ -866,7 +868,7 @@ int  mqttEncodePktPubResp( byte *tx_buf, word32 tx_buf_len, mqttPktPubResp_t *re
     fx_head_len   = mqttEncodeFxHeader( tx_buf, tx_buf_len, remain_len, cmdtype, 0, qos, 0 );
     curr_buf_pos  = &tx_buf[fx_head_len] ;
     curr_buf_pos += mqttEncodeWord16( curr_buf_pos, resp->packet_id );
-    if(resp->reason_code != MQTT_REASON_SUCCESS) {
+    if(resp->reason_code != MQTT_REASON_SUCCESS || resp->props != NULL) {
         *curr_buf_pos++ = resp->reason_code ;
     }
     if(resp->props != NULL) {
@@ -1190,7 +1192,7 @@ mqttRespStatus  mqttDecodePkt( struct __mqttCtx *mctx, byte *buf, word32 buf_len
             if(qos > MQTT_QOS_0) {
                 cmdtype = ( qos == MQTT_QOS_1 ? MQTT_PACKET_TYPE_PUBACK: MQTT_PACKET_TYPE_PUBRECV );
                 mqttPktPubResp_t *pub_resp = &mctx->send_pkt.pub_resp ;
-                pub_resp->props            = NULL; // TODO: we must check if we need to parse any property 
+                pub_resp->props            = NULL; // don't send extra properties in response packet for simplicity
                 pub_resp->packet_id        = *recv_pkt_id ;
                 pub_resp->reason_code      = MQTT_REASON_SUCCESS;
                 status = mqttSendPubResp( mctx, cmdtype, (mqttPktPubResp_t **)p_decode );
@@ -1212,7 +1214,7 @@ mqttRespStatus  mqttDecodePkt( struct __mqttCtx *mctx, byte *buf, word32 buf_len
                 status = mqttChkReasonCode((mqttReasonCode)(*(mqttPktPubResp_t **)p_decode)->reason_code);
                 // send next publish response packet.
                 mqttPktPubResp_t *pub_resp = &mctx->send_pkt_qos2.pub_resp ;
-                pub_resp->props       = NULL; // TODO: we must check if we need to parse any property
+                pub_resp->props       = NULL; // don't send extra properties in response packet for simplicity
                 pub_resp->packet_id   = *recv_pkt_id ;
                 pub_resp->reason_code =  MQTT_REASON_SUCCESS;
                 status = mqttSendPubResp( mctx, (cmdtype + 1), (mqttPktPubResp_t **)p_decode );

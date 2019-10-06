@@ -408,7 +408,9 @@ mqttRespStatus  mqttClientWaitPkt( mqttCtx_t *mctx, mqttCtrlPktType wait_cmdtype
     // function, send subsequent PUBREC packet, then call this wait function again for incoming PUBREL packet.
     // We make a backup of the pointer for secenarios like this. 
     // TODO: find better way to implement this.
-    *pp_recv_out = ((recv_cmdtype==MQTT_PACKET_TYPE_PUBLISH && p_dst_bak!=p_dst) ? p_dst_bak:  p_dst);
+    if(pp_recv_out != NULL) {
+        *pp_recv_out = ((recv_cmdtype==MQTT_PACKET_TYPE_PUBLISH && p_dst_bak!=p_dst) ? p_dst_bak:  p_dst);
+    }
     return  status;
 } // end of mqttClientWaitPkt
 
@@ -880,7 +882,7 @@ mqttRespStatus  mqttSendDisconnect( mqttCtx_t *mctx )
 
 
 
-
+#define  MQTT_PUBLISH_QOS1_PKT_MAX_SEND  0x3
 mqttRespStatus  mqttSendPublish( mqttCtx_t *mctx, mqttPktPubResp_t **pubresp_out )
 {
     byte             *tx_buf;
@@ -890,6 +892,7 @@ mqttRespStatus  mqttSendPublish( mqttCtx_t *mctx, mqttPktPubResp_t **pubresp_out
     mqttQoS           qos;
     mqttCtrlPktType   wait_cmdtype;
     mqttRespStatus    status;
+    byte              repeat_send = 0; // only for QoS = 1
 
     if( mctx == NULL ){ 
         return MQTT_RESP_ERRARGS;
@@ -898,7 +901,7 @@ mqttRespStatus  mqttSendPublish( mqttCtx_t *mctx, mqttPktPubResp_t **pubresp_out
     if(qos > mctx->max_qos_server) {
         mctx->err_info.reason_code = MQTT_REASON_QOS_NOT_SUPPORTED;
         return MQTT_RESP_ERRARGS;
-    } // simply return error to API caller
+    }
     else if( mctx->send_pkt.pub_msg.retain==1 && mctx->flgs.retain_avail==0 ) {
         return MQTT_RESP_ERRARGS;
     }
@@ -942,9 +945,11 @@ mqttRespStatus  mqttSendPublish( mqttCtx_t *mctx, mqttPktPubResp_t **pubresp_out
             status = mqttClientWaitPkt( mctx, wait_cmdtype, msg->packet_id, (void **)pubresp_out );
             if(status < 0) { break; }
         }
-        if((qos == MQTT_QOS_1) && (status!=MQTT_RESP_OK)) {
-            // we only loop back & send PUBLISH packet again if QoS = 1 and we didn't get
-            // PUBACK from the broker after a period of time passed.
+        if((qos == MQTT_QOS_1) && (status == MQTT_RESP_TIMEOUT) && (repeat_send < MQTT_PUBLISH_QOS1_PKT_MAX_SEND)) {
+            // we send PUBLISH packet again if QoS = 1 and we didn't get PUBACK from the
+            // broker after a period of time passed.
+            repeat_send++;
+            msg->duplicate = 1;
         }
         else {
            // for QoS = 0 delivery procotol, this publisher shot and forgot, it never
@@ -957,6 +962,7 @@ mqttRespStatus  mqttSendPublish( mqttCtx_t *mctx, mqttPktPubResp_t **pubresp_out
     } // end of outer while-loop
     return status;
 } // end of mqttSendPublish
+#undef  MQTT_PUBLISH_QOS1_PKT_MAX_SEND
 
 
 
@@ -966,21 +972,23 @@ mqttRespStatus  mqttSendPubResp( mqttCtx_t *mctx, mqttCtrlPktType cmdtype, mqttP
     byte        *tx_buf;
     word32       tx_buf_len;
     int          pkt_total_len;
-    mqttPktPubResp_t  *pub_resp;
+    mqttPktPubResp_t  *pub_resp = NULL;
     mqttRespStatus     status;
 
     if( mctx == NULL ){  return MQTT_RESP_ERRARGS; }
     switch(cmdtype) {
         case MQTT_PACKET_TYPE_PUBACK   :   
         case MQTT_PACKET_TYPE_PUBRECV  :   
+            pub_resp  = &mctx->send_pkt.pub_resp;
+            break;
         case MQTT_PACKET_TYPE_PUBREL   :   
         case MQTT_PACKET_TYPE_PUBCOMP  :
+            pub_resp  = &mctx->send_pkt_qos2.pub_resp;
             break;
         default: 
             return MQTT_RESP_ERRARGS;
     }
     mctx->flgs.recv_mode  = 0;
-    pub_resp  = &mctx->send_pkt.pub_resp;
     status    = mqttPropErrChk( mctx, cmdtype, pub_resp->props );
     if( status < 0 ) { return status; }
 
