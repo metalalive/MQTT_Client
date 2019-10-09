@@ -593,16 +593,21 @@ mqttRespStatus  mqttPropErrChk( mqttCtx_t *mctx,  mqttCtrlPktType cmdtype, mqttP
                     mctx->err_info.reason_code = MQTT_REASON_PROTOCOL_ERR;
                     status = MQTT_RESP_ERR_PROP;
                 }
-                if(curr_prop->body.u32 > MQTT_RECV_PKT_MAXBYTES && cmdtype == MQTT_PACKET_TYPE_CONNECT) {
+                else if(cmdtype == MQTT_PACKET_TYPE_CONNECT && curr_prop->body.u32 > MQTT_RECV_PKT_MAXBYTES) {
                     // we only consider implementation on client side in this project, so we report this
                     // error only before the property is encoded within CONNECT packet on client side.
                     mctx->err_info.reason_code = MQTT_REASON_RX_MAX_EXCEEDED;
                     status = MQTT_RESP_ERR_PROP;
                 }
-                if(curr_prop->body.u32 > MQTT_PROTOCOL_PKT_MAXBYTES && cmdtype == MQTT_PACKET_TYPE_CONNACK) {
+                else if(cmdtype == MQTT_PACKET_TYPE_CONNACK) {
                     // for server side, we simply check whether this number exceeds the limit in protocol.
-                    mctx->err_info.reason_code = MQTT_REASON_PROTOCOL_ERR;
-                    status = MQTT_RESP_ERR_PROP;
+                    if(curr_prop->body.u32 > MQTT_PROTOCOL_PKT_MAXBYTES) {
+                        mctx->err_info.reason_code = MQTT_REASON_PROTOCOL_ERR;
+                        status = MQTT_RESP_ERR_PROP;
+                    }
+                    else { // then update max packet size server can accept
+                        mctx->send_pkt_maxbytes  = curr_prop->body.u32;
+                    }
                 }
                 break;
             case MQTT_PROP_RETAIN_AVAILABLE:

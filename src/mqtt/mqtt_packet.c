@@ -467,8 +467,10 @@ int  mqttGetPktLenUnsubscribe ( mqttPktUnsubs_t *unsubs, word32 max_pkt_sz )
     remain_len = 2; 
     // size of all properties in the packet
     props_len   =  mqttEncodeProps( NULL, unsubs->props );
-    remain_len +=  props_len;
-    remain_len +=  mqttEncodeVarBytes( NULL, props_len );
+    if(props_len > 0) {
+        remain_len +=  props_len;
+        remain_len +=  mqttEncodeVarBytes( NULL, props_len );
+    }
     for( idx=0; idx<unsubs->topic_cnt; idx++ ){
         curr_topic  = &unsubs->topics[idx];
         if(curr_topic != NULL) {
@@ -839,8 +841,10 @@ int  mqttEncodePktUnsubscribe( byte *tx_buf, word32 tx_buf_len, mqttPktUnsubs_t 
     curr_buf_pos  = &tx_buf[fx_head_len]; 
     // variable header, packet ID, and optional properties
     curr_buf_pos += mqttEncodeWord16( curr_buf_pos, unsubs->packet_id );
-    curr_buf_pos += mqttEncodeVarBytes( curr_buf_pos, props_len );
-    curr_buf_pos += mqttEncodeProps( curr_buf_pos , unsubs->props );
+    if(props_len > 0) {
+        curr_buf_pos += mqttEncodeVarBytes( curr_buf_pos, props_len );
+        curr_buf_pos += mqttEncodeProps( curr_buf_pos , unsubs->props );
+    }
     // copy topics to payload
     for( idx=0; idx<unsubs->topic_cnt; idx++ ){
         curr_topic    = &unsubs->topics[idx];

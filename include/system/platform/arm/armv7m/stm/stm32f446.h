@@ -10,7 +10,7 @@ extern "C" {
 #include "stm32f4xx_hal_tim.h"
 
 // maximum number of payload bytes that can be stored & handled in the memory of this platform
-#define  MQTT_PLATFORM_PKT_MAXBYTES   2048
+#define  MQTT_PLATFORM_PKT_MAXBYTES   2880
 
 
 // enable function that receives raw bytes in the platform
