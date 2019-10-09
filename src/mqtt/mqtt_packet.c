@@ -855,7 +855,6 @@ int  mqttEncodePktUnsubscribe( byte *tx_buf, word32 tx_buf_len, mqttPktUnsubs_t 
 
 
 
-
 int  mqttEncodePktPubResp( byte *tx_buf, word32 tx_buf_len, mqttPktPubResp_t *resp, mqttCtrlPktType cmdtype )
 {
     if((resp == NULL) || (tx_buf == NULL) || (tx_buf_len == 0)) { 
@@ -910,6 +909,20 @@ int  mqttEncodePktAuth( byte *tx_buf, word32 tx_buf_len, mqttAuth_t *auth )
     return  (fx_head_len + remain_len);
 } // end of mqttEncodePktAuth
 
+
+
+
+int  mqttEncodePktPing( byte *tx_buf, word32 tx_buf_len )
+{
+    if((tx_buf == NULL) || (tx_buf_len == 0)) {
+        return  MQTT_RESP_ERRARGS;
+    }
+    word32   fx_head_len = 0;
+    word32   remain_len  = 0;
+    fx_head_len  = mqttEncodeFxHeader( tx_buf, tx_buf_len, remain_len,
+                                       MQTT_PACKET_TYPE_AUTH, 0, 0, 0 );
+    return  (fx_head_len + remain_len);
+} // end of mqttEncodePktPing
 
 
 

@@ -11,7 +11,7 @@ static mqttRespStatus mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mct
     mqttRespStatus status =  MQTT_RESP_OK;
     uint8_t  num_pub_msg_sent =  2 + mqttSysRNG(3);
     uint8_t  num_pub_msg_recv =  2 + mqttSysRNG(3);
-    uint8_t  num_ping_sent    =  0 + mqttSysRNG(2);
+    uint8_t  num_ping_sent    =  1 + mqttSysRNG(2);
     patt_in->connack       = NULL; 
     patt_in->suback        = NULL;
     patt_in->unsuback      = NULL;
@@ -83,7 +83,8 @@ static mqttRespStatus mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mct
     }
     // -------- send optional PING packet to broker --------
     while(num_ping_sent > 0) {
-        // TODO: implenment & test PING / PINGRESP packets
+        status = mqttSendPingReq( mctx );
+        if(status < 0) { break; }
         num_ping_sent--;
     } // end of while-loop
     // -------- send DISCONNET packet to broker --------

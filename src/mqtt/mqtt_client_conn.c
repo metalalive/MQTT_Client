@@ -1118,3 +1118,22 @@ mqttRespStatus  mqttSendUnsubscribe( mqttCtx_t *mctx, mqttPktUnsuback_t  **unsub
 
 
 
+mqttRespStatus  mqttSendPingReq( mqttCtx_t *mctx )
+{
+    byte            *tx_buf;
+    const    int     pkt_total_len = 2;
+    mqttRespStatus   status;
+
+    if( mctx == NULL ){ return MQTT_RESP_ERRARGS; }
+    mctx->flgs.recv_mode  = 0;
+    tx_buf                = mctx->tx_buf;
+    mqttEncodePktPing( tx_buf, pkt_total_len );
+    status = mqttPktWrite( mctx, tx_buf, pkt_total_len );
+    mctx->last_send_cmdtype = MQTT_PACKET_TYPE_PINGREQ;
+    if(status < 0) { return status; }
+    status = mqttClientWaitPkt( mctx, MQTT_PACKET_TYPE_PINGRESP, 0, NULL );
+    return status;
+} // end of mqttSendPingReq
+
+
+
