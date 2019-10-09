@@ -8,6 +8,8 @@ extern "C" {
 #include "mqtt_include.h"
 
 typedef struct {
+    word32                   send_pkt_maxbytes;
+    // buffers for each type of packet test
     mqttConn_t               conn;
     mqttPktHeadConnack_t    *connack;
     mqttMsg_t                pubmsg_send;

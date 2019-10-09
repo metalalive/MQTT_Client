@@ -190,12 +190,7 @@ static void mqttTestRandSetupProp( mqttProp_t *curr_prop )
             curr_prop->body.u16 = 1;
             break;
         case MQTT_PROP_MAX_PKT_SIZE     :
-            if(MQTT_RECV_PKT_MAXBYTES > 0x200) {
-                curr_prop->body.u32 = 0x200 + mqttSysRNG(MQTT_RECV_PKT_MAXBYTES - 0x200);
-            }
-            else {
-                curr_prop->body.u32 = 0x40 + mqttSysRNG(MQTT_RECV_PKT_MAXBYTES - 0x40);
-            }
+            curr_prop->body.u32 = (MQTT_RECV_PKT_MAXBYTES >> 1) + mqttSysRNG(MQTT_RECV_PKT_MAXBYTES >> 2);
             break;
         case MQTT_PROP_TOPIC_ALIAS_MAX  :
             curr_prop->body.u16 = 1 + mqttSysRNG(0x8);
@@ -346,7 +341,7 @@ static mqttRespStatus  mqttTestGenPattConnect( mqttConn_t *mconn )
 
 
 // -------- set up PUBLISH packet --------
-static mqttRespStatus  mqttTestGenPattPublish( mqttMsg_t *pubmsg )
+static mqttRespStatus  mqttTestGenPattPublish( mqttMsg_t *pubmsg, word32 send_pkt_maxbytes )
 {
     mqttRespStatus  status = MQTT_RESP_OK;
     word32   app_data_len = 0;
@@ -364,6 +359,9 @@ static mqttRespStatus  mqttTestGenPattPublish( mqttMsg_t *pubmsg )
 
     // total length of the application specific data 
     app_data_len = (MQTT_RECV_PKT_MAXBYTES >> 1) + mqttSysRNG(MQTT_RECV_PKT_MAXBYTES >> 2);
+    if(send_pkt_maxbytes >= 2 && send_pkt_maxbytes < MQTT_PROTOCOL_PKT_MAXBYTES) {
+        app_data_len = XMIN(send_pkt_maxbytes , app_data_len);
+    }
     app_data     = (byte *)XMALLOC(sizeof(byte) * app_data_len);
     if(app_data == NULL){ return MQTT_RESP_ERRMEM; }
     XMEMCPY( app_data, "{ mockdata:[", 12);
@@ -412,6 +410,7 @@ static mqttRespStatus mqttTestGenPattUnsubscribe( mqttPktUnsubs_t *unsubs_out, c
     for(idx=0; idx < unsubs_out->topic_cnt; idx++) {
         unsubs_out->topics[idx].filter.data = (byte *)XMALLOC( sizeof(byte) * subs_in->topics[idx].filter.len );
         if(unsubs_out->topics[idx].filter.data == NULL){ return MQTT_RESP_ERRMEM; }
+        XMEMCPY( unsubs_out->topics[idx].filter.data, subs_in->topics[idx].filter.data, subs_in->topics[idx].filter.len );
     }
     return status;
 } // end of mqttTestGenPattUnsubscribe
@@ -453,7 +452,8 @@ mqttRespStatus  mqttTestCopyPatterns( mqttTestPatt *patt_in, mqttCtx_t *mctx, mq
             }
             break;
         case MQTT_PACKET_TYPE_PUBLISH       :
-            status =  mqttTestGenPattPublish( &patt_in->pubmsg_send );
+            patt_in->send_pkt_maxbytes = mctx->send_pkt_maxbytes;
+            status =  mqttTestGenPattPublish( &patt_in->pubmsg_send, patt_in->send_pkt_maxbytes );
             if(status == MQTT_RESP_OK) {
                 XMEMCPY((void *)&mctx->send_pkt.pub_msg, (void *)&patt_in->pubmsg_send, sizeof(mqttMsg_t) );
             }
