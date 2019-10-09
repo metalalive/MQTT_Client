@@ -920,7 +920,7 @@ int  mqttEncodePktPing( byte *tx_buf, word32 tx_buf_len )
     word32   fx_head_len = 0;
     word32   remain_len  = 0;
     fx_head_len  = mqttEncodeFxHeader( tx_buf, tx_buf_len, remain_len,
-                                       MQTT_PACKET_TYPE_AUTH, 0, 0, 0 );
+                                       MQTT_PACKET_TYPE_PINGREQ, 0, 0, 0 );
     return  (fx_head_len + remain_len);
 } // end of mqttEncodePktPing
 
