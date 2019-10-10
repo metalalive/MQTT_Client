@@ -740,6 +740,10 @@ mqttRespStatus  mqttSendConnect( mqttCtx_t *mctx, mqttPktHeadConnack_t **connack
     // check whether all the properties are set properly.
     status = mqttPropErrChk( mctx, MQTT_PACKET_TYPE_CONNECT, conn->props );
     if(status < 0) { return status; }
+    if(conn->flgs.will_enable != 0) {
+        status = mqttPropErrChk( mctx, MQTT_PACKET_TYPE_CONNECT, conn->lwt_msg.props );
+        if(status < 0) { return status; }
+    }
     tx_buf     =  mctx->tx_buf;
     tx_buf_len =  mctx->tx_buf_len;
 

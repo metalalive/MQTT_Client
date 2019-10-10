@@ -15,6 +15,18 @@ static mqttPropertyType connectPropTypeList[] = {
 };
 
 
+static mqttPropertyType willPropTypeList[] = {
+    MQTT_PROP_WILL_DELAY_INTVL   ,
+    MQTT_PROP_PKT_FMT_INDICATOR  ,
+    MQTT_PROP_MSG_EXPIRY_INTVL   ,
+    MQTT_PROP_CONTENT_TYPE       ,
+    MQTT_PROP_RESP_TOPIC         ,
+    // MQTT_PROP_CORRELATION_DATA   ,
+    MQTT_PROP_USER_PROPERTY      ,
+    MQTT_PROP_USER_PROPERTY      ,
+};
+
+
 static mqttPropertyType publishPropTypeList[] = {
     MQTT_PROP_PKT_FMT_INDICATOR    ,
     MQTT_PROP_MSG_EXPIRY_INTVL     ,
@@ -181,7 +193,7 @@ static void mqttTestRandSetupProp( mqttProp_t *curr_prop )
     // for few property types, we must allocate space to store bytes string
     // before we pass it to testing function
     switch( curr_prop->type )
-    { //  TODO: finish this test code
+    {
         case MQTT_PROP_SESSION_EXPIRY_INTVL :
             curr_prop->body.u32 = 300 + mqttSysRNG(900);
             break;
@@ -204,6 +216,7 @@ static void mqttTestRandSetupProp( mqttProp_t *curr_prop )
             curr_prop->body.u8 = mqttSysRNG(0x1);
             break;
         case MQTT_PROP_MSG_EXPIRY_INTVL  : 
+        case MQTT_PROP_WILL_DELAY_INTVL  :
             curr_prop->body.u32 = 5 + mqttSysRNG(60);
             break;
         case MQTT_PROP_RESP_TOPIC        :
@@ -307,12 +320,37 @@ static mqttRespStatus  mqttTestGenPattConnect( mqttConn_t *mconn )
     mconn->protocol_lvl    = MQTT_CONN_PROTOCOL_LEVEL;
     // if CLEAR flag is set, and if this client have session that is previously created on
     // the server before, then it will clean up this created session.
-    mconn->clean_session   = mqttSysRNG(1);
+    mconn->flgs.clean_session   = mqttSysRNG(1);
     mconn->keep_alive_sec  = MQTT_DEFAULT_KEEPALIVE_SEC + mqttSysRNG(30);
-    // re-allocate number of properties
+    // allocate number of properties to CONNECT packet
     status = mqttTestRandSetupProps((mqttPropertyType *)&connectPropTypeList,
                                      XGETARRAYSIZE(connectPropTypeList), &mconn->props );
     if(status < 0) { return status; }
+    // last will testament
+    mconn->flgs.will_enable = 1; // mqttSysRNG(1);
+    if(mconn->flgs.will_enable == 1) {
+        mqttMsg_t  *lwtmsg  = &mconn->lwt_msg;
+        lwtmsg->retain = 1;
+        lwtmsg->qos    = mqttSysRNG(MQTT_QOS_2);
+        status = mqttTestRandSetupProps((mqttPropertyType *)&willPropTypeList,
+                                         XGETARRAYSIZE(willPropTypeList), &lwtmsg->props );
+        if(status < 0) { return status; }
+        status = mqttTestRandGenTopic( &lwtmsg->topic );
+        if(status < 0) { return status; }
+        // total length of the application specific data 
+        const char *default_lwt_str     = "connection is off on client, random number: ";
+        word16      default_lwt_str_len = XSTRLEN(default_lwt_str);
+        word16      lwt_payld_len       = default_lwt_str_len + mqttSysRNG(20);
+        byte       *lwt_payld_data      = (byte *)XMALLOC(sizeof(byte) * lwt_payld_len);
+        XMEMCPY( &lwt_payld_data[0], default_lwt_str, default_lwt_str_len );
+        mqttTestRandGenStr( &lwt_payld_data[default_lwt_str_len], (lwt_payld_len - default_lwt_str_len) );
+        lwtmsg->buff         = lwt_payld_data;
+        lwtmsg->app_data_len = lwt_payld_len;
+    }
+    else {
+        mconn->lwt_msg.retain = 0;
+        mconn->lwt_msg.qos = 0;
+    }
 
     str_len = 8 + mqttSysRNG(8);
     str_dst = (byte *) XMALLOC( sizeof(byte) * str_len );
@@ -498,6 +536,17 @@ mqttRespStatus  mqttTestCleanupPatterns( mqttTestPatt *patt_in, mqttCtrlPktType 
             }
             if( conn->password.data != NULL ) {
                 XMEMFREE((void *)conn->password.data);
+            }
+            if( conn->flgs.will_enable == 1 ) { // TODO: build API to free memory allocated to the mqttMsg_t packet 
+                mqttMsg_t  *lwtmsg  = &conn->lwt_msg;
+                mqttPropertyDel( lwtmsg->props );
+                if(lwtmsg->topic.data != NULL) {
+                    XMEMFREE((void *)lwtmsg->topic.data);
+                }
+                if(lwtmsg->buff != NULL) {
+                    XMEMFREE((void *)lwtmsg->buff);
+                }
+                XMEMSET(lwtmsg, 0x00, sizeof(mqttMsg_t));
             }
             XMEMSET(conn, 0x00, sizeof(mqttConn_t));
             break;

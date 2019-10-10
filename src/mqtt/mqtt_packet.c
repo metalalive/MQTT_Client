@@ -317,9 +317,23 @@ int  mqttGetPktLenConnect ( mqttConn_t *conn, word32 max_pkt_sz )
     remain_len +=  props_len;
     // number of variable bytes to store "property length"
     remain_len += mqttEncodeVarBytes(NULL, props_len);
-    // size of each element in CONNECT payload section
-    // TODO: implement will property, will topic, and will payload
+    // length of client identifier in CONNECT payload section
     remain_len += MQTT_DSIZE_STR_LEN + conn->client_id.len ; 
+    // check whether will message is added
+    if(conn->flgs.will_enable != 0) {
+        mqttMsg_t   *lwtmsg  = &conn->lwt_msg; 
+        // size of the will properties. 
+        // TODO: figure out where to correctly add will properties : lwtmsg->props 
+        word32 lwt_props_len = mqttEncodeProps( NULL,  lwtmsg->props );
+        lwtmsg->pkt_len_set.props_len = lwt_props_len;
+        remain_len += lwt_props_len;
+        // number of variable bytes to store "property length"
+        remain_len += mqttEncodeVarBytes(NULL, lwt_props_len);
+        // length of will topic 
+        remain_len += MQTT_DSIZE_STR_LEN + lwtmsg->topic.len ;
+        // length of will payload
+        remain_len += MQTT_DSIZE_STR_LEN + lwtmsg->app_data_len;
+    }
     if(conn->username.data != NULL) {
         remain_len += MQTT_DSIZE_STR_LEN + conn->username.len ; 
     }
@@ -467,10 +481,8 @@ int  mqttGetPktLenUnsubscribe ( mqttPktUnsubs_t *unsubs, word32 max_pkt_sz )
     remain_len = 2; 
     // size of all properties in the packet
     props_len   =  mqttEncodeProps( NULL, unsubs->props );
-    if(props_len > 0) {
-        remain_len +=  props_len;
-        remain_len +=  mqttEncodeVarBytes( NULL, props_len );
-    }
+    remain_len +=  props_len;
+    remain_len +=  mqttEncodeVarBytes( NULL, props_len );
     for( idx=0; idx<unsubs->topic_cnt; idx++ ){
         curr_topic  = &unsubs->topics[idx];
         if(curr_topic != NULL) {
@@ -580,9 +592,15 @@ int  mqttEncodePktConnect( byte *tx_buf, word32 tx_buf_len, mqttConn_t *conn )
     
     curr_buf_pos = &tx_buf[fx_head_len];
     var_head.protocol_lvl = conn->protocol_lvl; 
-    // TODO: implement will property, will topic, and will payload
-    if(conn->clean_session != 0) {
+    if(conn->flgs.clean_session != 0) {
         var_head.flags |=  MQTT_CONNECT_FLG_CLEAN_START; 
+    }
+    if(conn->flgs.will_enable != 0) {
+        var_head.flags |=  MQTT_CONNECT_FLG_WILL_FLAG;
+        var_head.flags |= (conn->lwt_msg.qos << MQTT_CONNECT_FLG_WILL_QOS_SHIFT);
+        if(conn->lwt_msg.retain != 0) {
+            var_head.flags |= MQTT_CONNECT_FLG_WILL_RETAIN;
+        }
     }
     if(conn->username.data != NULL) {
         var_head.flags |= MQTT_CONNECT_FLG_USERNAME ; 
@@ -600,7 +618,18 @@ int  mqttEncodePktConnect( byte *tx_buf, word32 tx_buf_len, mqttConn_t *conn )
 
     // copy all elements of the payload to buffer
     curr_buf_pos += mqttEncodeStr( curr_buf_pos, (const byte *)conn->client_id.data,  conn->client_id.len );
-    // TODO: implement will property, will topic, and will payload
+    // copy data for last will testament
+    if(conn->flgs.will_enable != 0) {
+        mqttMsg_t  *lwtmsg  = &conn->lwt_msg;
+        word32      lwt_props_len  = lwtmsg->pkt_len_set.props_len;
+        // TODO: figure out where to correctly append will properties in CONNECT packet for MQTT v5 protocol. 
+        curr_buf_pos += mqttEncodeVarBytes( curr_buf_pos, lwt_props_len );
+        curr_buf_pos += mqttEncodeProps( curr_buf_pos, lwtmsg->props ); 
+        // append will topic
+        curr_buf_pos += mqttEncodeStr( curr_buf_pos, (const byte *)lwtmsg->topic.data, lwtmsg->topic.len );
+        // append will payload
+        curr_buf_pos += mqttEncodeStr( curr_buf_pos, (const byte *)lwtmsg->buff, lwtmsg->app_data_len);
+    }
     if(conn->username.data != NULL) {
         curr_buf_pos += mqttEncodeStr( curr_buf_pos, (const byte *)conn->username.data,  conn->username.len );
     }
@@ -841,10 +870,8 @@ int  mqttEncodePktUnsubscribe( byte *tx_buf, word32 tx_buf_len, mqttPktUnsubs_t 
     curr_buf_pos  = &tx_buf[fx_head_len]; 
     // variable header, packet ID, and optional properties
     curr_buf_pos += mqttEncodeWord16( curr_buf_pos, unsubs->packet_id );
-    if(props_len > 0) {
-        curr_buf_pos += mqttEncodeVarBytes( curr_buf_pos, props_len );
-        curr_buf_pos += mqttEncodeProps( curr_buf_pos , unsubs->props );
-    }
+    curr_buf_pos += mqttEncodeVarBytes( curr_buf_pos, props_len );
+    curr_buf_pos += mqttEncodeProps( curr_buf_pos , unsubs->props );
     // copy topics to payload
     for( idx=0; idx<unsubs->topic_cnt; idx++ ){
         curr_topic    = &unsubs->topics[idx];

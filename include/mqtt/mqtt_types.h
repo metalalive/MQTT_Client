@@ -260,8 +260,6 @@ typedef struct __mqttMsg {
 
 // denote every single MQTT connection 
 typedef struct __mqttConn {
-    byte              protocol_lvl; // it will be 5 for MQTT v5.0
-    byte              clean_session;
     word16            keep_alive_sec;
     // optional properties for this MQTT connection
     mqttProp_t       *props;
@@ -269,6 +267,13 @@ typedef struct __mqttConn {
     //  Optional login 
     mqttStr_t         username;
     mqttStr_t         password;
+    // message structure for last will testament
+    mqttMsg_t         lwt_msg;
+    byte              protocol_lvl; // it will be 5 for MQTT v5.0
+    struct {
+        byte          clean_session: 1;
+        byte          will_enable:   1;
+    } flgs;
     mqttPktLenSet_t   pkt_len_set;
 } mqttConn_t;
 
