@@ -1,6 +1,6 @@
 #include "mqtt_include.h"
-
-static mqttProp_t availPropertyPool[MQTT_MAX_NUM_PROPS] = {0};
+// due to GCC bug 53119, the static initialization code should be wrapped by double braces
+static mqttProp_t availPropertyPool[MQTT_MAX_NUM_PROPS] = {{0}};
 
 // ------------------- global variables that are accessed by implementation files -------------------
 // find appropriate data type for each property defined in MQTT protocol

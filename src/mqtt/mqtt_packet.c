@@ -774,7 +774,7 @@ int  mqttDecodePktPublish( byte *rx_buf, word32 rx_buf_len, struct __mqttMsg *ms
     byte    *curr_buf_pos ;
 
     fx_head_len = mqttDecodeFxHeader( rx_buf, rx_buf_len, &payload_len, MQTT_PACKET_TYPE_PUBLISH,
-                                      &msg->retain,  &msg->qos, &msg->duplicate );
+                                      &msg->retain,  (byte *)&msg->qos, &msg->duplicate );
     if(fx_head_len == 0) { return MQTT_RESP_ERR_CTRL_PKT_TYPE; }
     curr_buf_pos  = &rx_buf[fx_head_len]; 
     // variable header : topic filter, there must be string of topic, check its length
