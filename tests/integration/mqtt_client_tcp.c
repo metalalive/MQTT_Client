@@ -126,17 +126,17 @@ static void mqttTestStartFn(void *params)
 
 int main (int argc, char** argv)
 {
-    mqttRespStatus status =  MQTT_RESP_ERR;
-
+    mqttRespStatus status = MQTT_RESP_ERR;
     m_client = NULL;
     status =  mqttClientInit( &m_client, MQTT_TEST_CMD_TIMEOUT_MS );
     if( status == MQTT_RESP_OK ) {
 #ifdef MQTT_CFG_RUN_TEST_THREAD
         uint8_t isPrivileged = 0x1;
-        // TODO: stack size of a thread should be determined in each system port, NOT in test code.
+        mqttSysThre_t  new_thread;
         mqttSysThreadCreate( "mqttTestStartFn", (mqttSysThreFn)mqttTestStartFn, NULL ,
                               MQTT_TEST_THREAD_STACK_SIZE, MQTT_APPS_THREAD_PRIO_MIN 
-                              , isPrivileged,  NULL );
+                              , isPrivileged, &new_thread );
+        mqttSysThreadWaitUntilExit(&new_thread, NULL);
 #else
         mqttTestStartFn( NULL );
 #endif

@@ -62,9 +62,12 @@ mqttRespStatus  mqttSysInit( void );
 
 mqttRespStatus  mqttSysDeInit( void );
 
-mqttRespStatus  mqttSysThreadCreate( const char* name, mqttSysThreFn thread_fn,  void* const arg,  size_t stack_size,  uint32_t prio, uint8_t isPrivileged,  void *out_thread_ptr  );
+mqttRespStatus  mqttSysThreadCreate( const char* name, mqttSysThreFn thread_fn,  void* const arg,  size_t stack_size,
+                                     uint32_t prio, uint8_t isPrivileged,  mqttSysThre_t *out_thread_ptr );
 
-mqttRespStatus  mqttSysThreadDelete( void *out_thread_ptr );
+mqttRespStatus  mqttSysThreadDelete( mqttSysThre_t *thre_in );
+
+mqttRespStatus  mqttSysThreadWaitUntilExit( mqttSysThre_t *thre_in, void **return_p );
 
 void  mqttSysDelay(uint32_t ms);
 

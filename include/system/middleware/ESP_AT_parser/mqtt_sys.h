@@ -29,7 +29,7 @@ extern "C" {
 // data types used in core implementation of the MQTT client
 typedef  espSysThreFunc  mqttSysThreFn;
 
-
+typedef  espSysThread_t  mqttSysThre_t;
 
 #ifdef __cplusplus
 }

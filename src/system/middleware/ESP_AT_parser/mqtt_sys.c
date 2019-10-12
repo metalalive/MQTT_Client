@@ -303,7 +303,7 @@ mqttRespStatus  mqttSysPktRecvHandler( uint8_t* data, uint16_t data_len )
 mqttRespStatus  mqttSysThreadCreate( const char* name, mqttSysThreFn thread_fn, 
                                      void* const arg,  size_t stack_size,
                                      uint32_t prio, uint8_t isPrivileged,
-                                     void *out_thread_ptr  )
+                                     mqttSysThre_t *out_thread_ptr )
 {
     espRes_t  response ;
     response = eESPsysThreadCreate( (espSysThread_t *)out_thread_ptr, name, thread_fn, arg,
@@ -321,12 +321,19 @@ mqttRespStatus  mqttSysThreadCreate( const char* name, mqttSysThreFn thread_fn,
 
 
 
-mqttRespStatus  mqttSysThreadDelete( void *out_thread_ptr )
+mqttRespStatus  mqttSysThreadDelete( mqttSysThre_t *thre_in )
 {
     espRes_t  response ;
-    response = eESPsysThreadDelete( (espSysThread_t *)out_thread_ptr );
+    response = eESPsysThreadDelete( (espSysThread_t *)thre_in );
     return  mqttSysRespCvtFromESPresp(response);
 } // end of mqttSysThreadDelete
+
+
+
+mqttRespStatus  mqttSysThreadWaitUntilExit( mqttSysThre_t *thre_in, void **return_p )
+{   // dummy function
+    return MQTT_RESP_OK;
+} // end of mqttSysThreadWaitUntilExit
 
 
 
