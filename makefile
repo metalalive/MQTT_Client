@@ -111,12 +111,12 @@ CFLAGS += -MMD -MP -MF"$(@:%.o=%.d)"
 #######################################
 
 # libraries
-LIBS = -lc -lm -lnosys 
+LIBS += -lc -lm $(EXTRA_LIBS)
 
 LIBDIR =
 
 # TODO: xxx.map should be platform-specific 
-LDFLAGS = $(MCU) -specs=nano.specs -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$<.map,--cref -Wl,--gc-sections 
+LDFLAGS = $(MCU) $(LD_SPECS_FILE)  $(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$<.map,--cref -Wl,--gc-sections
 
 
 
@@ -173,6 +173,7 @@ clean:
   
 download_3party:
 	@make download_3party -C  third_party
+
 
 # optional function for those who use code navigation tools e.g. ctags
 update_navigator:

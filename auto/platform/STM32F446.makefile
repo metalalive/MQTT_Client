@@ -54,8 +54,11 @@ C_INCLUDES +=  -Iinclude/system/platform/arm/armv7m/stm
 C_DEFS += -DMQTT_CFG_PLATFORM_STM32F446
 
 # link script
-LDSCRIPT = ./src/system/platform/arm/armv7m/stm/stm32f446_flash.ld
+LDSCRIPT = -T./src/system/platform/arm/armv7m/stm/stm32f446_flash.ld
 
+LD_SPECS_FILE = -specs=nano.specs
+
+EXTRA_LIBS =  -lnosys
 
 #------------------------------------------------
 #                  toolchain setup

@@ -15,6 +15,8 @@ extern "C" {
 // start checking the operating system / middleware used in the implementation
 #if defined(MQTT_CFG_SYS_ESP_AT_PARSER)
     #include "system/middleware/ESP_AT_parser/mqtt_sys.h"
+#elif defined(MQTT_CFG_SYS_LINUX)
+    #include "system/middleware/Linux/mqtt_sys.h"
 #else
 #endif // end of middleware configuration
 
