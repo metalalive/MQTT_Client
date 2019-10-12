@@ -182,7 +182,7 @@ typedef enum {
     MQTT_RESP_NO_NET_DEV     = -10, // cannot find any network device module (e.g. ethernet, wifi)
 
     MQTT_RESP_ERR_EXCEED_PKT_SZ = -11, // error occurs if the receiving / sending packet size exceeds the limit in system platform or protocol (256MB)
-    MQTT_RESP_TRANSM_ABORT      = -12, // Error (Malformed Remaining Len)
+    MQTT_RESP_ERR_TRANSMIT      = -12, // data transmission error through a network connection
     MQTT_RESP_ERR_CTRL_PKT_TYPE = -13, // MQTT control packet type error
     MQTT_RESP_ERR_CTRL_PKT_ID   = -14, // packet ID error
     MQTT_RESP_ERR_CONN          = -15, // Connection error (failed) to MQTT broker 

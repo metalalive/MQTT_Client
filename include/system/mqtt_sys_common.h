@@ -69,9 +69,9 @@ mqttRespStatus  mqttSysThreadDelete( void *out_thread_ptr );
 void  mqttSysDelay(uint32_t ms);
 
 
-mqttRespStatus  mqttSysNetconnStart( mqttCtx_t *mqt_ctx );
+mqttRespStatus  mqttSysNetconnStart( mqttCtx_t *mctx );
 
-mqttRespStatus  mqttSysNetconnStop( mqttCtx_t *mqt_ctx );
+mqttRespStatus  mqttSysNetconnStop( mqttCtx_t *mctx );
 
 // Here are for packet reading / writing from underlying system implementation
 // meaning of the return value :
@@ -80,9 +80,9 @@ mqttRespStatus  mqttSysNetconnStop( mqttCtx_t *mqt_ctx );
 // 
 // it's unlikely to return zero value even on transmission timeout 
 
-int  mqttPktLowLvlRead(  struct __mqttCtx *mconn, byte *buf, word32 buf_len);
+int  mqttSysPktRead(  mqttCtx_t *mctx, byte *buf, word32 buf_len);
 
-int  mqttPktLowLvlWrite( struct __mqttCtx *mconn, byte *buf, word32 buf_len);
+int  mqttSysPktWrite( mqttCtx_t *mctx, byte *buf, word32 buf_len);
 
 
 // the packet receiving handler is the interface to interrupt service routine &  is 

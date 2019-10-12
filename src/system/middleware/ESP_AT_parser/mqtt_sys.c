@@ -330,11 +330,11 @@ mqttRespStatus  mqttSysThreadDelete( void *out_thread_ptr )
 
 
 
-mqttRespStatus  mqttSysNetconnStart( mqttCtx_t *mqt_ctx )
+mqttRespStatus  mqttSysNetconnStart( mqttCtx_t *mctx )
 {
     espRes_t  response = espOK;
 
-    if(mqt_ctx == NULL) { return MQTT_RESP_ERRARGS; }
+    if(mctx == NULL) { return MQTT_RESP_ERRARGS; }
 #if (ESP_CFG_RST_ON_INIT == 0)
     // reset & configure the ESP device.
     response =  eESPresetWithDelay( 1, NULL, NULL );
@@ -345,31 +345,31 @@ mqttRespStatus  mqttSysNetconnStart( mqttCtx_t *mqt_ctx )
     }
     if(response == espOK) {
         // set up a TCP connection to remote peer (MQTT broker, in this case)
-        response = mqttSysCreateTCPconn( mqt_ctx );
+        response = mqttSysCreateTCPconn( mctx );
     }
     return  mqttSysRespCvtFromESPresp( response );
 } // end of mqttSysNetconnStart
 
 
 
-mqttRespStatus  mqttSysNetconnStop( mqttCtx_t *mqt_ctx )
+mqttRespStatus  mqttSysNetconnStop( mqttCtx_t *mctx )
 {
     espRes_t   response = espOK;
-    if(mqt_ctx == NULL) { return MQTT_RESP_ERRARGS; }
+    if(mctx == NULL) { return MQTT_RESP_ERRARGS; }
     // close TCP connection
-    eESPconnClientClose( (espConn_t *)mqt_ctx->ext_sysobjs[1],
+    eESPconnClientClose( (espConn_t *)mctx->ext_sysobjs[1],
                          NULL, NULL, ESP_AT_CMD_BLOCKING );
     // quit from AP, reset ESP device again
     eESPcloseDevice( );
     // de-initialize network connection object used in ESP parser.
     eESPnetconnDelete( espNetconn );
     // in this system port, ext_sysobjs[0] should always point to espNetconn and never modified.
-    if(espNetconn != NULL && (void *)mqt_ctx->ext_sysobjs[0] != (void *)espNetconn) {
+    if(espNetconn != NULL && (void *)mctx->ext_sysobjs[0] != (void *)espNetconn) {
         response = espERRMEM;
     }
     // release espConn_t back to connection pool in ESP library.
-    if((void *)mqt_ctx->ext_sysobjs[1] != NULL) {
-        espConn_t *conn =  (espConn_t *) mqt_ctx->ext_sysobjs[1];
+    if((void *)mctx->ext_sysobjs[1] != NULL) {
+        espConn_t *conn =  (espConn_t *) mctx->ext_sysobjs[1];
         if(conn->pbuf != NULL) {
             //TODO: figure out why there is missing memory checks here that cause hardware fault
             vESPpktBufChainDelete( conn->pbuf ); 
@@ -377,8 +377,8 @@ mqttRespStatus  mqttSysNetconnStop( mqttCtx_t *mqt_ctx )
         XMEMSET(conn, 0x00, sizeof(espConn_t)); 
     }
     espNetconn = NULL;
-    mqt_ctx->ext_sysobjs[0] = NULL;
-    mqt_ctx->ext_sysobjs[1] = NULL;
+    mctx->ext_sysobjs[0] = NULL;
+    mctx->ext_sysobjs[1] = NULL;
     return  mqttSysRespCvtFromESPresp( response );
 } // end of mqttSysNetconnStop
 
@@ -441,7 +441,7 @@ word32  mqttSysRNG( word32 maxnum )
 
 
 
-int  mqttPktLowLvlRead( struct __mqttCtx *mctx, byte *buf, word32 buf_len )
+int  mqttSysPktRead( mqttCtx_t *mctx, byte *buf, word32 buf_len )
 {
     espNetConnPtr   espconn = NULL; 
     espRes_t        response ;
@@ -490,13 +490,13 @@ int  mqttPktLowLvlRead( struct __mqttCtx *mctx, byte *buf, word32 buf_len )
     } // end of while-loop
 
     return  copied_len_total;
-} // end of mqttPktLowLvlRead
+} // end of mqttSysPktRead
 
 
 
 
 
-int  mqttPktLowLvlWrite( struct __mqttCtx *mctx, byte *buf, word32 buf_len )
+int  mqttSysPktWrite( mqttCtx_t *mctx, byte *buf, word32 buf_len )
 {
     if((mctx == NULL) || (buf == NULL) || (buf_len == 0)) {
         return MQTT_RESP_ERRARGS ;
@@ -508,7 +508,7 @@ int  mqttPktLowLvlWrite( struct __mqttCtx *mctx, byte *buf, word32 buf_len )
     }
     response = eESPconnClientSend( espconn,  buf,  buf_len, NULL, NULL, ESP_AT_CMD_BLOCKING );
     return  (response == espOK ? buf_len : mqttSysRespCvtFromESPresp(response));
-} // end of mqttPktLowLvlWrite
+} // end of mqttSysPktWrite
 
 
 
