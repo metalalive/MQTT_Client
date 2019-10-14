@@ -23,6 +23,12 @@ extern "C" {
     #else
         #error  "MQTT_PROTOCOL_PKT_MAXBYTES must NOT be smaller than defined MQTT_PLATFORM_PKT_MAXBYTES, recheck your configuration."
     #endif
+#elif defined(MQTT_SYS_PKT_MAXBYTES)
+    #if (MQTT_PROTOCOL_PKT_MAXBYTES >= MQTT_SYS_PKT_MAXBYTES)
+        #define  MQTT_RECV_PKT_MAXBYTES   MQTT_SYS_PKT_MAXBYTES
+    #else
+        #error  "MQTT_SYS_PKT_MAXBYTES must NOT be smaller than defined MQTT_PLATFORM_PKT_MAXBYTES, recheck your configuration."
+    #endif
 #else
     #define  MQTT_RECV_PKT_MAXBYTES   MQTT_PROTOCOL_PKT_MAXBYTES 
 #endif // end of MQTT_RECV_PKT_MAXBYTES

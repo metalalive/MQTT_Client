@@ -8,6 +8,8 @@ extern "C" {
 #include "esp/esp.h"
 
 // macros used in core implementation of the MQTT client
+#define  MQTT_SYS_PKT_MAXBYTES  4000
+
 #define  XMEMSET   ESP_MEMSET
 
 #define  XMALLOC   ESP_MALLOC
