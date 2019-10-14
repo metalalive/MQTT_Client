@@ -396,10 +396,7 @@ static mqttRespStatus  mqttTestGenPattPublish( mqttMsg_t *pubmsg, word32 send_pk
     if(status < 0) { return status; }
 
     // total length of the application specific data 
-    app_data_len = (MQTT_RECV_PKT_MAXBYTES >> 1) + mqttSysRNG(MQTT_RECV_PKT_MAXBYTES >> 2);
-    if(send_pkt_maxbytes >= 2 && send_pkt_maxbytes < MQTT_PROTOCOL_PKT_MAXBYTES) {
-        app_data_len = XMIN(send_pkt_maxbytes , app_data_len);
-    }
+    app_data_len = (send_pkt_maxbytes >> 1) + mqttSysRNG(send_pkt_maxbytes >> 2);
     app_data     = (byte *)XMALLOC(sizeof(byte) * app_data_len);
     if(app_data == NULL){ return MQTT_RESP_ERRMEM; }
     XMEMCPY( app_data, "{ mockdata:[", 12);
