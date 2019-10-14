@@ -10,6 +10,10 @@ extern "C" {
 #include  <string.h>
 #include  <errno.h>
 
+// operations for file descriptors
+#include  <fcntl.h>
+#include  <sys/poll.h>
+
 // for network connection 
 #include  <sys/types.h>
 #include  <sys/socket.h>
@@ -17,17 +21,19 @@ extern "C" {
 #include  <arpa/inet.h>
 #include  <netinet/in.h>
 #include  <unistd.h>
-#include  <fcntl.h>
 
-//for multithreading scenarios
+//for threading / scheduling
 #include  <pthread.h>
+#include  <limits.h>
 #include  <sched.h>
 
 // --- macros used in core implementation of the MQTT client ---
 
+#define  MQTT_SYS_PKT_MAXBYTES  8192
 // minimum application thread priority,
-// We apply Round-Robin scheduling polity as default in this MQTT system implementation
-#define  MQTT_APPS_THREAD_PRIO_MIN   sched_get_priority_min(SCHED_RR)
+// get scheduling policy from current running thread first
+// then retrieve the minimum allowable priority in that policy.
+#define  MQTT_APPS_THREAD_PRIO_MIN   sched_get_priority_min(sched_getscheduler(0))
 // maximum timeout in milliseconds for core implementation & test
 #define  MQTT_SYS_MAX_TIMEOUT        0xffff0000
 
