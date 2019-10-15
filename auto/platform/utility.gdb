@@ -6,9 +6,12 @@ define reload_image
 end
 
 
+define  connect_openocd_local_server
+    target   remote localhost:3333
+    reload
+end
+
+
 file     build/mqtt_client_tcp.elf
-target   remote localhost:3333
-reload_image
-info     b
 
 

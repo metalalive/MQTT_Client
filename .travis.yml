@@ -2,13 +2,12 @@ language: c
 
 compiler:
     - gcc
-    - arm-none-eabi-gcc
 
 before_install:
     - make  download_3party
 
 script:
-    - make
-    - make  tests  PLUS_C_DEFS="MQTT_CFG_RUN_TEST_THREAD "
+    - make  DEBUG=yes
+    - make  tests DEBUG=yes  PLUS_C_DEFS="MQTT_CFG_RUN_TEST_THREAD "
 
 
