@@ -1,4 +1,5 @@
 # MQTT v5.0 Client implementation
+[![Build Status](https://travis-ci.org/metalalive/MQTT_Client.svg?branch=master)](https://travis-ci.org/metalalive/MQTT_Client)
 
 ### Quick build command
 
