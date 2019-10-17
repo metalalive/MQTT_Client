@@ -106,11 +106,11 @@ static void mqttTestStartFn(void *params)
     XMEMSET( &testPatternSet, 0x00, sizeof(mqttTestPatt)) ;
     while(num_iter > 0)
     {
-        status =  mqttSysNetconnStart( m_client );
+        status =  mqttNetconnStart( m_client );
         if( status == MQTT_RESP_OK ) {
             mqttTestRunPatterns( &testPatternSet, m_client );
         }
-        status =  mqttSysNetconnStop( m_client );
+        status =  mqttNetconnStop( m_client );
         if( status != MQTT_RESP_OK ) { break; }
         num_iter--;
     } // end of while-loop

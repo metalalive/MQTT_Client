@@ -186,7 +186,7 @@ typedef enum {
     MQTT_RESP_ERR_CTRL_PKT_TYPE = -13, // MQTT control packet type error
     MQTT_RESP_ERR_CTRL_PKT_ID   = -14, // packet ID error
     MQTT_RESP_ERR_CONN          = -15, // Connection error (failed) to MQTT broker 
-    MQTT_RESP_ERR_TLS_CONN      = -16, // secure connection (TLS) error
+    MQTT_RESP_ERR_SECURE_CONN   = -16, // secure connection error, failed to start a session of secure connection
     MQTT_RESP_ERR_PROP          = -17, // peoperty error when encoding / decoding data bytes
     MQTT_RESP_ERR_PROP_REPEAT   = -18, // duplicate property present in a give property list (for few properties it doesn't matter)
     MQTT_RESP_ERR_INTEGRITY     = -19, // integrity error, used when a given C struct variable lacks some data which must be prepared.

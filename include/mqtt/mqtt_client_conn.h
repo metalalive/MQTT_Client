@@ -9,6 +9,14 @@
 extern "C" {
 #endif
 
+#ifdef  MQTT_CFG_USE_TLS
+    #define  mqttNetconnStart(mqttctx)  mqttSecureNetconnStart(mqttctx)
+    #define  mqttNetconnStop(mqttctx)   mqttSecureNetconnStop(mqttctx)
+#else
+    #define  mqttNetconnStart(mqttctx)  mqttSysNetconnStart(mqttctx)
+    #define  mqttNetconnStop(mqttctx)   mqttSysNetconnStop(mqttctx)
+#endif // end of MQTT_CFG_USE_TLS
+
 typedef mqttRespStatus (* mqttAuthSetupCallback_t)( const mqttStr_t *auth_data_in,  mqttStr_t *auth_data_out,
                                                     mqttStr_t *reason_str_out );
 
@@ -84,7 +92,8 @@ typedef struct __mqttCtx{
         mqttPropertyType  prop_id:8;      // 8-bit property ID in MQTT protocol
     } err_info;
     // extended objects that can assist in underlying system / platform implementation (optional)
-    void*        ext_sysobjs[2];
+    void*    ext_sysobjs[2];
+    void    *secure_session; // point to session of secure connection
 } mqttCtx_t;
 
 

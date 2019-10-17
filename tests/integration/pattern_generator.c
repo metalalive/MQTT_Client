@@ -327,7 +327,7 @@ static mqttRespStatus  mqttTestGenPattConnect( mqttConn_t *mconn )
                                      XGETARRAYSIZE(connectPropTypeList), &mconn->props );
     if(status < 0) { return status; }
     // last will testament
-    mconn->flgs.will_enable = 1; // mqttSysRNG(1);
+    mconn->flgs.will_enable = mqttSysRNG(1);
     if(mconn->flgs.will_enable == 1) {
         mqttMsg_t  *lwtmsg  = &mconn->lwt_msg;
         lwtmsg->retain = 1;
@@ -358,7 +358,6 @@ static mqttRespStatus  mqttTestGenPattConnect( mqttConn_t *mconn )
     mqttTestRandGenStr( &str_dst[8], (str_len - 8) );
     mconn->client_id.len  = str_len;
     mconn->client_id.data = str_dst;
-    // TODO : implement & test will properties
 
     mqttAuthGetBrokerLoginInfo( &brokerUsername, &brokerPasswd );
 
