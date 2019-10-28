@@ -12,6 +12,8 @@
 // * private key buffer, client certificate buffer (if TLS secure connection is enabled)
 //
 
+// header which collects all include files of common third-party libraries
+#include "mqtt_third_party_include.h"
 #include "mqtt/mqtt_types.h"
 
 mqttStr_t  mqttAuthBrokerHostname = { 10, (byte *)&("123.45.6.7") };
@@ -20,6 +22,5 @@ mqttStr_t  mqttAuthWifiSSID       = { 10, (byte *)&("MY_AP_SSID") };
 mqttStr_t  mqttAuthWifiPasswd     = { 14, (byte *)&("YOUR_PASS_WORD") };
 mqttStr_t  mqttAuthBrokerUsername = { 11, (byte *)&("areYouBroke") };
 mqttStr_t  mqttAuthBrokerPasswd   = { 8,  (byte *)&("IamBroke") };
-
 
 

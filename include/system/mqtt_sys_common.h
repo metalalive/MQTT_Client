@@ -100,10 +100,8 @@ mqttRespStatus  mqttSysPktRecvHandler( uint8_t* data, uint16_t data_len );
 //     * design your own RNG circuit e.g. OneRNG, to create noise, convert them into digital random bits.
 //
 // these can be reliable sources of random seed value.
-//
-// the output ranges from zero to given input maxnum
-word32  mqttSysRNG( word32 maxnum );
-
+// interface for entropy function
+mqttRespStatus  mqttSysGetEntropy(mqttStr_t *out);
 
 
 #ifdef __cplusplus

@@ -8,8 +8,12 @@ extern "C" {
 // DO NOT modify the order of extended header files which are included in this file, 
 // otherwise you would end up with compile/runtime error
 
+// header which collects all include files of common third-party libraries
+#include "mqtt_third_party_include.h"
+
 #include "mqtt/mqtt_types.h"
 #include "mqtt/mqtt_util.h"
+#include "mqtt/mqtt_drbg.h"
 #include "mqtt/mqtt_auth.h"
 
 // start checking the operating system / middleware used in the implementation
@@ -38,5 +42,4 @@ extern "C" {
 }
 #endif
 #endif // end of MQTT_INCLUDE_H
-
 

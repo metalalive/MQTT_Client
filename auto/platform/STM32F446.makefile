@@ -75,7 +75,7 @@ FPU = -mfpu=fpv4-sp-d16
 FLOAT-ABI = -mfloat-abi=hard
 
 # mcu
-MCU = $(CPU) -mthumb $(FPU) $(FLOAT-ABI)
+CPU_ARCH_FLAGS = $(CPU) -mthumb $(FPU) $(FLOAT-ABI)
 
 # Debug
 OPENOCD_CFG_FILES =  -f $(OPENOCD_HOME)/tcl/board/st_nucleo_f4.cfg \

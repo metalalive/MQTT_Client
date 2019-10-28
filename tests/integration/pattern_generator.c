@@ -62,16 +62,16 @@ static mqttPropertyType disconnPropTypeList[] = {
 
 
 
-static void mqttTestRandGenStr( byte* dst, word32 len )
+static void mqttTestRandGenStr( mqttDRBG_t *drbg, byte* dst, word16 len )
 {
-    word32 idx = 0;
+    mqttUtilRandByteSeq(drbg, dst, len);
+    word16 idx = 0;
+    byte   tmpc = 0;
     for(idx = 0; idx < len; idx++) {
-        // write digit 0-9 , A-Z , a-z, other symbols
-        if((idx%2) == 0) {
-            dst[idx] = '0' + mqttSysRNG(0x49);
-        }
-        else{
-            dst[idx] = dst[idx-1] + 1;
+        // recheck that every byte ranges from 0x30 t0 0x7a in ASCII code
+        tmpc = dst[idx];
+        if((tmpc < 0x30) || (tmpc > 0x7a)) {
+            dst[idx] = 0x30 + (tmpc % 0x4a);
         }
     } // end of for-loop
 } // end of mqttTestRandGenStr
@@ -109,7 +109,7 @@ static const mqttStr_t mqttTestTopicLevelName[MQTT_TEST_TOPIC_LVL_NAMES_ARRAY_LE
 
 
     
-static mqttRespStatus mqttTestRandGenTopic( mqttStr_t *topic )
+static mqttRespStatus mqttTestRandGenTopic( mqttDRBG_t *drbg, mqttStr_t *topic )
 {
     mqttRespStatus  status = MQTT_RESP_OK;
     uint8_t   chosen_name_idx[MQTT_TEST_TOPIC_LVL_NAMES_ARRAY_LENGTH];
@@ -118,10 +118,10 @@ static mqttRespStatus mqttTestRandGenTopic( mqttStr_t *topic )
     byte     *dst  = NULL;
     if(topic == NULL) { return MQTT_RESP_ERRARGS; }
     // at most 3 seperators are written to the topic string
-    num_seperator = 1 + mqttSysRNG(0x2);
+    num_seperator = 1 + mqttUtilPRNG(drbg, 0x2);
     topic->len    = num_seperator;
     for (idx=0 ; idx <= num_seperator; idx++) {
-        chosen_name_idx[idx] = mqttSysRNG( MQTT_TEST_TOPIC_LVL_NAMES_ARRAY_LENGTH - 1 );
+        chosen_name_idx[idx] = mqttUtilPRNG( drbg, MQTT_TEST_TOPIC_LVL_NAMES_ARRAY_LENGTH - 1 );
         topic->len += mqttTestTopicLevelName[idx][ chosen_name_idx[idx] ].len  ;
     } // end of for-loop
     dst = (byte *) XMALLOC( sizeof(byte) * topic->len );
@@ -142,7 +142,7 @@ static mqttRespStatus mqttTestRandGenTopic( mqttStr_t *topic )
 
 
 
-static mqttRespStatus mqttTestRandGenSubsTopics(mqttTopic_t **topics , word16 topic_cnt)
+static mqttRespStatus mqttTestRandGenSubsTopics(mqttDRBG_t *drbg, mqttTopic_t **topics , word16 topic_cnt)
 {
     mqttRespStatus  status = MQTT_RESP_OK;
     word32        idx = 0;
@@ -154,12 +154,12 @@ static mqttRespStatus mqttTestRandGenSubsTopics(mqttTopic_t **topics , word16 to
     *topics = topics_p;
 
     for(idx=0; idx < topic_cnt; idx++) {
-        status = mqttTestRandGenTopic( &topics_p[idx].filter );
+        status = mqttTestRandGenTopic( drbg, &topics_p[idx].filter );
         if(status < 0) { break; }
         topics_p[idx].reason_code = MQTT_REASON_SUCCESS;
-        topics_p[idx].qos    = mqttSysRNG(MQTT_QOS_2);
-        topics_p[idx].sub_id = 1 + mqttSysRNG(0xfe);
-        topics_p[idx].alias  = 1 + mqttSysRNG(0x7e);
+        topics_p[idx].qos    =     mqttUtilPRNG(drbg, MQTT_QOS_2);
+        topics_p[idx].sub_id = 1 + mqttUtilPRNG(drbg, 0xfe);
+        topics_p[idx].alias  = 1 + mqttUtilPRNG(drbg, 0x7e);
     }
     return status;
 } // end of mqttTestRandGenSubsTopics
@@ -184,7 +184,7 @@ static void mqttTestCleanSubsTopics(mqttTopic_t *topics , word16 topic_cnt)
 
 
 
-static void mqttTestRandSetupProp( mqttProp_t *curr_prop )
+static void mqttTestRandSetupProp( mqttDRBG_t *drbg, mqttProp_t *curr_prop )
 {
     uint8_t  rand_len_1     = 0; 
     uint8_t  rand_len_2     = 0;
@@ -195,49 +195,49 @@ static void mqttTestRandSetupProp( mqttProp_t *curr_prop )
     switch( curr_prop->type )
     {
         case MQTT_PROP_SESSION_EXPIRY_INTVL :
-            curr_prop->body.u32 = 300 + mqttSysRNG(900);
+            curr_prop->body.u32 = 300 + mqttUtilPRNG(drbg, 900);
             break;
         case MQTT_PROP_RECV_MAX         :
             // TODO: test for concurrent publish messages with QoS=1 or QoS=2.
             curr_prop->body.u16 = 1;
             break;
         case MQTT_PROP_MAX_PKT_SIZE     :
-            curr_prop->body.u32 = (MQTT_RECV_PKT_MAXBYTES >> 1) + mqttSysRNG(MQTT_RECV_PKT_MAXBYTES >> 2);
+            curr_prop->body.u32 = (MQTT_RECV_PKT_MAXBYTES >> 1) + mqttUtilPRNG(drbg, MQTT_RECV_PKT_MAXBYTES >> 2);
             break;
         case MQTT_PROP_TOPIC_ALIAS_MAX  :
-            curr_prop->body.u16 = 1 + mqttSysRNG(0x8);
+            curr_prop->body.u16 = 1 + mqttUtilPRNG(drbg, 0x8);
             break;
         case MQTT_PROP_TOPIC_ALIAS      :
-            curr_prop->body.u16 = 1 + mqttSysRNG(0x8);
+            curr_prop->body.u16 = 1 + mqttUtilPRNG(drbg, 0x8);
             break;
         case MQTT_PROP_REQ_RESP_INFO    :
         case MQTT_PROP_REQ_PROBLEM_INFO :
         case MQTT_PROP_PKT_FMT_INDICATOR : 
-            curr_prop->body.u8 = mqttSysRNG(0x1);
+            curr_prop->body.u8 = mqttUtilPRNG(drbg, 0x1);
             break;
         case MQTT_PROP_MSG_EXPIRY_INTVL  : 
         case MQTT_PROP_WILL_DELAY_INTVL  :
-            curr_prop->body.u32 = 5 + mqttSysRNG(60);
+            curr_prop->body.u32 = 5 + mqttUtilPRNG(drbg, 60);
             break;
         case MQTT_PROP_RESP_TOPIC        :
-            rand_len_1     = mqttSysRNG(16);
+            rand_len_1     = mqttUtilPRNG(drbg, 16);
             curr_prop->body.str.len  = 13 + rand_len_1 + 2; // {resp_topic:[.....]}
             rand_str_dst_1 = (byte *) XMALLOC( sizeof(byte) * curr_prop->body.str.len );
             curr_prop->body.str.data = rand_str_dst_1;
             XMEMCPY( rand_str_dst_1, "{resp_topic:[", 13);
             rand_str_dst_1 += 13;
-            mqttTestRandGenStr( rand_str_dst_1, rand_len_1 );
+            mqttTestRandGenStr( drbg, rand_str_dst_1, rand_len_1 );
             rand_str_dst_1 += rand_len_1;
             rand_str_dst_1[0] = ']';
             rand_str_dst_1[1] = '}';
             break;
         case MQTT_PROP_CORRELATION_DATA  : 
         case MQTT_PROP_CONTENT_TYPE      :
-            rand_len_1     = 10 + mqttSysRNG(32);
+            rand_len_1     = 10 + mqttUtilPRNG(drbg, 32);
             rand_str_dst_1 = (byte *) XMALLOC( sizeof(byte) * rand_len_1 );
             curr_prop->body.str.len  = rand_len_1;
             curr_prop->body.str.data = rand_str_dst_1;
-            mqttTestRandGenStr( rand_str_dst_1, rand_len_1 );
+            mqttTestRandGenStr( drbg, rand_str_dst_1, rand_len_1 );
             break;
         case MQTT_PROP_REASON_STR :
         {
@@ -250,19 +250,19 @@ static void mqttTestRandSetupProp( mqttProp_t *curr_prop )
             break;
         }
         case MQTT_PROP_SUBSCRIBE_ID      :
-            curr_prop->body.u32 = 1 + mqttSysRNG(0xfffe);
+            curr_prop->body.u32 = 1 + mqttUtilPRNG(drbg, 0xfffe);
             break;
         case MQTT_PROP_USER_PROPERTY    :
-            rand_len_1     = mqttSysRNG(5); 
-            rand_len_2     = mqttSysRNG(16);
+            rand_len_1     = mqttUtilPRNG(drbg, 5); 
+            rand_len_2     = mqttUtilPRNG(drbg, 16);
             curr_prop->body.strpair[0].len = 9 + rand_len_1; // "userlabel" + random number
             curr_prop->body.strpair[1].len = 8 + rand_len_2; // "userdata" + random number
             rand_str_dst_1 = (byte *) XMALLOC( sizeof(byte) * curr_prop->body.strpair[0].len );
             rand_str_dst_2 = (byte *) XMALLOC( sizeof(byte) * curr_prop->body.strpair[1].len );
             XMEMCPY( rand_str_dst_1, "userlabel", 9);
             XMEMCPY( rand_str_dst_2, "userdata" , 8);
-            mqttTestRandGenStr( &rand_str_dst_1[9], rand_len_1 );
-            mqttTestRandGenStr( &rand_str_dst_2[8], rand_len_2 );
+            mqttTestRandGenStr( drbg, &rand_str_dst_1[9], rand_len_1 );
+            mqttTestRandGenStr( drbg, &rand_str_dst_2[8], rand_len_2 );
             curr_prop->body.strpair[0].data = rand_str_dst_1;
             curr_prop->body.strpair[1].data = rand_str_dst_2;
             break;
@@ -273,7 +273,7 @@ static void mqttTestRandSetupProp( mqttProp_t *curr_prop )
 
 
 
-static mqttRespStatus mqttTestRandSetupProps( mqttPropertyType  *given_arr, size_t list_size, mqttProp_t **head_prop )
+static mqttRespStatus mqttTestRandSetupProps( mqttDRBG_t *drbg, mqttPropertyType  *given_arr, size_t list_size, mqttProp_t **head_prop )
 {
     uint8_t  num_props  = 0;
     uint8_t  select_idx = 0;
@@ -282,11 +282,11 @@ static mqttRespStatus mqttTestRandSetupProps( mqttPropertyType  *given_arr, size
     mqttPropertyType    select_type ;
     mqttProp_t         *curr_prop ;
 
-    num_props = mqttSysRNG((word32)list_size);
+    num_props = mqttUtilPRNG(drbg, (word32)list_size);
     
     for(idx=0; idx<num_props; idx++) {
         // select a property that hasn't been chosen in current packet
-        select_idx  = (uint8_t) mqttSysRNG(list_size - 1);
+        select_idx  = (uint8_t) mqttUtilPRNG(drbg, list_size - 1);
         // swap the chosen property with the latest one, decrease number of the available array item
         // so the available items become given_arr[0] ... given_arr[list_size - 2] in next iteration.
         select_type  = given_arr[select_idx];
@@ -301,7 +301,7 @@ static mqttRespStatus mqttTestRandSetupProps( mqttPropertyType  *given_arr, size
         if(curr_prop == NULL){ status = MQTT_RESP_ERRMEM; break; }
         curr_prop->next = NULL; 
         curr_prop->type = select_type;
-        mqttTestRandSetupProp( curr_prop );
+        mqttTestRandSetupProp( drbg, curr_prop );
     } // end of for-loop
     return status;
 } // end of mqttTestRandSetupProps
@@ -309,7 +309,7 @@ static mqttRespStatus mqttTestRandSetupProps( mqttPropertyType  *given_arr, size
 
 
 // -------- set up CONNECT packet --------
-static mqttRespStatus  mqttTestGenPattConnect( mqttConn_t *mconn )
+static mqttRespStatus  mqttTestGenPattConnect( mqttDRBG_t *drbg, mqttConn_t *mconn )
 {
     mqttRespStatus  status          = MQTT_RESP_OK;
     mqttStr_t      *brokerUsername  = NULL;
@@ -320,30 +320,30 @@ static mqttRespStatus  mqttTestGenPattConnect( mqttConn_t *mconn )
     mconn->protocol_lvl    = MQTT_CONN_PROTOCOL_LEVEL;
     // if CLEAR flag is set, and if this client have session that is previously created on
     // the server before, then it will clean up this created session.
-    mconn->flgs.clean_session   = mqttSysRNG(1);
-    mconn->keep_alive_sec  = MQTT_DEFAULT_KEEPALIVE_SEC + mqttSysRNG(30);
+    mconn->flgs.clean_session   = mqttUtilPRNG(drbg, 1);
+    mconn->keep_alive_sec  = MQTT_DEFAULT_KEEPALIVE_SEC + mqttUtilPRNG(drbg, 30);
     // allocate number of properties to CONNECT packet
-    status = mqttTestRandSetupProps((mqttPropertyType *)&connectPropTypeList,
+    status = mqttTestRandSetupProps( drbg, (mqttPropertyType *)&connectPropTypeList,
                                      XGETARRAYSIZE(connectPropTypeList), &mconn->props );
     if(status < 0) { return status; }
     // last will testament
-    mconn->flgs.will_enable = mqttSysRNG(1);
+    mconn->flgs.will_enable = mqttUtilPRNG(drbg, 1);
     if(mconn->flgs.will_enable == 1) {
         mqttMsg_t  *lwtmsg  = &mconn->lwt_msg;
         lwtmsg->retain = 1;
-        lwtmsg->qos    = mqttSysRNG(MQTT_QOS_2);
-        status = mqttTestRandSetupProps((mqttPropertyType *)&willPropTypeList,
+        lwtmsg->qos    = mqttUtilPRNG(drbg, MQTT_QOS_2);
+        status = mqttTestRandSetupProps(drbg, (mqttPropertyType *)&willPropTypeList,
                                          XGETARRAYSIZE(willPropTypeList), &lwtmsg->props );
         if(status < 0) { return status; }
-        status = mqttTestRandGenTopic( &lwtmsg->topic );
+        status = mqttTestRandGenTopic( drbg, &lwtmsg->topic );
         if(status < 0) { return status; }
         // total length of the application specific data 
         const char *default_lwt_str     = "connection is off on client, random number: ";
         word16      default_lwt_str_len = XSTRLEN(default_lwt_str);
-        word16      lwt_payld_len       = default_lwt_str_len + mqttSysRNG(20);
+        word16      lwt_payld_len       = default_lwt_str_len + mqttUtilPRNG(drbg, 20);
         byte       *lwt_payld_data      = (byte *)XMALLOC(sizeof(byte) * lwt_payld_len);
         XMEMCPY( &lwt_payld_data[0], default_lwt_str, default_lwt_str_len );
-        mqttTestRandGenStr( &lwt_payld_data[default_lwt_str_len], (lwt_payld_len - default_lwt_str_len) );
+        mqttTestRandGenStr( drbg, &lwt_payld_data[default_lwt_str_len], (lwt_payld_len - default_lwt_str_len) );
         lwtmsg->buff         = lwt_payld_data;
         lwtmsg->app_data_len = lwt_payld_len;
     }
@@ -352,10 +352,10 @@ static mqttRespStatus  mqttTestGenPattConnect( mqttConn_t *mconn )
         mconn->lwt_msg.qos = 0;
     }
 
-    str_len = 8 + mqttSysRNG(8);
+    str_len = 8 + mqttUtilPRNG(drbg, 8);
     str_dst = (byte *) XMALLOC( sizeof(byte) * str_len );
     XMEMCPY( &str_dst[0], "MyClient", 8 );
-    mqttTestRandGenStr( &str_dst[8], (str_len - 8) );
+    mqttTestRandGenStr( drbg, &str_dst[8], (str_len - 8) );
     mconn->client_id.len  = str_len;
     mconn->client_id.data = str_dst;
 
@@ -378,28 +378,28 @@ static mqttRespStatus  mqttTestGenPattConnect( mqttConn_t *mconn )
 
 
 // -------- set up PUBLISH packet --------
-static mqttRespStatus  mqttTestGenPattPublish( mqttMsg_t *pubmsg, word32 send_pkt_maxbytes )
+static mqttRespStatus  mqttTestGenPattPublish( mqttDRBG_t *drbg, mqttMsg_t *pubmsg, word32 send_pkt_maxbytes )
 {
     mqttRespStatus  status = MQTT_RESP_OK;
     word32   app_data_len = 0;
     byte    *app_data     = NULL;
 
-    pubmsg->retain     = mqttSysRNG(1);
+    pubmsg->retain     = mqttUtilPRNG(drbg, 1);
     pubmsg->duplicate  = 0;
-    pubmsg->qos        = mqttSysRNG(MQTT_QOS_2);
+    pubmsg->qos        = mqttUtilPRNG(drbg, MQTT_QOS_2);
     // re-allocate number of properties
-    status = mqttTestRandSetupProps( (mqttPropertyType *)&publishPropTypeList,
+    status = mqttTestRandSetupProps(  drbg, (mqttPropertyType *)&publishPropTypeList,
                                       XGETARRAYSIZE(publishPropTypeList), &pubmsg->props );
     if(status < 0) { return status; }
-    status = mqttTestRandGenTopic( &pubmsg->topic );
+    status = mqttTestRandGenTopic( drbg, &pubmsg->topic );
     if(status < 0) { return status; }
 
     // total length of the application specific data 
-    app_data_len = (send_pkt_maxbytes >> 1) + mqttSysRNG(send_pkt_maxbytes >> 2);
+    app_data_len = (send_pkt_maxbytes >> 1) + mqttUtilPRNG(drbg, send_pkt_maxbytes >> 2);
     app_data     = (byte *)XMALLOC(sizeof(byte) * app_data_len);
     if(app_data == NULL){ return MQTT_RESP_ERRMEM; }
     XMEMCPY( app_data, "{ mockdata:[", 12);
-    mqttTestRandGenStr(&app_data[12], (app_data_len - 12));
+    mqttTestRandGenStr(drbg, &app_data[12], (app_data_len - 12));
     app_data[app_data_len - 2] = ']';
     app_data[app_data_len - 1] = '}';
     pubmsg->app_data_len = app_data_len;
@@ -410,27 +410,27 @@ static mqttRespStatus  mqttTestGenPattPublish( mqttMsg_t *pubmsg, word32 send_pk
 
 
 
-static mqttRespStatus  mqttTestGenPattSubscribe(mqttPktSubs_t *subs)
+static mqttRespStatus  mqttTestGenPattSubscribe(mqttDRBG_t *drbg, mqttPktSubs_t *subs)
 {
     mqttRespStatus  status = MQTT_RESP_OK;
-    subs->topic_cnt = 1 + mqttSysRNG( 2 );
-    status = mqttTestRandSetupProps( (mqttPropertyType *)&subscribePropTypeList,
+    subs->topic_cnt = 1 + mqttUtilPRNG(drbg, 2);
+    status = mqttTestRandSetupProps( drbg, (mqttPropertyType *)&subscribePropTypeList,
                                      XGETARRAYSIZE(subscribePropTypeList), &subs->props );
     if(status < 0) { return status; }
-    status = mqttTestRandGenSubsTopics( &subs->topics, subs->topic_cnt);
+    status = mqttTestRandGenSubsTopics( drbg, &subs->topics, subs->topic_cnt);
     return status;
 } // end of mqttTestGenPattSubscribe
 
 
 
-static mqttRespStatus mqttTestGenPattUnsubscribe( mqttPktUnsubs_t *unsubs_out, const mqttPktSubs_t *subs_in )
+static mqttRespStatus mqttTestGenPattUnsubscribe( mqttDRBG_t *drbg, mqttPktUnsubs_t *unsubs_out, const mqttPktSubs_t *subs_in )
 {
     mqttRespStatus  status = MQTT_RESP_OK;
     mqttTopic_t    *topics_p;
     size_t          topics_len;
     word16          idx;
 
-    status = mqttTestRandSetupProps( (mqttPropertyType *)&unsubscribePropTypeList,
+    status = mqttTestRandSetupProps( drbg, (mqttPropertyType *)&unsubscribePropTypeList,
                                      XGETARRAYSIZE(unsubscribePropTypeList), &unsubs_out->props );
     if(status < 0) { return status; }
     // copy topic filters from subs_in
@@ -451,11 +451,11 @@ static mqttRespStatus mqttTestGenPattUnsubscribe( mqttPktUnsubs_t *unsubs_out, c
 
 
 
-static mqttRespStatus  mqttTestGenPattDisconnect(mqttPktDisconn_t *disconn)
+static mqttRespStatus  mqttTestGenPattDisconnect(mqttDRBG_t *drbg, mqttPktDisconn_t *disconn)
 {
     mqttRespStatus  status = MQTT_RESP_OK;
     disconn->reason_code = MQTT_REASON_NORMAL_DISCONNECTION;
-    status = mqttTestRandSetupProps( (mqttPropertyType *)&disconnPropTypeList,
+    status = mqttTestRandSetupProps( drbg, (mqttPropertyType *)&disconnPropTypeList,
                                      XGETARRAYSIZE(disconnPropTypeList), &disconn->props );
     if(status < 0) { return status; }
     return status;
@@ -474,32 +474,32 @@ mqttRespStatus  mqttTestCopyPatterns( mqttTestPatt *patt_in, mqttCtx_t *mctx, mq
 
     switch(cmdtype) {
         case MQTT_PACKET_TYPE_CONNECT       :
-            status = mqttTestGenPattConnect( &patt_in->conn );
+            status = mqttTestGenPattConnect( patt_in->drbg, &patt_in->conn );
             if(status == MQTT_RESP_OK) {
                 XMEMCPY((void *)&mctx->send_pkt.conn, (void *)&patt_in->conn, sizeof(mqttConn_t) );
             }
             break;
         case MQTT_PACKET_TYPE_DISCONNECT    :
-            status = mqttTestGenPattDisconnect( &patt_in->disconn );
+            status = mqttTestGenPattDisconnect( patt_in->drbg, &patt_in->disconn );
             if(status == MQTT_RESP_OK) {
                 XMEMCPY((void *)&mctx->send_pkt.disconn, (void *)&patt_in->disconn, sizeof(mqttPktDisconn_t) );
             }
             break;
         case MQTT_PACKET_TYPE_PUBLISH       :
             patt_in->send_pkt_maxbytes = mctx->send_pkt_maxbytes;
-            status =  mqttTestGenPattPublish( &patt_in->pubmsg_send, patt_in->send_pkt_maxbytes );
+            status =  mqttTestGenPattPublish( patt_in->drbg, &patt_in->pubmsg_send, patt_in->send_pkt_maxbytes );
             if(status == MQTT_RESP_OK) {
                 XMEMCPY((void *)&mctx->send_pkt.pub_msg, (void *)&patt_in->pubmsg_send, sizeof(mqttMsg_t) );
             }
             break;
         case MQTT_PACKET_TYPE_SUBSCRIBE     :
-            status =  mqttTestGenPattSubscribe( &patt_in->subs );
+            status =  mqttTestGenPattSubscribe( patt_in->drbg, &patt_in->subs );
             if(status == MQTT_RESP_OK) {
                 XMEMCPY((void *)&mctx->send_pkt.subs, (void *)&patt_in->subs, sizeof(mqttPktSubs_t) );
             }
             break;
         case MQTT_PACKET_TYPE_UNSUBSCRIBE   :
-            status =  mqttTestGenPattUnsubscribe( &patt_in->unsubs, &patt_in->subs );
+            status =  mqttTestGenPattUnsubscribe( patt_in->drbg, &patt_in->unsubs, &patt_in->subs );
             if(status == MQTT_RESP_OK) {
                 XMEMCPY((void *)&mctx->send_pkt.unsubs, (void *)&patt_in->unsubs, sizeof(mqttPktUnsubs_t) );
             }

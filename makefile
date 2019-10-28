@@ -19,6 +19,7 @@ C_SOURCES =  \
 src/mqtt/mqtt_client_conn.c \
 src/mqtt/mqtt_packet.c      \
 src/mqtt/mqtt_util.c        \
+src/mqtt/mqtt_drbg.c        \
 src/mqtt/mqtt_auth.c        \
 
 
@@ -46,6 +47,7 @@ include  ./auto/platform/$(PLATFORM).makefile
 #### with OS (e.g. RTOS, Linux kernel) .
 include  ./auto/middleware/$(MIDDLEWARE).makefile
 
+include  ./generate/auto/after_cfg.makefile
 
 #---------------------------------------------------------
 # different files & paths for unit test, integration test 
@@ -57,7 +59,8 @@ ifeq ($(MAKECMDGOALS), check) # if unit test is enabled
     TEST_ENTRY_SOURCES += 
 else
     ifeq ($(MAKECMDGOALS), tests) # if make goal is 'test', then it is integration test
-        TEST_ENTRY_SOURCES += tests/integration/mqtt_client_tcp.c 
+        TEST_ENTRY_SOURCES += tests/integration/mqtt_client_tcp.c \
+                              tests/integration/rand.c
         C_INCLUDES += -Itests/integration
     endif #### end of tests
 endif #### end of check
@@ -95,9 +98,9 @@ BIN = $(CP) -O binary -S
 OPT = -Og
 
 # compile gcc flags
-ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
+ASFLAGS += $(CPU_ARCH_FLAGS) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
 
-CFLAGS = $(MCU) $(C_DEFS) $(C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections -Wint-to-pointer-cast
+CFLAGS += $(CPU_ARCH_FLAGS) $(C_DEFS) $(C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections -Wint-to-pointer-cast
 
 ifeq ($(DEBUG), yes)
 CFLAGS += -g -gdwarf-2
@@ -116,8 +119,7 @@ LIBS += -lc -lm $(EXTRA_LIBS)
 LIBDIR =
 
 # TODO: xxx.map should be platform-specific 
-LDFLAGS = $(MCU) $(LD_SPECS_FILE)  $(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$<.map,--cref -Wl,--gc-sections
-
+LDFLAGS = $(CPU_ARCH_FLAGS) $(LD_SPECS_FILE)  $(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$<.map,--cref -Wl,--gc-sections
 
 
 
@@ -149,7 +151,7 @@ $(TARGET_LIB_PATH): $(C_ASM_OBJECTS)
 
 
 # --------- for generating executable test cases ---------
-%.elf:  %.o  $(TEST_COMMON_OBJECTS) $(TARGET_LIB_PATH)
+%.elf:  %.o  $(TEST_COMMON_OBJECTS) $(TARGET_LIB_PATH)  $(THIRD_PARTY_LIBS_PATH)
 	$(CC) $^  $(LDFLAGS) -o $@ 
 	$(SZ) $@
 
@@ -177,7 +179,7 @@ download_3party:
 
 # optional function for those who use code navigation tools e.g. ctags
 update_navigator:
-	@ctags -R ./generate ./include ./src ./tests ./third_party
+	@rm -rf ./tags; ctags -R ./generate ./include ./src ./tests ./third_party
 
 dbg_server:
 	@$(DBG_SERVER_CMD)

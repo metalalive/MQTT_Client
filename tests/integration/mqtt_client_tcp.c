@@ -1,5 +1,9 @@
-#include "mqtt_client_tcp.h"
+#include "mqtt_include.h"
 #include "pattern_generator.h"
+
+// wait 10 seconds after MQTT command is sent to broker
+#define  MQTT_TEST_CMD_TIMEOUT_MS          6000
+#define  MQTT_TEST_THREAD_STACK_SIZE       ((uint16_t) 0xbe)
 
 static mqttTestPatt testPatternSet;
 static mqttCtx_t *m_client;
@@ -9,9 +13,9 @@ static mqttCtx_t *m_client;
 static mqttRespStatus mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mctx )
 {
     mqttRespStatus status =  MQTT_RESP_OK;
-    uint8_t  num_pub_msg_sent =  2 + mqttSysRNG(3);
-    uint8_t  num_pub_msg_recv =  2 + mqttSysRNG(3);
-    uint8_t  num_ping_sent    =  1 + mqttSysRNG(2);
+    uint8_t  num_pub_msg_sent =  2 + mqttUtilPRNG(patt_in->drbg, 3);
+    uint8_t  num_pub_msg_recv =  2 + mqttUtilPRNG(patt_in->drbg, 3);
+    uint8_t  num_ping_sent    =  1 + mqttUtilPRNG(patt_in->drbg, 2);
     patt_in->connack       = NULL; 
     patt_in->suback        = NULL;
     patt_in->unsuback      = NULL;
@@ -60,7 +64,7 @@ static mqttRespStatus mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mct
         goto disconnect_server;
     }
     // --------- wait for incoming PUBLISH packet ---------
-    mctx->cmd_timeout_ms = MQTT_SYS_MAX_TIMEOUT;
+    mctx->cmd_timeout_ms = 0xdbba0; // wait 15 minutes = 1000 * 60 * 15 milliseconds
     // TODO: write script to mock another client sending PUBLISH packet to this subsriber...
     while(num_pub_msg_recv > 0) {
         patt_in->pubmsg_recv = NULL;
@@ -102,8 +106,13 @@ disconnect_server :
 static void mqttTestStartFn(void *params) 
 {
     mqttRespStatus status   = MQTT_RESP_ERR;
-    uint8_t        num_iter = 3 + (uint8_t) mqttSysRNG(3);
+    uint8_t        num_iter = 0;
+
+    status = mqttDRBGinit(&m_client->drbg);
+    if(status != MQTT_RESP_OK) { goto end_of_main_test; }
     XMEMSET( &testPatternSet, 0x00, sizeof(mqttTestPatt)) ;
+    testPatternSet.drbg = m_client->drbg;
+    num_iter = 3 + (uint8_t) mqttUtilPRNG(m_client->drbg, 3);
     while(num_iter > 0)
     {
         status =  mqttNetconnStart( m_client );
@@ -114,6 +123,8 @@ static void mqttTestStartFn(void *params)
         if( status != MQTT_RESP_OK ) { break; }
         num_iter--;
     } // end of while-loop
+end_of_main_test:
+    mqttDRBGdeinit(m_client->drbg);
     mqttClientDeinit( m_client ); // TODO: should we de-init system before terminating this thread ?
     m_client = NULL;
 #ifdef MQTT_CFG_RUN_TEST_THREAD

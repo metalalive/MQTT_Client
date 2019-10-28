@@ -246,12 +246,15 @@ mqttRespStatus  mqttSysThreadWaitUntilExit( mqttSysThre_t *thre_in, void **retur
 
 
 
-word32  mqttSysRNG( word32 maxnum )
-{ // TODO: find better way to implement this part
-    const size_t buf_len = 4;
-    FILE     *fp         = NULL;
-    word32   *read_int_p = NULL ;
-    byte      buf[buf_len];
+mqttRespStatus  mqttSysGetEntropy(mqttStr_t *out)
+{
+    if((out==NULL) || (out->data==NULL) || (out->len < MQTT_MIN_BYTES_ENTROPY) || (out->len > MQTT_MAX_BYTES_ENTROPY)) {
+        return MQTT_RESP_ERRARGS;
+    }
+    byte   *buf     = &out->data[0];
+    size_t  buf_len = out->len;
+    size_t  rd_len  = 0;
+    FILE   *fp      = NULL;
 
     fp = fopen("/dev/urandom", "rb");
     if(fp == NULL) {
@@ -263,11 +266,16 @@ word32  mqttSysRNG( word32 maxnum )
         fclose(fp);
         return 0;
     }
-    fread( &buf[0], 1, buf_len, fp );
+    do { // TODO:verify this part
+        rd_len   = fread( buf, 1, buf_len, fp );
+        if(rd_len < 1) {
+            continue;
+        } //wait & keep polling random device
+        buf_len -= rd_len;
+        buf     += rd_len;
+    } while(buf_len > 0);
     fclose(fp);
-    read_int_p = (word32 *)&buf[0];
-    return  ((*read_int_p) % (maxnum + 1));
-} // end of mqttUtilPRNG
-
+    return  MQTT_RESP_OK;
+} // end of mqttSysGetEntropy
 
 

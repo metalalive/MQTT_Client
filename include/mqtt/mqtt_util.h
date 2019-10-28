@@ -23,6 +23,7 @@ extern "C" {
 // greatest normal reason code 
 #define  MQTT_GREATEST_NORMAL_REASON_CODE  0x79
 
+
 // ------- topic naming rule --------
 // use English letters / numbers for each level of topic string, forward slashes for levels separator.
 // Do not start name with forward slash (/) or $ (reserved for broker)
@@ -74,7 +75,7 @@ extern "C" {
 }
 
 
-
+#define XGET_BITMASK( len )   ((0x1 << (len)) - 0x1)
 
 
 // find property structure with given type, by looking for a given linked list, 
@@ -83,6 +84,24 @@ mqttProp_t*  mqttGetPropByType( mqttProp_t* head, mqttPropertyType type );
 
 mqttRespStatus mqttChkReasonCode( mqttReasonCode reason_code );
 
+// generate a number that ranges from 0 to some positive integer as given input
+word32  mqttUtilPRNG(mqttDRBG_t *drbg, word32 range);
+// generate random byte sequence & store it to given output buffer
+mqttRespStatus  mqttUtilRandByteSeq(mqttDRBG_t *drbg, byte *out, word16 outlen);
+
+// -------- hash operations, will be integrated with third-party crypto library --------
+// hash function selection, based on hash output length, and operations
+void*   mqttHashFnSelect(mqttHashOpsType ops, mqttHashLenType type);
+
+word16  mqttHashGetOutlenBytes(mqttHashLenType type);
+
+// -------- multi-bytes integer arithmetic operations, will be integrated with third-party math library --------
+
+// add operation on multi-bytes unsigned integer operands
+mqttRespStatus  mqttUtilMultiByteUAdd( mqttStr_t *out, mqttStr_t *in1, mqttStr_t *in2 );
+
+// add operation on multi-bytes unsigned integer operand, the 2nd operand is digit.
+mqttRespStatus  mqttUtilMultiByteUAddDG( mqttStr_t *out, mqttStr_t *in1, word32 in2 );
 
 
 #ifdef __cplusplus

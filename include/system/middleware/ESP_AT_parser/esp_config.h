@@ -21,6 +21,13 @@ extern "C" {
 #define  ESP_CFG_RESTORE_ON_INIT  0
 #define  ESP_CFG_RST_ON_INIT      0
 
+// used FreeRTOS heap memory functions here because it seems more stable than
+// the memory functions provided by cross-compile toolchain.
+#define  ESP_MALLOC( sizebytes )         pvPortMalloc( (size_t)(sizebytes) )
+#define  ESP_MEMFREE( mptr )             vPortFree( (void *)(mptr) )
+#define  ESP_CALLOC( nmemb, size )       pvPortCalloc( nmemb, (size_t)(size) )
+#define  ESP_REALLOC( memptr, newsize)   pvPortRealloc( memptr, (size_t)(newsize) )
+
 #ifdef __cplusplus
 }
 #endif

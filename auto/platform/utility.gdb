@@ -12,6 +12,6 @@ define  connect_openocd_local_server
 end
 
 
-file     build/mqtt_client_tcp.elf
+#### file     build/your_test_image.elf
 
 

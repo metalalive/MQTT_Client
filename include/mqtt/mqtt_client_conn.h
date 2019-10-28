@@ -91,9 +91,12 @@ typedef struct __mqttCtx{
         mqttReasonCode    reason_code;  // 8-bit reason code in MQTT protocol
         mqttPropertyType  prop_id:8;      // 8-bit property ID in MQTT protocol
     } err_info;
+    // optional Deterministic Random Bit Generator (DRBG)
+    mqttDRBG_t   *drbg;
     // extended objects that can assist in underlying system / platform implementation (optional)
     void*    ext_sysobjs[2];
-    void    *secure_session; // point to session of secure connection
+    // point to session of secure connection (optional)
+    void    *secure_session;
 } mqttCtx_t;
 
 

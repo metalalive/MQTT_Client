@@ -10,16 +10,28 @@ extern "C" {
 // macros used in core implementation of the MQTT client
 #define  MQTT_SYS_PKT_MAXBYTES  4000
 
-#define  XMEMSET   ESP_MEMSET
-
+#undef   XMALLOC
 #define  XMALLOC   ESP_MALLOC
 
-#define  XMEMCPY   ESP_MEMCPY
+#undef   XCALLOC
+#define  XCALLOC   ESP_CALLOC
 
+#undef   XREALLOC
+#define  XREALLOC  ESP_REALLOC
+
+#undef   XMEMFREE
 #define  XMEMFREE  ESP_MEMFREE
 
+#undef   XMEMSET
+#define  XMEMSET   ESP_MEMSET
+
+#undef   XMEMCPY
+#define  XMEMCPY   ESP_MEMCPY
+
+#undef   XSTRLEN
 #define  XSTRLEN   ESP_STRLEN
 
+#undef   XASSERT
 #define  XASSERT  ESP_ASSERT
 
 // minimum application thread priority

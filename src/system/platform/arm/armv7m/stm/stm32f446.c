@@ -438,53 +438,62 @@ mqttRespStatus  mqttPlatformNetworkModRst( uint8_t state )
 
 
 
-// PC8, PC9 can be used for hardware random number generator (RNG). Note that the number of pins to use
-// should depend on what sensor devices or electrical components you used to your hardware RNG implementation.
+// In this implementation, PC8, PC9 are wired to external device that provides source of randomness.
+// Note that the number of pins to use SHOULD depend on what sensor devices or electrical components
+// you used to your random number generator (RNG) implementation.
 //
-// mqttPlatformRNG() in this file provides a sample to show one of many possible ways to hardware RNG
-// implementation, e.g. we wire PC8, PC9 to a sonar sensor HC-SR04 that can produce electrical noise,
-// then feed the noise to ADC (Analog-Digital-Convertor) component in your embedded board to generate random
-// value. This can be useful for those embedded boards that don't include built-in hardware RNG.
+// mqttPlatformGetEntropy() in this file provides a sample to show one of many possible ways to entropy
+// implementation (source of randomness) , e.g. you wire PC8, PC9 to a sonar sensor HC-SR04 producing
+// electrical noise, then feed the noise to your embedded board to generate random bit sequence.
+// This can be useful for those embedded boards that don't include built-in hardware RNG.
 //
 // You should modify the code here based on your hardware set-up.
-#define  NUM_RAND_VALUE_RECORD   11
-static volatile  word32 rand_val_record[NUM_RAND_VALUE_RECORD] = {0};
-
-word32  mqttPlatformRNG( word32 maxnum )
+mqttRespStatus  mqttPlatformGetEntropy(mqttStr_t *out)
 {
-    word32         out = 0;
+    if((out==NULL) || (out->data==NULL) || (out->len < 1) || (out->len > MQTT_MAX_BYTES_ENTROPY)) {
+        return MQTT_RESP_ERRARGS;
+    }
     word32         start_time = 0;
     word32         stop_time  = 0;
-    word32         pulse_duration  = 0;
+    word32         tmp = 0;
+    word32         idx = 0;
+    word32         prev_wr_idx = 0;
+    word32         wr_idx    = 0;
+    word32         wr_offset = 0;
     const  word32  max_wait_time   = HAL_RCC_GetPCLK1Freq() >> 5;
     GPIO_PinState  echo_state;
-    uint8_t        idx = 0;
+    const  uint8_t nbits_grab = 2; // grab 2 bits every time when we read from entropy
+    word32         num_iterations = (out->len << 3) / nbits_grab;
 
-    for(idx=0; idx<NUM_RAND_VALUE_RECORD && out<maxnum; idx++) {
+    for(idx=0; idx<num_iterations; idx++) {
         HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
         mqttSysDelay(1);
         HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
-        pulse_duration = max_wait_time;
+        tmp = max_wait_time;
         do { // wait for signal assertion on ECHO pin
             start_time = __HAL_TIM_GET_COUNTER(&htim2);
             echo_state = HAL_GPIO_ReadPin( GPIOC, GPIO_PIN_9 );
-            pulse_duration--;
-        } while(echo_state == GPIO_PIN_RESET && pulse_duration > 0);
-        pulse_duration = max_wait_time;
+            tmp--;
+        } while(echo_state == GPIO_PIN_RESET && tmp > 0);
+        if(tmp==0) { return MQTT_RESP_TIMEOUT; }
+        tmp = max_wait_time;
         do {// wait for signal de-assertion on ECHO pin
-            stop_time  = __HAL_TIM_GET_COUNTER(&htim2);
+            tmp--;
             echo_state = HAL_GPIO_ReadPin( GPIOC, GPIO_PIN_9 );
-            pulse_duration--;
-        } while(echo_state == GPIO_PIN_SET && pulse_duration > 0);
-        pulse_duration = (stop_time < start_time) ? (htim2.Init.Period - start_time + stop_time) : (stop_time - start_time);
-        rand_val_record[idx] = pulse_duration;
-        out |= (pulse_duration & 0x7) << (idx << 0x3);
-        mqttSysDelay(2);
-    } // end of for-loop
-    out = out % (maxnum + 1);
-    return out;
-} // end of  mqttPlatformRNG
-#undef NUM_RAND_VALUE_RECORD
+            stop_time  = __HAL_TIM_GET_COUNTER(&htim2);
+        } while(echo_state == GPIO_PIN_SET && tmp > 0);
+        if(tmp==0) { return MQTT_RESP_TIMEOUT; }
+        tmp  = (stop_time < start_time) ? (htim2.Init.Period - start_time + stop_time) : (stop_time - start_time);
+        tmp &= XGET_BITMASK(nbits_grab);
+        wr_idx    = (idx * nbits_grab) >> 3;
+        wr_offset = (idx * nbits_grab) % 8;
+        if(prev_wr_idx != wr_idx) { out->data[wr_idx] = 0; }
+        out->data[wr_idx] |= (tmp << wr_offset);
+        prev_wr_idx  = wr_idx;
+    } // end of foop-loop statement
+    return   MQTT_RESP_OK;
+} // end of mqttPlatformGetEntropy
+
 
 
 mqttRespStatus  mqttPlatformInit( void )
