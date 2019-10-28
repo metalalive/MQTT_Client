@@ -346,7 +346,7 @@ int  mqttGetPktLenConnect ( mqttConn_t *conn, word32 max_pkt_sz )
         return MQTT_RESP_ERR_EXCEED_PKT_SZ ;
     }
     if((remain_len + head_len) > MQTT_RECV_PKT_MAXBYTES) {
-        return MQTT_RESP_ERRMEM;
+        return MQTT_RESP_ERR_EXCEED_PKT_SZ;
     } // report error because there might not be sufficient memory space to allocate.
     conn->pkt_len_set.remain_len = remain_len;
     conn->pkt_len_set.props_len  = props_len;
@@ -387,7 +387,7 @@ int  mqttGetPktLenPublish( mqttMsg_t *msg, word32 max_pkt_sz )
         return MQTT_RESP_ERR_EXCEED_PKT_SZ ;
     }
     if((remain_len + head_len) > MQTT_RECV_PKT_MAXBYTES) {
-        return MQTT_RESP_ERRMEM;
+        return MQTT_RESP_ERR_EXCEED_PKT_SZ;
     } // report error because there might not be sufficient memory space to allocate.
     msg->pkt_len_set.remain_len = remain_len;
     msg->pkt_len_set.props_len  = props_len;
@@ -418,7 +418,7 @@ int  mqttGetPktLenPubResp ( mqttPktPubResp_t *resp, word32 max_pkt_sz )
         return MQTT_RESP_ERR_EXCEED_PKT_SZ ;
     }
     if((remain_len + head_len) > MQTT_RECV_PKT_MAXBYTES) {
-        return MQTT_RESP_ERRMEM;
+        return MQTT_RESP_ERR_EXCEED_PKT_SZ;
     } // report error because there might not be sufficient memory space to allocate.
     resp->pkt_len_set.remain_len = remain_len;
     resp->pkt_len_set.props_len  = props_len;
@@ -459,7 +459,7 @@ int  mqttGetPktLenSubscribe ( mqttPktSubs_t *subs, word32 max_pkt_sz )
         return MQTT_RESP_ERR_EXCEED_PKT_SZ ;
     }
     if((remain_len + head_len) > MQTT_RECV_PKT_MAXBYTES) {
-        return MQTT_RESP_ERRMEM;
+        return MQTT_RESP_ERR_EXCEED_PKT_SZ;
     } // report error because there might not be sufficient memory space to allocate.
     subs->pkt_len_set.remain_len = remain_len;
     subs->pkt_len_set.props_len  = props_len;
@@ -497,7 +497,7 @@ int  mqttGetPktLenUnsubscribe ( mqttPktUnsubs_t *unsubs, word32 max_pkt_sz )
         return MQTT_RESP_ERR_EXCEED_PKT_SZ ;
     }
     if((remain_len + head_len) > MQTT_RECV_PKT_MAXBYTES) {
-        return MQTT_RESP_ERRMEM;
+        return MQTT_RESP_ERR_EXCEED_PKT_SZ;
     } // report error because there might not be sufficient memory space to allocate.
     unsubs->pkt_len_set.remain_len = remain_len;
     unsubs->pkt_len_set.props_len  = props_len;
@@ -535,7 +535,7 @@ int  mqttGetPktLenDisconn ( mqttPktDisconn_t *disconn, word32 max_pkt_sz )
         return MQTT_RESP_ERR_EXCEED_PKT_SZ ;
     }
     if((remain_len + head_len) > MQTT_RECV_PKT_MAXBYTES) {
-        return MQTT_RESP_ERRMEM;
+        return MQTT_RESP_ERR_EXCEED_PKT_SZ;
     } // report error because there might not be sufficient memory space to allocate.
     disconn->pkt_len_set.remain_len = remain_len;
     disconn->pkt_len_set.props_len  = props_len;
@@ -564,7 +564,7 @@ int  mqttGetPktLenAuth ( mqttAuth_t *auth, word32 max_pkt_sz )
         return MQTT_RESP_ERR_EXCEED_PKT_SZ ;
     }
     if((remain_len + head_len) > MQTT_RECV_PKT_MAXBYTES) {
-        return MQTT_RESP_ERRMEM;
+        return MQTT_RESP_ERR_EXCEED_PKT_SZ;
     } // report error because there might not be sufficient memory space to allocate.
     auth->pkt_len_set.remain_len = remain_len;
     auth->pkt_len_set.props_len  = props_len;
