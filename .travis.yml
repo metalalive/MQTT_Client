@@ -7,7 +7,8 @@ before_install:
     - make  download_3party
 
 script:
+    - make  DEBUG=yes -C third_party
     - make  DEBUG=yes
-    - make  tests DEBUG=yes  PLUS_C_DEFS="MQTT_CFG_RUN_TEST_THREAD "
+    - make  tests DEBUG=yes  PLUS_C_DEFS="MQTT_CFG_RUN_TEST_THREAD"
 
 

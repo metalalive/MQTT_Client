@@ -35,7 +35,13 @@ C_DEFS += \
 # MQTT implementation
 
 COMMON_3PARTY_DOWNLOAD_CMD = git clone https://github.com/libtom/libtomcrypt.git; \
-                             git clone https://github.com/libtom/libtommath.git;
+                             cd  libtomcrypt ; \
+                             git checkout 0c30412a669d37451341ec871c08974da2451eca; \
+                             cd  .. ; \
+                             git clone https://github.com/libtom/libtommath.git; \
+                             cd  libtommath ; \
+                             git checkout 6378a90a70404a58d5b4ef20e81d9f817ba021c7; \
+                             cd  .. ; \
 
 # for building libmqttclient.a  with common third-party libraries
 C_INCLUDES += -Igenerate/include  -Ithird_party/libtomcrypt/src/headers  -Ithird_party/libtommath
