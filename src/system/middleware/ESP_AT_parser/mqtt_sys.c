@@ -407,7 +407,7 @@ mqttRespStatus  mqttSysGetEntropy(mqttStr_t *entropy_out)
 
 
 
-int  mqttSysPktRead( mqttCtx_t *mctx, byte *buf, word32 buf_len )
+int  mqttSysPktRead( void **extsysobjs, byte *buf, word32 buf_len, int timeout_ms )
 {
     espNetConnPtr   espconn = NULL; 
     espRes_t        response ;
@@ -418,17 +418,17 @@ int  mqttSysPktRead( mqttCtx_t *mctx, byte *buf, word32 buf_len )
     size_t          copied_len_iter  = 0; // length of copied data in each iteration
     size_t          remain_payld_len = 0;
  
-    if((mctx == NULL) || (buf == NULL) || (buf_len == 0)) {
+    if((extsysobjs == NULL) || (buf == NULL) || (buf_len == 0)) {
         return MQTT_RESP_ERRARGS;
     }
-    espconn = (espNetConnPtr) mctx->ext_sysobjs[0];
+    espconn = (espNetConnPtr) extsysobjs[0]; //// mctx->ext_sysobjs[0];
     if(espconn == NULL) { return MQTT_RESP_ERRMEM; }
 
     while(buf_len > 0) 
     {
         if(unfinish_rd_pktbuf == NULL) {
             // implement non-blocking packet read function.
-            response = eESPnetconnGrabNextPkt( espconn, &unfinish_rd_pktbuf,  mctx->cmd_timeout_ms );
+            response = eESPnetconnGrabNextPkt( espconn, &unfinish_rd_pktbuf, timeout_ms );
             if( response != espOK ){
                 unfinish_rd_pktbuf = NULL;
                 return ( copied_len_total > 0 ? copied_len_total : MQTT_RESP_TIMEOUT);
@@ -462,13 +462,13 @@ int  mqttSysPktRead( mqttCtx_t *mctx, byte *buf, word32 buf_len )
 
 
 
-int  mqttSysPktWrite( mqttCtx_t *mctx, byte *buf, word32 buf_len )
+int  mqttSysPktWrite( void **extsysobjs, byte *buf, word32 buf_len )
 {
-    if((mctx == NULL) || (buf == NULL) || (buf_len == 0)) {
+    if((extsysobjs == NULL) || (buf == NULL) || (buf_len == 0)) {
         return MQTT_RESP_ERRARGS ;
     }
-    espConn_t  *espconn = (espConn_t *) mctx->ext_sysobjs[1] ;
-    espRes_t    response ; 
+    espConn_t  *espconn = (espConn_t *) extsysobjs[1];  ////  mctx->ext_sysobjs[1] ;
+    espRes_t    response;
     if(espconn == NULL) {
         return MQTT_RESP_ERRMEM;
     }

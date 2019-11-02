@@ -83,9 +83,9 @@ mqttRespStatus  mqttSysNetconnStop( mqttCtx_t *mctx );
 // 
 // it's unlikely to return zero value even on transmission timeout 
 
-int  mqttSysPktRead(  mqttCtx_t *mctx, byte *buf, word32 buf_len);
+int  mqttSysPktRead( void **extsysobjs,  byte *buf, word32 buf_len, int timeout_ms );
 
-int  mqttSysPktWrite( mqttCtx_t *mctx, byte *buf, word32 buf_len);
+int  mqttSysPktWrite( void **extsysobjs, byte *buf, word32 buf_len );
 
 
 // the packet receiving handler is the interface to interrupt service routine &  is 

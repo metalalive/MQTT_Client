@@ -154,12 +154,12 @@ static mqttRespStatus mqttSysChkSockfdAvail (int sockfd_in, short evt_in)
 
 
 
-int  mqttSysPktRead( mqttCtx_t *mctx, byte *buf, word32 buf_len )
+int  mqttSysPktRead( void **extsysobjs, byte *buf, word32 buf_len, int timeout_ms )
 {
-    if((mctx == NULL) || (buf == NULL) || (buf_len == 0)) {
+    if((extsysobjs == NULL) || (buf == NULL) || (buf_len == 0)) {
         return MQTT_RESP_ERRARGS;
     }
-    int  sockfd  = (int) mctx->ext_sysobjs[0];
+    int  sockfd  = (int) extsysobjs[0]; //// mctx->ext_sysobjs[0];
     int  status  = 0;
 
     status = (mqttRespStatus)mqttSysChkSockfdAvail(sockfd, (POLLIN | POLLPRI));
@@ -174,12 +174,12 @@ int  mqttSysPktRead( mqttCtx_t *mctx, byte *buf, word32 buf_len )
 
 
 
-int  mqttSysPktWrite( mqttCtx_t *mctx, byte *buf, word32 buf_len )
+int  mqttSysPktWrite( void **extsysobjs, byte *buf, word32 buf_len )
 {
-    if((mctx == NULL) || (buf == NULL) || (buf_len == 0)) {
+    if((extsysobjs == NULL) || (buf == NULL) || (buf_len == 0)) {
         return MQTT_RESP_ERRARGS ;
     }
-    int  sockfd  = (int) mctx->ext_sysobjs[0];
+    int  sockfd  = (int) extsysobjs[0]; //// (int) mctx->ext_sysobjs[0];
     int  status  = 0;
 
     status = (mqttRespStatus)mqttSysChkSockfdAvail(sockfd, POLLOUT);

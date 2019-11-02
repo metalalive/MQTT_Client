@@ -3,7 +3,7 @@
 
 // wait 10 seconds after MQTT command is sent to broker
 #define  MQTT_TEST_CMD_TIMEOUT_MS          6000
-#define  MQTT_TEST_THREAD_STACK_SIZE       ((uint16_t) 0xbe)
+#define  MQTT_TEST_THREAD_STACK_SIZE       ((uint16_t) 0x2fe)
 
 static mqttTestPatt testPatternSet;
 static mqttCtx_t *m_client;
@@ -108,8 +108,10 @@ static void mqttTestStartFn(void *params)
     mqttRespStatus status   = MQTT_RESP_ERR;
     uint8_t        num_iter = 0;
 
-    status = mqttDRBGinit(&m_client->drbg);
-    if(status != MQTT_RESP_OK) { goto end_of_main_test; }
+    if(m_client->drbg == NULL) {
+        status = mqttDRBGinit(&m_client->drbg);
+        if(status != MQTT_RESP_OK) { goto end_of_main_test; }
+    }
     XMEMSET( &testPatternSet, 0x00, sizeof(mqttTestPatt)) ;
     testPatternSet.drbg = m_client->drbg;
     num_iter = 3 + (uint8_t) mqttUtilPRNG(m_client->drbg, 3);
@@ -124,7 +126,10 @@ static void mqttTestStartFn(void *params)
         num_iter--;
     } // end of while-loop
 end_of_main_test:
-    mqttDRBGdeinit(m_client->drbg);
+    if(m_client->drbg != NULL) {
+        mqttDRBGdeinit(m_client->drbg);
+        m_client->drbg = NULL;
+    }
     mqttClientDeinit( m_client ); // TODO: should we de-init system before terminating this thread ?
     m_client = NULL;
 #ifdef MQTT_CFG_RUN_TEST_THREAD

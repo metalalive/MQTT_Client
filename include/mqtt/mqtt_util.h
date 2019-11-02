@@ -23,6 +23,8 @@ extern "C" {
 // greatest normal reason code 
 #define  MQTT_GREATEST_NORMAL_REASON_CODE  0x79
 
+// max. number of extensive objects that assist in working with underlying system/platform
+#define  MQTT_MAX_NUM_EXT_SYSOBJS          0x2
 
 // ------- topic naming rule --------
 // use English letters / numbers for each level of topic string, forward slashes for levels separator.

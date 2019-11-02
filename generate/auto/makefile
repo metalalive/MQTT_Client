@@ -9,24 +9,6 @@ MIDDLEWARE ?= Linux
 PLATFORM ?= unknown
 
 C_DEFS += \
-    -DMGTT_CFG_HASH_STATE_STRUCT=hash_state \
-    -DMGTT_CFG_HASH_SHA256_FN_INIT=sha256_init \
-    -DMGTT_CFG_HASH_SHA384_FN_INIT=sha384_init \
-    -DMGTT_CFG_HASH_SHA256_FN_UPDATE=sha256_process \
-    -DMGTT_CFG_HASH_SHA384_FN_UPDATE=sha384_process \
-    -DMGTT_CFG_HASH_SHA256_FN_DONE=sha256_done  \
-    -DMGTT_CFG_HASH_SHA384_FN_DONE=sha384_done  \
-    -DMQTT_CFG_MPBINT_FN_BIN2MPINT=mp_from_ubin \
-    -DMQTT_CFG_MPBINT_FN_MPINT2BIN=mp_to_ubin   \
-    -DMQTT_CFG_MPBINT_FN_CAL_UBINSIZE=mp_ubin_size \
-    -DMQTT_CFG_MPBINT_FN_INIT=mp_init \
-    -DMQTT_CFG_MPBINT_FN_CLEAR=mp_clear    \
-    -DMQTT_CFG_MPBINT_FN_ADD=mp_add        \
-    -DMQTT_CFG_MPBINT_FN_ADDDG=mp_add_d    \
-
-# TODO:
-#### -DMQTT_CFG_USE_TLS  \
-#### -DMQTT_CFG_ENABLE_TLS_V1_3 \
 
 
 # users can add new third-party crypto library they will use, but users MUST check/handle the

@@ -93,8 +93,8 @@ typedef struct __mqttCtx{
     } err_info;
     // optional Deterministic Random Bit Generator (DRBG)
     mqttDRBG_t   *drbg;
-    // extended objects that can assist in underlying system / platform implementation (optional)
-    void*    ext_sysobjs[2];
+    // extensive objects that assist in working with underlying system / platform implementation (optional)
+    void*    ext_sysobjs[MQTT_MAX_NUM_EXT_SYSOBJS];
     // point to session of secure connection (optional)
     void    *secure_session;
 } mqttCtx_t;
