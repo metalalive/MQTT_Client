@@ -290,9 +290,11 @@ void USART3_IRQHandler( void )
         // clear current IDLE-detection interrupt.
         __HAL_UART_CLEAR_IDLEFLAG( &haluart3 );
         // calculate received data bytes & its length, and pass it to higher-level handling function.
-        dma_buf_cpy_offset_next = HAL_DMA_RECV_BUF_SIZE - __HAL_DMA_GET_COUNTER( &haldma_usart3_rx ); 
-        dma_buf_num_char_copied  = dma_buf_cpy_offset_next -  dma_buf_cpy_offset_curr;
-        mqttSysPktRecvHandler( (haluart3.pRxBuffPtr + dma_buf_cpy_offset_curr), dma_buf_num_char_copied );
+        dma_buf_cpy_offset_next = HAL_DMA_RECV_BUF_SIZE - __HAL_DMA_GET_COUNTER( &haldma_usart3_rx );
+        if(dma_buf_cpy_offset_next > dma_buf_cpy_offset_curr) {
+            dma_buf_num_char_copied  = dma_buf_cpy_offset_next -  dma_buf_cpy_offset_curr;
+            mqttSysPktRecvHandler( (haluart3.pRxBuffPtr + dma_buf_cpy_offset_curr), dma_buf_num_char_copied );
+        } // otherwise, skip the received data from this interrupt, TODO: figure out if that's hardware error ?
         dma_buf_cpy_offset_curr = dma_buf_cpy_offset_next;
     } 
 } // end of USART3_IRQHandler
