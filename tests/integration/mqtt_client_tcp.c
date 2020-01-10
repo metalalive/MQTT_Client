@@ -3,7 +3,7 @@
 
 // wait 10 seconds after MQTT command is sent to broker
 #define  MQTT_TEST_CMD_TIMEOUT_MS          6000
-#define  MQTT_TEST_THREAD_STACK_SIZE       ((uint16_t) 0x2fe)
+#define  MQTT_TEST_THREAD_STACK_SIZE       ((uint16_t) 0x13e)
 
 static mqttTestPatt testPatternSet;
 static mqttCtx_t *m_client;
@@ -64,7 +64,7 @@ static mqttRespStatus mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mct
         goto disconnect_server;
     }
     // --------- wait for incoming PUBLISH packet ---------
-    mctx->cmd_timeout_ms = 0xdbba0; // wait 15 minutes = 1000 * 60 * 15 milliseconds
+    mqttModifyReadMsgTimeout(mctx, 0xdbba0); // wait 15 minutes = 1000 * 60 * 15 milliseconds
     // TODO: write script to mock another client sending PUBLISH packet to this subsriber...
     while(num_pub_msg_recv > 0) {
         patt_in->pubmsg_recv = NULL;
@@ -72,7 +72,7 @@ static mqttRespStatus mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mct
         if((status < 0) || (patt_in->pubmsg_recv==NULL)) { break; }
         num_pub_msg_recv--;
     } // end of while-loop
-    mctx->cmd_timeout_ms = MQTT_TEST_CMD_TIMEOUT_MS;
+    mqttModifyReadMsgTimeout(mctx, MQTT_TEST_CMD_TIMEOUT_MS);
     // -------- send UNSUBSCRIBE packet to broker --------
     mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_UNSUBSCRIBE );
     status = mqttSendUnsubscribe( mctx, &patt_in->unsuback );
