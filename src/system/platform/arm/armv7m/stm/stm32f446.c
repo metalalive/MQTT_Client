@@ -2,9 +2,18 @@
 
 
 // Private macro -------------------------------------------------------------
-#define  HAL_DMA_RECV_BUF_SIZE  0x100
+// TODO: figure out why Rx buffer size less than 0x200 bytes could lead to packet loss
+#define  HAL_DMA_RECV_BUF_SIZE  0x280
 
 // Private variables ---------------------------------------------------------
+extern  const byte  mqttAuthInitHour   ;
+extern  const byte  mqttAuthInitMinutes;
+extern  const byte  mqttAuthInitSeconds;
+extern  const byte  mqttAuthInitMonth;
+extern  const byte  mqttAuthInitDate ;
+extern  const byte  mqttAuthInitYear ;
+// data structure for RTC (Real-Time Calendar), for getting date time
+static  RTC_HandleTypeDef   hrtc;
 // timer used for other peripherals in STM32F446 development board
 static  TIM_HandleTypeDef   htim2;
 // STM32F446 board doesn't have network hardware module, in order to run this MQTT implementation,
@@ -97,24 +106,24 @@ static void STM32_HAL_MspInit(void)
   */
 static HAL_StatusTypeDef SystemClock_Config(void)
 {
-    HAL_StatusTypeDef status;
+    HAL_StatusTypeDef status = HAL_OK;
     RCC_OscInitTypeDef RCC_OscInitStruct = {0};
     RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+    RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
   
-    /**Configure the main internal regulator output voltage 
-    */
+    // Configure the main internal regulator output voltage
     __HAL_RCC_PWR_CLK_ENABLE();
     __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
-    /**Initializes the CPU, AHB and APB busses clocks 
-    */
-    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+    // Initializes the CPU, AHB and APB busses clocks
+    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_LSI;
+    RCC_OscInitStruct.LSEState = RCC_LSE_OFF;
     RCC_OscInitStruct.HSIState = RCC_HSI_ON;
     RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+    RCC_OscInitStruct.LSIState = RCC_LSI_ON;
     RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
     status = HAL_RCC_OscConfig(&RCC_OscInitStruct);
-    if (status != HAL_OK) {  return status;  }
-    /**Initializes the CPU, AHB and APB busses clocks 
-    */
+    if (status != HAL_OK) { goto done; }
+    // Initializes the CPU, AHB and APB busses clocks
     RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                                 |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
     RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
@@ -122,8 +131,13 @@ static HAL_StatusTypeDef SystemClock_Config(void)
     RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
     RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
     status =  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0);
-    if (status != HAL_OK) {  return status;  }
-    return HAL_OK;
+    if (status != HAL_OK) { goto done;  }
+    // initialize clocks for RTC
+    PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RTC;
+    PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
+    status = HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct);
+done:
+    return status;
 } // end of SystemClock_Config
 
 
@@ -165,6 +179,15 @@ static HAL_StatusTypeDef STM32_HAL_Init(void)
     return HAL_OK;
 } // end of STM32_HAL_Init
 
+
+// will be called by HAL_RTC_Init
+void HAL_RTC_MspInit(RTC_HandleTypeDef* hrtc)
+{
+    if(hrtc->Instance==RTC) {
+        // Peripheral clock enable
+        __HAL_RCC_RTC_ENABLE();
+    }
+} // end of HAL_RTC_MspInit
 
 
 // will be called by HAL_UART_Init()
@@ -291,18 +314,13 @@ void USART3_IRQHandler( void )
         __HAL_UART_CLEAR_IDLEFLAG( &haluart3 );
         // calculate received data bytes & its length, and pass it to higher-level handling function.
         dma_buf_cpy_offset_next = HAL_DMA_RECV_BUF_SIZE - __HAL_DMA_GET_COUNTER( &haldma_usart3_rx );
-        if(dma_buf_cpy_offset_next > dma_buf_cpy_offset_curr) {
+        if(dma_buf_cpy_offset_next > dma_buf_cpy_offset_curr && haluart3.pRxBuffPtr != NULL) {
             dma_buf_num_char_copied  = dma_buf_cpy_offset_next -  dma_buf_cpy_offset_curr;
             mqttSysPktRecvHandler( (haluart3.pRxBuffPtr + dma_buf_cpy_offset_curr), dma_buf_num_char_copied );
         } // otherwise, skip the received data from this interrupt, TODO: figure out if that's hardware error ?
         dma_buf_cpy_offset_curr = dma_buf_cpy_offset_next;
     } 
 } // end of USART3_IRQHandler
-
-
-
-
-
 
 
 
@@ -372,6 +390,39 @@ static HAL_StatusTypeDef  STM32_HAL_periph_Init( void )
     return HAL_OK;
 } // end of STM32_HAL_periph_Init 
 
+
+static HAL_StatusTypeDef STM32_HAL_RTC_Init(void)
+{ // Initialize RTC and set the Time and Date
+    HAL_StatusTypeDef status = HAL_OK;
+    RTC_TimeTypeDef sTime = {0};
+    RTC_DateTypeDef sDate = {0};
+
+    hrtc.Instance = RTC;
+    hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+    hrtc.Init.AsynchPrediv = 127;
+    hrtc.Init.SynchPrediv = 255;
+    hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+    hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+    hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+    status = HAL_RTC_Init(&hrtc);
+
+    if(status != HAL_OK) { goto done; }
+    sTime.Hours   = mqttAuthInitHour   ; // feed initial date/time from host system
+    sTime.Minutes = mqttAuthInitMinutes;
+    sTime.Seconds = mqttAuthInitSeconds;
+    sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+    sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+    status = HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
+    if(status != HAL_OK) { goto done; }
+
+    sDate.WeekDay = RTC_WEEKDAY_TUESDAY; // this implementation doesn't check what weekday it is today, ignore this value
+    sDate.Month   = mqttAuthInitMonth; // can be from RTC_MONTH_JANUARY to RTC_MONTH_DECEMBER
+    sDate.Date    = mqttAuthInitDate;
+    sDate.Year    = mqttAuthInitYear; // seems like UTC time format
+    status = HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD);
+done:
+    return status;
+} // end of STM32_HAL_RTC_Init
 
 
 mqttRespStatus   mqttPlatformPktRecvEnable( void )
@@ -498,6 +549,29 @@ mqttRespStatus  mqttPlatformGetEntropy(mqttStr_t *out)
 
 
 
+mqttRespStatus  mqttPlatformGetDateTime(mqttDateTime_t *out)
+{
+    if(out == NULL) { return MQTT_RESP_ERRARGS; }
+    HAL_StatusTypeDef status = HAL_OK;
+    RTC_TimeTypeDef sTime = {0};
+    RTC_DateTypeDef sDate = {0};
+    status = HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
+    if(status != HAL_OK) { goto done; }
+    out->hour   = sTime.Hours;
+    out->minite = sTime.Minutes;
+    out->second = sTime.Seconds;
+    status = HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BCD);
+    if(status != HAL_OK) { goto done; }
+    out->month   = sDate.Month;
+    out->date    = sDate.Date ;
+    out->year[1] = sDate.Year ;
+    out->year[0] = 0x20; // TODO : find better way to implement this
+done:
+    return (status == HAL_OK ? MQTT_RESP_OK : MQTT_RESP_ERR);
+} // end of mqttPlatformGetDateTime
+
+
+
 mqttRespStatus  mqttPlatformInit( void )
 {
     HAL_StatusTypeDef  status = HAL_OK;
@@ -510,6 +584,9 @@ mqttRespStatus  mqttPlatformInit( void )
     if(status == HAL_OK) {
         status = STM32_HAL_periph_Init();
     }
+    if(status == HAL_OK) {
+        status = STM32_HAL_RTC_Init();
+    }
     return  (status == HAL_OK ? MQTT_RESP_OK : MQTT_RESP_ERR );
 } // end of mqttPlatformInit
 
@@ -517,7 +594,7 @@ mqttRespStatus  mqttPlatformInit( void )
 
 
 mqttRespStatus  mqttPlatformDeInit( void )
-{ // dummy , don't do anythin
+{ // dummy , don't do anything
     return   MQTT_RESP_OK ;
 } // end of mqttHwPlatformDeInit
 

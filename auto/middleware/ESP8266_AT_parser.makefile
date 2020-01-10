@@ -54,16 +54,3 @@ C_INCLUDES += -Iinclude/system/middleware/ESP_AT_parser
 C_DEFS += -DMQTT_CFG_SYS_ESP_AT_PARSER
 
 
-#-------------------------------------------------------------------------------------
-# integration parameters for this MQTT implementation & common third-party libraries
-#-------------------------------------------------------------------------------------
-# memory operation functions should be consistent with underlying OS, for the platforms
-# that provide their own heap memory operations with different function names, developers
-# can sepcify the memory function names that meet their platform requirement.
-COMMON_3PARTY_HEAPMEM_FN_CHANGE=yes
-COMMON_3PARTY_HEAPMEM_FN_MALLOC=pvPortMalloc
-COMMON_3PARTY_HEAPMEM_FN_FREE=vPortFree
-COMMON_3PARTY_HEAPMEM_FN_REALLOC=pvPortRealloc
-COMMON_3PARTY_HEAPMEM_FN_CALLOC=pvPortCalloc
-
-

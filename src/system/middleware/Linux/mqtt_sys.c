@@ -279,3 +279,24 @@ mqttRespStatus  mqttSysGetEntropy(mqttStr_t *out)
 } // end of mqttSysGetEntropy
 
 
+mqttRespStatus  mqttSysGetDateTime(mqttDateTime_t *out)
+{
+    time_t     T = time(NULL);
+    struct tm *t = localtime(&T);
+    const byte decimal_base = 10;
+    out->hour    = mqttCvtDecimalToBCDbyte(t->tm_hour   , decimal_base);
+    out->minite  = mqttCvtDecimalToBCDbyte(t->tm_min    , decimal_base);
+    out->second  = mqttCvtDecimalToBCDbyte(t->tm_sec    , decimal_base);
+    out->date    = mqttCvtDecimalToBCDbyte(t->tm_mday   , decimal_base);
+    out->month   = mqttCvtDecimalToBCDbyte(t->tm_mon + 1, decimal_base);
+    out->year[1] = mqttCvtDecimalToBCDbyte(t->tm_year   , decimal_base);
+    out->year[0] = 0x20;
+    return  MQTT_RESP_OK;
+} // end of mqttSysGetDateTime
+
+
+word32  mqttSysGetTimeMs(void) {
+    return 0; // TODO: finish implementation
+} // end of mqttSysGetTimeMs
+
+

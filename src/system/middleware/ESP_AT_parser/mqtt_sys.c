@@ -4,7 +4,7 @@
 // The low-level implementation should depend on what kind of underlying hardware / operating system applied to your application, this file only shows API integration with our ESP AT parser, used with ESP8266 wifi device. 
 // For other OS users, you will need to implement your own socket functions.
 
-#define  MAX_NUM_AP_FOUND            15
+#define  MAX_NUM_AP_FOUND           3
 
 // In some use cases, users might call this read function multiple times only for fetching few bytes of packet data. so we need to reserve the packet data that hasn't been completed reading (from user applications)
 static espPbuf_t   *unfinish_rd_pktbuf      = NULL;
@@ -155,10 +155,10 @@ static espRes_t  mqttSysConnectToAP( espIp_t *out_ip, espMac_t *out_mac )
         // MAC address & channel number to narrow down the search result to minimum.
         // (for some sophisticated Wi-fi Access Points (AP), channel number could be
         // changed each  time when the AP is launched )
-        response = eESPstaListAP( NULL, 0, &foundAPs[0], ESP_ARRAYSIZE(foundAPs), &num_ap_found, 
-                                  NULL, NULL, ESP_AT_CMD_BLOCKING );
+        response = eESPstaListAP((const char *)wifiSSID->data, wifiSSID->len, &foundAPs[0],
+                                  ESP_ARRAYSIZE(foundAPs), &num_ap_found, NULL, NULL, ESP_AT_CMD_BLOCKING );
+        tried_conn  = 0;
         if((response == espOK) || (response == espOKIGNOREMORE)) {
-            tried_conn  = 0;
             for (idx = 0; idx < num_ap_found; idx++) {
                 if( strncmp( foundAPs[idx].ssid, (const char *)wifiSSID->data, wifiSSID->len ) == 0 )
                 {
@@ -280,6 +280,18 @@ void  mqttSysDelay(uint32_t ms) {
 } // end of mqttSysDelay
 
 
+word32  mqttSysGetTimeMs(void) {
+    // In this ESP_AT_parser systme port, 1 tick = 1000 Hz = 1 ms (see configTICK_RATE_HZ
+    // in FreeRTOS configuration file), therefore we simply return tick counts from RTOS
+    // function xTaskGetTickCount()
+    return (word32) xTaskGetTickCount();
+} // end of mqttSysGetTimeMs
+
+
+mqttRespStatus  mqttSysGetDateTime(mqttDateTime_t *out)
+{
+    return  mqttPlatformGetDateTime(out);
+} // end of mqttSysGetDateTime
 
 
 mqttRespStatus  mqttSysPktRecvHandler( uint8_t* data, uint16_t data_len )
@@ -460,8 +472,6 @@ int  mqttSysPktRead( void **extsysobjs, byte *buf, word32 buf_len, int timeout_m
 
 
 
-
-
 int  mqttSysPktWrite( void **extsysobjs, byte *buf, word32 buf_len )
 {
     if((extsysobjs == NULL) || (buf == NULL) || (buf_len == 0)) {
@@ -475,8 +485,5 @@ int  mqttSysPktWrite( void **extsysobjs, byte *buf, word32 buf_len )
     response = eESPconnClientSend( espconn,  buf,  buf_len, NULL, NULL, ESP_AT_CMD_BLOCKING );
     return  (response == espOK ? buf_len : mqttSysRespCvtFromESPresp(response));
 } // end of mqttSysPktWrite
-
-
-
 
 

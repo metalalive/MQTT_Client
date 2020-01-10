@@ -27,6 +27,9 @@ extern "C" {
 #include  <limits.h>
 #include  <sched.h>
 
+// for getting system date/time
+#include  <time.h>
+
 // --- macros used in core implementation of the MQTT client ---
 
 #define  MQTT_SYS_PKT_MAXBYTES  8192

@@ -8,7 +8,7 @@ end
 
 define  connect_openocd_local_server
     target   remote localhost:3333
-    reload
+    reload_image
 end
 
 

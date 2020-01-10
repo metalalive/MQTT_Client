@@ -36,6 +36,13 @@ extern "C" {
 #include "mqtt/mqtt_client_conn.h"
 #include "system/mqtt_sys_common.h"
 
+#ifdef  MQTT_CFG_USE_TLS
+#if defined(MQTT_CFG_ENABLE_TLS_V1_3)
+    #include "tls/tls_include.h"
+#else
+    #error "There must be at least one version of TLS protocol to be enabled if MQTT_CFG_USE_TLS is defined."
+#endif // end of MQTT_CFG_ENABLE_TLS_V1_3
+#endif // end of MQTT_CFG_USE_TLS
 
 
 #ifdef __cplusplus

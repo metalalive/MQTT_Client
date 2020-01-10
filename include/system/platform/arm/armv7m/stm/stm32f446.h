@@ -10,7 +10,7 @@ extern "C" {
 #include "stm32f4xx_hal_tim.h"
 
 // maximum number of payload bytes that can be stored & handled in the memory of this platform
-#define  MQTT_PLATFORM_PKT_MAXBYTES   2880
+#define  MQTT_PLATFORM_PKT_MAXBYTES   3072
 
 // enable function that receives raw bytes in the platform
 mqttRespStatus   mqttPlatformPktRecvEnable( void );
@@ -27,6 +27,8 @@ mqttRespStatus  mqttPlatformNetworkModRst( uint8_t state );
 // entropy externally provided by other hardware device, developers can wire any external device (e.g. sersor)
 // to their target embedded system board generate source of random number
 mqttRespStatus  mqttPlatformGetEntropy(mqttStr_t *out);
+
+mqttRespStatus  mqttPlatformGetDateTime(mqttDateTime_t *out);
 
 mqttRespStatus  mqttPlatformInit( void );
 

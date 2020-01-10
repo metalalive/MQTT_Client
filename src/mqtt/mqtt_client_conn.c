@@ -301,7 +301,7 @@ mqttRespStatus  mqttClientInit( mqttCtx_t **mctx, int cmd_timeout_ms )
 {
 #define  MQTT_CTX_TX_BUF_SIZE             0x100
 #define  MQTT_CTX_RX_BUF_SIZE             MQTT_RECV_PKT_MAXBYTES
-    mqttRespStatus  status;
+    mqttRespStatus  status = MQTT_RESP_OK;
     // initialize underlying system platform first.
     status = mqttSysInit();
     if(status != MQTT_RESP_OK) { return status; }
@@ -325,7 +325,7 @@ mqttRespStatus  mqttClientInit( mqttCtx_t **mctx, int cmd_timeout_ms )
     if( c->rx_buf == NULL ) {
         return MQTT_RESP_ERRMEM ;
     }
-    c->cmd_timeout_ms     = cmd_timeout_ms;
+    mqttModifyReadMsgTimeout(c, cmd_timeout_ms);
     // TODO: might need to refactor these code below, it will be used when re-connecting MQTT broker
     //       many of these state variables / flags need to be reset.
     c->max_qos_server     = MQTT_QOS_2;
@@ -340,7 +340,10 @@ mqttRespStatus  mqttClientInit( mqttCtx_t **mctx, int cmd_timeout_ms )
     c->flgs.wildcard_subs_avail = 1;
     *mctx  =  c;
     // TODO: create semaphores from packet send/receive operations in multithreading case.
-    return  MQTT_RESP_OK;
+    #if defined(MQTT_CFG_USE_TLS)
+        status = tlsRespCvtToMqttResp(tlsClientInit(c));
+    #endif // end of MQTT_CFG_USE_TLS
+    return  status;
 #undef  MQTT_CTX_TX_BUF_SIZE 
 #undef  MQTT_CTX_RX_BUF_SIZE 
 } // end of mqttClientInit
@@ -351,6 +354,9 @@ mqttRespStatus  mqttClientDeinit( mqttCtx_t *mctx )
 {
     if(mctx == NULL){ return MQTT_RESP_ERRARGS; }
     mqttCleanUpRecvpkt( mctx, MQTT_PACKET_TYPE_RESERVED );
+    #if defined(MQTT_CFG_USE_TLS)
+        tlsClientDeInit(mctx);
+    #endif // end of MQTT_CFG_USE_TLS
     XMEMFREE( mctx->tx_buf );
     XMEMFREE( mctx->rx_buf );
     mctx->tx_buf = NULL;
@@ -1139,5 +1145,17 @@ mqttRespStatus  mqttSendPingReq( mqttCtx_t *mctx )
     return status;
 } // end of mqttSendPingReq
 
+
+
+mqttRespStatus  mqttModifyReadMsgTimeout(mqttCtx_t *mctx, int new_val)
+{
+    mqttRespStatus status = MQTT_RESP_OK;
+    mctx->cmd_timeout_ms = new_val;
+#if defined(MQTT_CFG_USE_TLS)
+    tlsRespStatus  tlsstatus = tlsModifyReadMsgTimeout((tlsSession_t *)mctx->secure_session, new_val);
+    status = tlsRespCvtToMqttResp(tlsstatus);
+#endif // end of MQTT_CFG_USE_TLS
+    return status;
+} // end of mqttModifyReadMsgTimeout
 
 

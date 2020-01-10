@@ -21,6 +21,25 @@ mqttRespStatus mqttChkReasonCode( mqttReasonCode reason_code )
 } // end of mqttChkReasonCode
 
 
+word32  mqttGetInterval(word32 now, word32 then)
+{
+    word32 out = 0;
+    if(now < then) {
+        out = 0xffffffff - then + now;
+    }
+    else{
+        out = now - then;
+    }
+    return out;
+} // end of mqttGetInterval
+
+
+byte  mqttCvtDecimalToBCDbyte(byte in, byte base)
+{
+    return  ((in/base) << 4) | (in%base);
+} // mqttCvtDecimalToBCDbyte
+
+
 // the return value below means minimum number of bytes to store a given integer
 // Note: currently I only consider 32-bit CPU platform, so the possible return value
 //       will range from 1 to 4.
@@ -102,34 +121,18 @@ mqttRespStatus  mqttUtilRandByteSeq(mqttDRBG_t *drbg, byte *out, word16 outlen)
 
 
 // ----------------- Hash function integration with third-party crypto library -------------------------
-extern int MGTT_CFG_HASH_SHA256_FN_INIT(MGTT_CFG_HASH_STATE_STRUCT *md);
+extern int MGTT_CFG_HASH_SHA256_FN_INIT(mqttHash_t *md);
 
-extern int MGTT_CFG_HASH_SHA384_FN_INIT(MGTT_CFG_HASH_STATE_STRUCT *md);
+extern int MGTT_CFG_HASH_SHA384_FN_INIT(mqttHash_t *md);
 
-extern int MGTT_CFG_HASH_SHA256_FN_UPDATE(MGTT_CFG_HASH_STATE_STRUCT *md, const byte *in, unsigned long inlen);
+extern int MGTT_CFG_HASH_SHA256_FN_UPDATE(mqttHash_t *md, const byte *in, unsigned long inlen);
 
-extern int MGTT_CFG_HASH_SHA384_FN_UPDATE(MGTT_CFG_HASH_STATE_STRUCT *md, const byte *in, unsigned long inlen);
+extern int MGTT_CFG_HASH_SHA384_FN_UPDATE(mqttHash_t *md, const byte *in, unsigned long inlen);
 
-extern int MGTT_CFG_HASH_SHA256_FN_DONE(MGTT_CFG_HASH_STATE_STRUCT *md, byte *out);
+extern int MGTT_CFG_HASH_SHA256_FN_DONE(mqttHash_t *md, byte *out);
 
-extern int MGTT_CFG_HASH_SHA384_FN_DONE(MGTT_CFG_HASH_STATE_STRUCT *md, byte *out);
+extern int MGTT_CFG_HASH_SHA384_FN_DONE(mqttHash_t *md, byte *out);
 
-
-// convert given byte sequence "in" to the structure "out"
-extern int  MQTT_CFG_MPBINT_FN_BIN2MPINT(multiBint_t *out, const byte *in, size_t inlen);
-// convert the given structure "out" to byte sequence "out"
-extern int  MQTT_CFG_MPBINT_FN_MPINT2BIN(const multiBint_t *in, byte *out, size_t outlen, size_t *written);
-
-extern size_t MQTT_CFG_MPBINT_FN_CAL_UBINSIZE(const multiBint_t *in);
-
-extern int  MQTT_CFG_MPBINT_FN_INIT(multiBint_t *out);
-
-extern void MQTT_CFG_MPBINT_FN_CLEAR(multiBint_t *in);
-
-extern int  MQTT_CFG_MPBINT_FN_ADD(const multiBint_t *in1, const multiBint_t *in2, multiBint_t *out);
-
-// TODO: find better way to determine data type of "in2"
-extern int  MQTT_CFG_MPBINT_FN_ADDDG(const multiBint_t *in1, word32 in2, multiBint_t *out);
 
 
 #define  MQTT_HASH_SELECT_FN_BY_OPS( fp, opname, htype )  \

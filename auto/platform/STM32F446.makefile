@@ -12,6 +12,7 @@ C_SOURCES +=  \
     $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c \
     $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.c \
     $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c \
+    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rtc.c \
     $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c \
     $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c \
     $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c \

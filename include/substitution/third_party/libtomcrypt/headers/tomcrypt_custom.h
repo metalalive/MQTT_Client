@@ -9,6 +9,8 @@
 
 #ifndef TOMCRYPT_CUSTOM_H_
 #define TOMCRYPT_CUSTOM_H_
+#include "mqtt_third_party_config.h"
+
 
 /* macros for various libc functions you can change for embedded targets */
 #ifndef XMALLOC
@@ -145,13 +147,13 @@
 /* #define LTC_TEST_EXT */
 
 /* Use small code where possible */
-/* #define LTC_SMALL_CODE */
+#define LTC_SMALL_CODE
 
 /* clean the stack of functions which put private information on stack */
 /* #define LTC_CLEAN_STACK */
 
 /* disable all file related functions */
-/* #define LTC_NO_FILE */
+#define LTC_NO_FILE
 
 /* disable all forms of ASM */
 /* #define LTC_NO_ASM */
@@ -166,7 +168,7 @@
 #ifndef LTC_NO_MATH
 
 /* LibTomMath */
-/* #define LTM_DESC */
+#define LTM_DESC
 
 /* TomsFastMath */
 /* #define TFM_DESC */
@@ -179,10 +181,10 @@
 /* ---> Symmetric Block Ciphers <--- */
 #ifndef LTC_NO_CIPHERS
 
-//// #define LTC_BLOWFISH
-//// #define LTC_RC2
-//// #define LTC_RC5
-//// #define LTC_RC6
+#define LTC_BLOWFISH
+#define LTC_RC2
+#define LTC_RC5
+#define LTC_RC6
 #define LTC_SAFERP
 #define LTC_RIJNDAEL
 #define LTC_XTEA
@@ -198,28 +200,28 @@
 /* #define LTC_TWOFISH_SMALL */
 /* LTC_DES includes EDE triple-DES */
 #define LTC_DES
-//// #define LTC_CAST5
-//// #define LTC_NOEKEON
-//// #define LTC_SKIPJACK
-//// #define LTC_SAFER
-//// #define LTC_KHAZAD
-//// #define LTC_ANUBIS
-//// #define LTC_ANUBIS_TWEAK
-//// #define LTC_KSEED
-//// #define LTC_KASUMI
-//// #define LTC_MULTI2
-//// #define LTC_CAMELLIA
-//// #define LTC_IDEA
-//// #define LTC_SERPENT
-//// #define LTC_TEA
+#define LTC_CAST5
+#define LTC_NOEKEON
+#define LTC_SKIPJACK
+#define LTC_SAFER
+#define LTC_KHAZAD
+#define LTC_ANUBIS
+#define LTC_ANUBIS_TWEAK
+#define LTC_KSEED
+#define LTC_KASUMI
+#define LTC_MULTI2
+#define LTC_CAMELLIA
+#define LTC_IDEA
+#define LTC_SERPENT
+#define LTC_TEA
 
 /* stream ciphers */
 #define LTC_CHACHA
-//// #define LTC_SALSA20
-//// #define LTC_XSALSA20
-//// #define LTC_SOSEMANUK
-//// #define LTC_RABBIT
-//// #define LTC_RC4_STREAM
+#define LTC_SALSA20
+#define LTC_XSALSA20
+#define LTC_SOSEMANUK
+#define LTC_RABBIT
+#define LTC_RC4_STREAM
 #define LTC_SOBER128_STREAM
 
 #endif /* LTC_NO_CIPHERS */
@@ -254,27 +256,27 @@
 /* ---> One-Way Hash Functions <--- */
 #ifndef LTC_NO_HASHES
 
-//// #define LTC_CHC_HASH
-//// #define LTC_WHIRLPOOL
-//// #define LTC_SHA3
-//// #define LTC_KECCAK
+#define LTC_CHC_HASH
+#define LTC_WHIRLPOOL
+#define LTC_SHA3
+#define LTC_KECCAK
 #define LTC_SHA512
 #define LTC_SHA512_256
 #define LTC_SHA512_224
 #define LTC_SHA384
 #define LTC_SHA256
-//// #define LTC_SHA224
-//// #define LTC_TIGER
-//// #define LTC_SHA1
-//// #define LTC_MD5
-//// #define LTC_MD4
-//// #define LTC_MD2
-//// #define LTC_RIPEMD128
-//// #define LTC_RIPEMD160
-//// #define LTC_RIPEMD256
-//// #define LTC_RIPEMD320
-//// #define LTC_BLAKE2S
-//// #define LTC_BLAKE2B
+#define LTC_SHA224
+#define LTC_TIGER
+#define LTC_SHA1
+#define LTC_MD5
+#define LTC_MD4
+#define LTC_MD2
+#define LTC_RIPEMD128
+#define LTC_RIPEMD160
+#define LTC_RIPEMD256
+#define LTC_RIPEMD320
+#define LTC_BLAKE2S
+#define LTC_BLAKE2B
 
 #define LTC_HASH_HELPERS
 
@@ -291,8 +293,8 @@
 #define LTC_F9_MODE
 #define LTC_PELICAN
 #define LTC_POLY1305
-//// #define LTC_BLAKE2SMAC
-//// #define LTC_BLAKE2BMAC
+#define LTC_BLAKE2SMAC
+#define LTC_BLAKE2BMAC
 
 /* ---> Encrypt + Authenticate Modes <--- */
 
@@ -524,37 +526,37 @@
 #ifdef LTC_MECC
 /* Supported ECC Key Sizes */
 #ifndef LTC_NO_CURVES
-   //// #define LTC_ECC_BRAINPOOLP160R1
-   //// #define LTC_ECC_BRAINPOOLP160T1
-   //// #define LTC_ECC_BRAINPOOLP192R1
-   //// #define LTC_ECC_BRAINPOOLP192T1
-   //// #define LTC_ECC_BRAINPOOLP224R1
-   //// #define LTC_ECC_BRAINPOOLP224T1
-   //// #define LTC_ECC_BRAINPOOLP256R1
-   //// #define LTC_ECC_BRAINPOOLP256T1
-   //// #define LTC_ECC_BRAINPOOLP320R1
-   //// #define LTC_ECC_BRAINPOOLP320T1
-   //// #define LTC_ECC_BRAINPOOLP384R1
-   //// #define LTC_ECC_BRAINPOOLP384T1
-   //// #define LTC_ECC_BRAINPOOLP512R1
-   //// #define LTC_ECC_BRAINPOOLP512T1
-   //// #define LTC_ECC_PRIME192V2
-   //// #define LTC_ECC_PRIME192V3
-   //// #define LTC_ECC_PRIME239V1
-   //// #define LTC_ECC_PRIME239V2
-   //// #define LTC_ECC_PRIME239V3
-   //// #define LTC_ECC_SECP112R1
-   //// #define LTC_ECC_SECP112R2
-   //// #define LTC_ECC_SECP128R1
-   //// #define LTC_ECC_SECP128R2
-   //// #define LTC_ECC_SECP160K1
-   //// #define LTC_ECC_SECP160R1
-   //// #define LTC_ECC_SECP160R2
-   //// #define LTC_ECC_SECP192K1
-   //// #define LTC_ECC_SECP192R1
-   //// #define LTC_ECC_SECP224K1
-   //// #define LTC_ECC_SECP224R1
-   //// #define LTC_ECC_SECP256K1
+   #define LTC_ECC_BRAINPOOLP160R1
+   #define LTC_ECC_BRAINPOOLP160T1
+   #define LTC_ECC_BRAINPOOLP192R1
+   #define LTC_ECC_BRAINPOOLP192T1
+   #define LTC_ECC_BRAINPOOLP224R1
+   #define LTC_ECC_BRAINPOOLP224T1
+   #define LTC_ECC_BRAINPOOLP256R1
+   #define LTC_ECC_BRAINPOOLP256T1
+   #define LTC_ECC_BRAINPOOLP320R1
+   #define LTC_ECC_BRAINPOOLP320T1
+   #define LTC_ECC_BRAINPOOLP384R1
+   #define LTC_ECC_BRAINPOOLP384T1
+   #define LTC_ECC_BRAINPOOLP512R1
+   #define LTC_ECC_BRAINPOOLP512T1
+   #define LTC_ECC_PRIME192V2
+   #define LTC_ECC_PRIME192V3
+   #define LTC_ECC_PRIME239V1
+   #define LTC_ECC_PRIME239V2
+   #define LTC_ECC_PRIME239V3
+   #define LTC_ECC_SECP112R1
+   #define LTC_ECC_SECP112R2
+   #define LTC_ECC_SECP128R1
+   #define LTC_ECC_SECP128R2
+   #define LTC_ECC_SECP160K1
+   #define LTC_ECC_SECP160R1
+   #define LTC_ECC_SECP160R2
+   #define LTC_ECC_SECP192K1
+   #define LTC_ECC_SECP192R1
+   #define LTC_ECC_SECP224K1
+   #define LTC_ECC_SECP224R1
+   #define LTC_ECC_SECP256K1
    #define LTC_ECC_SECP256R1
    #define LTC_ECC_SECP384R1
    #define LTC_ECC_SECP521R1

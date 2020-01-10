@@ -1135,7 +1135,7 @@ mqttRespStatus mqttPktWrite( struct __mqttCtx *mctx, byte *buf, word32 buf_len )
     }
     int  wr_len = 0;
     do {
-        wr_len  =  mqttSysPktWrite( &mctx->ext_sysobjs[0], buf, buf_len );
+        wr_len = mqttNetPktSend(mctx, buf, buf_len);
         if(wr_len < 0) { return (mqttRespStatus)wr_len; }
         buf        +=  wr_len;
         buf_len    -=  wr_len;
@@ -1160,7 +1160,7 @@ mqttRespStatus  mqttPktRead( struct __mqttCtx *mctx, byte *buf, word32 buf_max_l
 
     *copied_len = 0;
     // ----------- get fixed header -----------
-    rd_len = mqttSysPktRead( &mctx->ext_sysobjs[0], buf, 0x1, mctx->cmd_timeout_ms );
+    rd_len = mqttNetPktRecv( mctx, buf, 0x1 );
     if(rd_len < 0) { return (mqttRespStatus)rd_len; }
     if(rd_len != 0x1) { return MQTT_RESP_MALFORMED_DATA; }
     buf         += rd_len;
@@ -1170,7 +1170,7 @@ mqttRespStatus  mqttPktRead( struct __mqttCtx *mctx, byte *buf, word32 buf_max_l
     // ----------- get remaining length ----------- 
     // read from the 2nd byte, determined remain length encoded in variable bytes.
     for(idx=0; idx<MQTT_PKT_MAX_BYTES_REMAIN_LEN ; idx++) {
-        rd_len = mqttSysPktRead( &mctx->ext_sysobjs[0], &buf[idx], 0x1, mctx->cmd_timeout_ms );
+        rd_len = mqttNetPktRecv( mctx, &buf[idx], 0x1 );
         if(rd_len < 0) { return rd_len; }
         if(rd_len != 0x1) { return MQTT_RESP_MALFORMED_DATA; }
         if((header->remain_len[idx] & continuation_bit) == 0x0) {
@@ -1188,7 +1188,7 @@ mqttRespStatus  mqttPktRead( struct __mqttCtx *mctx, byte *buf, word32 buf_max_l
     // ----------- get rest of data bytes ----------- 
     word32  curr_max_cp_len = XMIN(remain_len , buf_max_len);
     do {  // read remaining part
-        rd_len = mqttSysPktRead( &mctx->ext_sysobjs[0], buf, curr_max_cp_len, mctx->cmd_timeout_ms );
+        rd_len = mqttNetPktRecv( mctx, buf, curr_max_cp_len );
         // report other read error from low-level system. 
         if(rd_len < 0) { return (mqttRespStatus)rd_len; }
         *copied_len     += rd_len ;
@@ -1229,7 +1229,7 @@ mqttRespStatus  mqttDecodePkt( struct __mqttCtx *mctx, byte *buf, word32 buf_len
         {
             status = mqttDecodePktPublish( buf, buf_len, *(mqttMsg_t **)p_decode );
             *recv_pkt_id = (*(mqttMsg_t **)p_decode)->packet_id;
-            if(status == MQTT_RESP_OK) {
+            if(status >= MQTT_RESP_OK) {
                 status = mqttPropErrChk( mctx, cmdtype, (*(mqttMsg_t **)p_decode)->props );
             }
             mqttQoS qos =  (*(mqttMsg_t **)p_decode)->qos;
@@ -1250,7 +1250,7 @@ mqttRespStatus  mqttDecodePkt( struct __mqttCtx *mctx, byte *buf, word32 buf_len
         {
             status = mqttDecodePktPubResp( buf, buf_len, *(mqttPktPubResp_t **)p_decode, cmdtype );
             *recv_pkt_id = (*(mqttPktPubResp_t **)p_decode)->packet_id ;
-            if(status == MQTT_RESP_OK) {
+            if(status >= MQTT_RESP_OK) {
                 status = mqttPropErrChk( mctx, cmdtype, (*(mqttPktPubResp_t **)p_decode)->props );
             } // TODO: test publish response packet when QoS = 2
             if((cmdtype==MQTT_PACKET_TYPE_PUBRECV) || (cmdtype==MQTT_PACKET_TYPE_PUBREL)) {

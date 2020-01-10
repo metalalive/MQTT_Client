@@ -10,11 +10,15 @@ extern "C" {
 #endif
 
 #ifdef  MQTT_CFG_USE_TLS
-    #define  mqttNetconnStart(mqttctx)  mqttSecureNetconnStart(mqttctx)
-    #define  mqttNetconnStop(mqttctx)   mqttSecureNetconnStop(mqttctx)
+    #define  mqttNetconnStart(mqttctx)           mqttSecureNetconnStart(mqttctx)
+    #define  mqttNetconnStop(mqttctx)            mqttSecureNetconnStop(mqttctx)
+    #define  mqttNetPktSend(mctx, buf, buflen)   mqttSecurePktSend(mctx, buf, buflen)
+    #define  mqttNetPktRecv(mctx, buf, buflen)   mqttSecurePktRecv(mctx, buf, buflen)
 #else
-    #define  mqttNetconnStart(mqttctx)  mqttSysNetconnStart(mqttctx)
-    #define  mqttNetconnStop(mqttctx)   mqttSysNetconnStop(mqttctx)
+    #define  mqttNetconnStart(mctx)              mqttSysNetconnStart(mctx)
+    #define  mqttNetconnStop(mctx)               mqttSysNetconnStop(mctx)
+    #define  mqttNetPktSend(mctx, buf, buflen)   mqttSysPktWrite(&(mctx)->ext_sysobjs[0], buf, buflen)
+    #define  mqttNetPktRecv(mctx, buf, buflen)   mqttSysPktRead( &(mctx)->ext_sysobjs[0], buf, buflen, (mctx)->cmd_timeout_ms)
 #endif // end of MQTT_CFG_USE_TLS
 
 typedef mqttRespStatus (* mqttAuthSetupCallback_t)( const mqttStr_t *auth_data_in,  mqttStr_t *auth_data_out,
@@ -163,7 +167,7 @@ mqttRespStatus  mqttPropErrChk( mqttCtx_t *mctx, mqttCtrlPktType cmdtype, mqttPr
 // packet the client has sent.
 mqttRespStatus  mqttClientWaitPkt( mqttCtx_t *mctx, mqttCtrlPktType wait_cmdtype, word16 wait_packet_id, void **pp_recv_out );
 
-
+mqttRespStatus  mqttModifyReadMsgTimeout(mqttCtx_t *mctx, int new_val);
 
 
 #ifdef __cplusplus

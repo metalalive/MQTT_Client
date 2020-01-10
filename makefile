@@ -21,6 +21,25 @@ src/mqtt/mqtt_packet.c      \
 src/mqtt/mqtt_util.c        \
 src/mqtt/mqtt_drbg.c        \
 src/mqtt/mqtt_auth.c        \
+src/tls/core/tls_util.c           \
+src/tls/core/tls_client.c         \
+src/tls/core/tls_handshake.c      \
+src/tls/core/tls_hkdf.c           \
+src/tls/core/tls_key_exchange.c   \
+src/tls/core/tls_key_schedule.c   \
+src/tls/core/tls_pkt_decode.c     \
+src/tls/core/tls_pkt_decode_ext.c \
+src/tls/core/tls_pkt_encode.c     \
+src/tls/core/tls_pkt_encode_ext.c \
+src/tls/core/tls_pkt_transmit.c   \
+src/tls/crypto/tls_ciphersuite.c  \
+src/tls/crypto/tls_encrypt.c      \
+src/tls/crypto/tls_hash.c         \
+src/tls/crypto/tls_asn1.c         \
+src/tls/crypto/tls_x509.c         \
+src/tls/crypto/tls_x509_ext.c     \
+src/tls/crypto/tls_certs.c        \
+src/tls/crypto/tls_rsa.c          \
 
 
 # ASM sources
@@ -175,6 +194,9 @@ clean:
   
 download_3party:
 	@make download_3party -C  third_party
+
+# TODO: configure will read through all configuration options in configuration file
+config:
 
 
 # optional function for those who use code navigation tools e.g. ctags

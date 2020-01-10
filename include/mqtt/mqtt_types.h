@@ -171,7 +171,6 @@ typedef enum {
 typedef enum {
     MQTT_RESP_OK = 0,
     MQTT_RESP_OK_IGNOREMORE =  0, // Function succedded, but ignore subsequent payload bytes or properties to send / receive.
-    MQTT_RESP_SKIP          = -2, // skip and return immediately from a function, without completion
     MQTT_RESP_ERR           = -3, // other unknown errors
     MQTT_RESP_BUSY          = -4, // busy signal from underlying system platform 
     MQTT_RESP_ERRARGS       = -5, // Wrong arguments on a function call 
@@ -209,8 +208,8 @@ typedef enum {
 
 
 typedef enum {
-    MQTT_HASH_SHA256,
-    MQTT_HASH_SHA384,
+    MQTT_HASH_SHA256 = 1,
+    MQTT_HASH_SHA384 = 2,
 } mqttHashLenType;
 
 
@@ -219,6 +218,16 @@ typedef struct {
     byte   *data;
 } mqttStr_t;
 
+
+// Date time byte sequence in Binary-Coded-Decimal representation
+typedef struct {
+    byte    year[2];
+    byte    month;
+    byte    date;
+    byte    hour;
+    byte    minite;
+    byte    second;
+} mqttDateTime_t;
 
 
 // property list
@@ -292,18 +301,18 @@ typedef struct __mqttConn {
 // here we allow users to add any third-party crypto library they want to use,
 // but the hash functions from the chosen third-party library MUST have the same
 // structure as shown in following :
-typedef int (*mqttHashInitFp)(MGTT_CFG_HASH_STATE_STRUCT *md);
+typedef int (*mqttHashInitFp)(mqttHash_t *md);
 
-typedef int (*mqttHashUpdateFp)(MGTT_CFG_HASH_STATE_STRUCT *md, const byte *in, unsigned long inlen);
+typedef int (*mqttHashUpdateFp)(mqttHash_t *md, const byte *in, unsigned long inlen);
 
-typedef int (*mqttHashDoneFp)(MGTT_CFG_HASH_STATE_STRUCT *md, byte *out);
+typedef int (*mqttHashDoneFp)(mqttHash_t *md, byte *out);
 
 typedef struct {
-    mqttStr_t         V;
-    mqttStr_t         C;
-    mqttStr_t         Vtmp;
+    mqttStr_t   V;
+    mqttStr_t   C;
+    mqttStr_t   Vtmp;
     // pointers to hash function integration
-    MGTT_CFG_HASH_STATE_STRUCT  md;
+    mqttHash_t  md;
     struct {
         mqttHashInitFp        init;
         mqttHashUpdateFp      update;
@@ -328,18 +337,6 @@ typedef struct {
     byte            reseed_intvl;
 } mqttDRBG_t;
 
-
-
-// [IMPORTANT NOTE]
-// if developers integrate this MQTT implementation with any third-party math library.
-// the chosen math library must define the same structure as shwon below for multiple-bytes integer
-// the naming/data type of each struct member, and the order of the members should be the same.
-typedef struct {
-  word32        used;    // how many digits used
-  word32        alloc;   // how many digits allocated
-  byte          sign;    // sign of this quantity
-  word16       *dp;      // point to the digits themselves
-} multiBint_t;
 
 
 #ifdef __cplusplus

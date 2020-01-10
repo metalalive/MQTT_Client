@@ -16,6 +16,9 @@ extern "C" {
 // initialize underlying platform (especially UART Tx/Rx) every time when  reset function is called.
 #define  ESP_CFG_PLATFORM_REINIT_ON_RST
 
+// max bytes per packet size for this MQTT implementation
+#define  ESP_CFG_MAX_BYTES_PER_CIPSEND    1440
+
 // DO NOT automatically reset / restore ESP device in eESPinit()
 // we will do it manually separately
 #define  ESP_CFG_RESTORE_ON_INIT  0

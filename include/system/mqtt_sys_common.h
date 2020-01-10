@@ -48,6 +48,10 @@ extern "C" {
 #define  XSTRNCMP  strncmp
 #endif
 
+#ifndef XMEMMOVE
+#define XMEMMOVE memmove
+#endif
+
 #ifndef  XASSERT
 #define  XASSERT( x ) if((x) == 0) { for(;;); } 
 #endif
@@ -103,6 +107,12 @@ mqttRespStatus  mqttSysPktRecvHandler( uint8_t* data, uint16_t data_len );
 // interface for entropy function
 mqttRespStatus  mqttSysGetEntropy(mqttStr_t *out);
 
+
+// return current time in milliseconds modulo 2^32 since OS boot
+word32  mqttSysGetTimeMs(void);
+
+// get current year/month/date/time
+mqttRespStatus  mqttSysGetDateTime(mqttDateTime_t *out);
 
 #ifdef __cplusplus
 }

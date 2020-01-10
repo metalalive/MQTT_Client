@@ -55,6 +55,9 @@ extern "C" {
 
 #define XGETARRAYSIZE(x)    (sizeof((x)) / sizeof((x)[0]))
 
+#define XCHAR_TO_NUM(x)  ((x) - '0')
+
+
 // extract "rd_len" number of bits, starting from "offset" of the variable "bitmap", write it to "out"
 #define XBIT_READ(bitmap, offset, rd_len, out) \
 {                                              \
@@ -86,6 +89,9 @@ mqttProp_t*  mqttGetPropByType( mqttProp_t* head, mqttPropertyType type );
 
 mqttRespStatus mqttChkReasonCode( mqttReasonCode reason_code );
 
+// convert 8-bit decimal integer to a Binary-Coded-Decimal byte
+byte  mqttCvtDecimalToBCDbyte(byte in, byte base);
+
 // generate a number that ranges from 0 to some positive integer as given input
 word32  mqttUtilPRNG(mqttDRBG_t *drbg, word32 range);
 // generate random byte sequence & store it to given output buffer
@@ -104,6 +110,10 @@ mqttRespStatus  mqttUtilMultiByteUAdd( mqttStr_t *out, mqttStr_t *in1, mqttStr_t
 
 // add operation on multi-bytes unsigned integer operand, the 2nd operand is digit.
 mqttRespStatus  mqttUtilMultiByteUAddDG( mqttStr_t *out, mqttStr_t *in1, word32 in2 );
+
+// get interval between 2 timing variables, note that this function does NOT guarantee the
+// time unit of the 2 given inputs are the same, such check must be done before calling this function.
+word32  mqttGetInterval(word32 now, word32 then);
 
 
 #ifdef __cplusplus
