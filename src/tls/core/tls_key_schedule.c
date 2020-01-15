@@ -33,7 +33,7 @@ end_of_derive:
 
 tlsRespStatus  tlsGenEarlySecret(const tlsCipherSpec_t *cs, tlsPSK_t *pskin, tlsOpaque8b_t *out)
 {   // HKDF-Extract(PSK) = Early Secret
-    if((cs == NULL) || (out == NULL) || (out->data == NULL) || (out->len == 0)) {
+    if((cs == NULL && pskin == NULL) || (out == NULL) || (out->data == NULL) || (out->len == 0)) {
         return TLS_RESP_ERRARGS;
     }
     tlsRespStatus    status       = TLS_RESP_OK;
@@ -42,7 +42,7 @@ tlsRespStatus  tlsGenEarlySecret(const tlsCipherSpec_t *cs, tlsPSK_t *pskin, tls
     tlsOpaque8b_t    pskval   = {0, NULL};
     tlsOpaque8b_t  zerosalt   = {0, NULL};
     // HKDF-extract(psk, 0....0) = early secret
-    if(pskin != NULL) {
+    if(pskin != NULL) { // TODO: check if early secret for the chosen PSK was already generated when encoding ClientHello with PSK binders
         hash_algo_id = tlsGetHashAlgoIDBySize((word16)pskin->key.len);
         hash_sz      = mqttHashGetOutlenBytes((mqttHashLenType)hash_algo_id);
         if(hash_sz == 0) { status = TLS_RESP_ERR_HASH; goto end_of_gen; }
@@ -76,38 +76,53 @@ end_of_gen:
 } // end of tlsGenEarlySecret
 
 
-tlsRespStatus  tlsDerivePSKbinderSecret( tlsPSK_t *pskin, tlsOpaque8b_t *earlysecret_in, tlsOpaque8b_t *binder_out )
-{ // TODO: verify
-    if((pskin == NULL) || (earlysecret_in == NULL) || (binder_out == NULL)) {
+
+tlsRespStatus  tlsDerivePSKbinderKey( tlsPSK_t *pskin, tlsOpaque8b_t *out )
+{
+    if((pskin == NULL) || (pskin->key.data == NULL) || (pskin->id.data == NULL)) {
         return TLS_RESP_ERRARGS;
     }
-    if((earlysecret_in->data == NULL) || (binder_out->data == NULL)) {
+    if((out == NULL) || (out->len == 0) || (out->data == NULL)) {
         return TLS_RESP_ERRARGS;
     }
-    if((earlysecret_in->len == 0) || (binder_out->len == 0)) {
-        return TLS_RESP_ERRARGS;
-    }
-    tlsRespStatus  status       = TLS_RESP_OK;
-    tlsHashAlgoID  hash_algo_id = TLS_HASH_ALGO_UNKNOWN;
-    word16         hash_sz  = 0;
+    tlsOpaque8b_t  earlysecret  = {0, NULL};
+    tlsOpaque8b_t  bindersecret = {0, NULL};
     tlsOpaque8b_t  label    = {0, NULL};
+    tlsHashAlgoID  hash_id  = TLS_HASH_ALGO_UNKNOWN;
+    word16         hash_sz  = 0;
+    tlsRespStatus  status   = TLS_RESP_OK;
     
-    hash_algo_id = tlsGetHashAlgoIDBySize((word16)pskin->key.len);
-    hash_sz      = mqttHashGetOutlenBytes((mqttHashLenType)hash_algo_id);
-    if(hash_sz != earlysecret_in->len) {
-        return TLS_RESP_ERRARGS;
-    }
+    hash_id = tlsGetHashAlgoIDBySize((word16)pskin->key.len);
+    hash_sz = mqttHashGetOutlenBytes((mqttHashLenType)hash_id);
+    if(hash_sz != out->len) { status = TLS_RESP_ERRARGS; goto done; }
+    earlysecret.len   =  hash_sz;
+    bindersecret.len  =  hash_sz;
+    earlysecret.data  =  XMALLOC(sizeof(byte) * (hash_sz << 1));
+    bindersecret.data = &earlysecret.data[hash_sz];
+    // step #1 : generate early secret with given PSK
+    status =  tlsGenEarlySecret(NULL, pskin, &earlysecret);
+    if(status < 0) { goto done; }
+    // step #2 : derive binder secret with early secret, and either of the labels below
     if(pskin->flgs.is_resumption == 0) {
-        label.data = (byte *)&("ext binder");
-        label.len  = 10;
+        label.data = (byte *)&("ext binder");        label.len  = 10;
     }
     else {
-        label.data = (byte *)&("res binder");
-        label.len  = 10;
+        label.data = (byte *)&("res binder");        label.len  = 10;
     }
-    status = tlsDeriveSecret( hash_algo_id, earlysecret_in, &label, NULL, binder_out );
+    status = tlsDeriveSecret(hash_id, &earlysecret, &label, NULL, &bindersecret );
+    if(status < 0) { goto done; }
+    // step #3: derive binder key with "finished" label, everything else is the same as
+    //   finish_key is derived in tlsGenFinishedVerifyData()
+    label.data = (byte *)&("finished");        label.len  = 8;
+    status = tlsHKDFexpandLabel(hash_id, &bindersecret, &label, NULL, out);
+done:
+    if(earlysecret.data != NULL) {
+        XMEMFREE((void *)earlysecret.data);
+        earlysecret.data  = NULL;
+        bindersecret.data = NULL;
+    }
     return status;
-} // end of tlsDerivePSKbinderSecret
+} // end of tlsDerivePSKbinderKey
 
 
 

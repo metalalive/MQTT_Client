@@ -7,14 +7,7 @@ extern "C" {
 
 tlsRespStatus  tlsGenEarlySecret(const tlsCipherSpec_t *cs, tlsPSK_t *pskin, tlsOpaque8b_t *out);
 
-// This function is called when :
-// (1) encoding ClientHello with pre-shared key extension entry
-// (2) decoding ServerHello with pre-shared key extension entry
-// then this function generates PSK binder secret & binder keys for further verification on
-// binder section of the pre-shared key extension entry.
-// Note that this function will NOT check correctness of early_secret input, applications must run
-// tlsGenEarlySecret() with pre-shared key before calling this function.
-//// tlsRespStatus  tlsDerivePSKbinderSecret( tlsPSK_t *pskin, tlsOpaque8b_t *earlysecret_in, tlsOpaque8b_t *binder_out );
+tlsRespStatus  tlsDerivePSKbinderKey(tlsPSK_t *pskin, tlsOpaque8b_t *out);
 
 // derive handshake traffic secret for both client & server
 tlsRespStatus  tlsDeriveHStrafficSecret(tlsSession_t *session,  tlsOpaque8b_t* earlysecret_in);

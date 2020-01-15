@@ -69,8 +69,6 @@ static void  tlsTransHashCleanHashHandler(tlsHash_t **hash_obj, byte **snapshot_
 
 static void  tlsTransHashCleanAll(tlsSecurityElements_t *sec)
 {
-    //// tlsTransHashCleanHashHandler( &sec->hashed_hs_msg.objsha256, &sec->hashed_hs_msg.snapshot_CH_no_pskbinder.sha256 );
-    //// tlsTransHashCleanHashHandler( &sec->hashed_hs_msg.objsha384, &sec->hashed_hs_msg.snapshot_CH_no_pskbinder.sha384 );
     tlsTransHashCleanHashHandler( &sec->hashed_hs_msg.objsha256, &sec->hashed_hs_msg.snapshot_server_finished );
     tlsTransHashCleanHashHandler( &sec->hashed_hs_msg.objsha384, NULL );
 } // end of tlsTransHashCleanAll
@@ -194,38 +192,6 @@ end_of_reinit:
 } // end of tlsTranscrptHashReInit
 
 
-//// static  tlsRespStatus  tlsTrHashTakeSnapshotClientHello(tlsSecurityElements_t  *sec)
-//// {   // get snapshots of transcript hash value on ClientHello (without binder section)
-////     tlsRespStatus status = TLS_RESP_ERR;
-////     byte    *buf = NULL;
-////     word16   len = 0;
-////     tlsHashAlgoID hash_id = TLScipherSuiteGetHashID( sec->chosen_ciphersuite );
-////     // get snapshot with SHA256
-////     if((hash_id == TLS_HASH_ALGO_NOT_NEGO) || (hash_id == TLS_HASH_ALGO_SHA256)) {
-////         len = mqttHashGetOutlenBytes(TLS_HASH_ALGO_SHA256);
-////         if(sec->hashed_hs_msg.snapshot_CH_no_pskbinder.sha256 == NULL) {
-////             buf = XMALLOC(sizeof(byte) * len);
-////             sec->hashed_hs_msg.snapshot_CH_no_pskbinder.sha256 = buf;
-////         } else {
-////             buf = sec->hashed_hs_msg.snapshot_CH_no_pskbinder.sha256;
-////         }
-////         status =  tlsTransHashTakeSnapshot(sec, TLS_HASH_ALGO_SHA256, buf, len);
-////         if(status < 0) { return status; }
-////     }
-////     // get snapshot with SHA384
-////     if((hash_id == TLS_HASH_ALGO_NOT_NEGO) || (hash_id == TLS_HASH_ALGO_SHA384)) {
-////         len = mqttHashGetOutlenBytes(TLS_HASH_ALGO_SHA384);
-////         if(sec->hashed_hs_msg.snapshot_CH_no_pskbinder.sha384 == NULL) {
-////             buf = XMALLOC(sizeof(byte) * len);
-////             sec->hashed_hs_msg.snapshot_CH_no_pskbinder.sha384 = buf;
-////         } else {
-////             buf = sec->hashed_hs_msg.snapshot_CH_no_pskbinder.sha384;
-////         }
-////         status =  tlsTransHashTakeSnapshot(sec, TLS_HASH_ALGO_SHA384, buf, len);
-////         if(status < 0) { return status; }
-////     }
-////     return status;
-//// } // end of tlsTrHashTakeSnapshotClientHello
 
 
 tlsRespStatus  tlsTranscrptHashHSmsgUpdate(tlsSession_t  *session, tlsOpaque16b_t *buf)
@@ -257,7 +223,7 @@ tlsRespStatus  tlsTranscrptHashHSmsgUpdate(tlsSession_t  *session, tlsOpaque16b_
                 // last_encode_result == TLS_RESP_OK implicit means it's the final fragment
                 inlen -= (1 + session->sec.chosen_ciphersuite->tagSize);
             }
-        }
+        } // end of encryption flag check
     }
     // case #2 : perform transcript hash after decryption from first fragment
     else if(buf == &session->inbuf) {
@@ -271,33 +237,6 @@ tlsRespStatus  tlsTranscrptHashHSmsgUpdate(tlsSession_t  *session, tlsOpaque16b_
             inlen  -= (1 + session->sec.chosen_ciphersuite->tagSize);
         } // for TLScipherText, 1-byte record type, authentication tag, and padding bytes must be skipped.
     }
-    // if the given handshake message is ClientHello with PSK extension entry, then we hash the message in 2 parts
-    // part 1 : from 4-byte handshake header to the begining of the binder (excluding first byte of the binders)
-    // part 2 : the entire binder list
-    ////  tlsOpaque8b_t *binder = &session->sec.psk_binder;
-    ////  if(tlsGetHSexpectedState(session) == TLS_HS_TYPE_CLIENT_HELLO) {
-    ////      if(((in + inlen) >= binder->data) && (in <= binder->data) && (binder->len > 0))
-    ////      {   // ----- find final fragment of the given handshake message -----
-    ////          // In TLS v1.3 protocol, the entire list of PSK binders is always placed in the final fragment
-    ////          // of the given handshake message, unless the entire handshake message can be fit into one single
-    ////          // fragment (it usually means a TCP packet)
-    ////          inlen   -= binder->len;
-    ////          status   = tlsTransHashUpdate(&session->sec, (const byte *)in, inlen);
-    ////          if(status < 0) { goto end_of_hs_hash_update; }
-    ////          status = tlsTrHashTakeSnapshotClientHello(&session->sec);
-    ////          if(status < 0) { goto end_of_hs_hash_update; }
-    ////          // calculate then fill in the binder section
-    ////          status = tlsEstimatePSKbinders(session, binder);
-    ////          if(status < 0) { goto end_of_hs_hash_update; }
-    ////          // update transcript hash only for binder section
-    ////          in      += inlen;
-    ////          inlen    = binder->len;
-    ////          // reset the binder pointer & length (since the variables below are only for hashing ClientHello)
-    ////          XASSERT(in == binder->data); // TODO : will be removed, it is only for testing purpose
-    ////          binder->data = NULL;
-    ////          binder->len  = 0;
-    ////      }
-    ////  } // end of handshake type = TLS_HS_TYPE_CLIENT_HELLO
     if(inlen > 0) {
         status  = tlsTransHashUpdate(&session->sec, (const byte *)in, inlen);
     }

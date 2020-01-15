@@ -2,7 +2,6 @@
 
 extern const tlsVersionCode   tls_supported_versions[];
 extern const tlsNamedGrp      tls_supported_named_groups[];
-extern       tlsPSK_t        *tls_PSKs_rdy_list;
 
 
 static tlsRespStatus  tlsDecodeExtsSupportVersion(tlsSession_t *session, tlsExtEntry_t *ext_in)
@@ -108,23 +107,25 @@ static tlsRespStatus  tlsDecodeExtsKeyShare(tlsSession_t *session, tlsExtEntry_t
 // } PreSharedKeyExtension;
 static tlsRespStatus  tlsDecodeExtsPSK(tlsSession_t *session, tlsExtEntry_t *ext_in)
 {
-    if((session == NULL) || (ext_in == NULL)) { return TLS_RESP_ERRARGS; }
+    if((session == NULL) || (*session->sec.psk_list == NULL) || (ext_in == NULL)) {
+        return TLS_RESP_ERRARGS;
+    }
     tlsRespStatus status = TLS_RESP_OK;
     word16    chosen_psk_idx = 0;
     byte     *buf = &ext_in->content.data[0];
-    tlsPSK_t *idx     = NULL;
+    tlsPSK_t *idx = NULL;
     word16    pskcount = 0;
-    // TODO: finish implementation
     buf += tlsDecodeWord16(buf, &chosen_psk_idx);
     session->sec.chosen_psk = NULL;
-    for(idx = tls_PSKs_rdy_list; idx != NULL ; idx = idx->next) {
+    for(idx = *session->sec.psk_list; idx != NULL ; idx = idx->next) {
         if(chosen_psk_idx == pskcount) {
             session->sec.chosen_psk = idx;
             break;
         }
         pskcount++;
     } // end of for-loop
-    if(session->sec.chosen_psk == NULL) { status = TLS_RESP_ERR_DECODE; }
+    // report error and send alert with illegal_parameter
+    if(session->sec.chosen_psk == NULL) { status = TLS_RESP_ILLEGAL_PARAMS ; }
     return status;
 } // end of tlsDecodeExtsPSK
 

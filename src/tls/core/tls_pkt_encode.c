@@ -300,7 +300,7 @@ done:
 
 
 
-static void  tlsEncodeHandshakeHeader(tlsSession_t *session)
+void  tlsEncodeHandshakeHeader(tlsSession_t *session)
 {
     tlsHandshakeMsg_t  *hs_header = NULL;
     word32       hs_msg_total_len = 0;

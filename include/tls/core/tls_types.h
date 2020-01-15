@@ -389,7 +389,8 @@ typedef struct __tlsCert {
 typedef struct __tlsPSK {
     struct __tlsPSK  *next;
     struct { // updated since receipt of the last NewSessionTicket from Server
-        word32       timestamp_ms;
+        word32       timestamp_ms; // initial timestamp in milliseconds, on receipt of this PSK
+        word32       ticket_lifetime;
         word32       ticket_age_add;
     } time_param;
     tlsOpaque16b_t    id;
@@ -419,10 +420,6 @@ typedef struct { // necessary elements for building secure connection
         tlsHash_t    *objsha256;
         tlsHash_t    *objsha384;
         byte         *snapshot_server_finished;
-        ////struct { // for temporarily storing hashed value of ClientHello except PSK binder (if any PSK is added)
-        ////    byte    *sha256;
-        ////    byte    *sha384;
-        ////} snapshot_CH_no_pskbinder; // TODO: figure out the implementation of PSK support
     } hashed_hs_msg;
 
     // point to the negotiated cipher suite, note that the chosen cipher suite might NOT be activated yet
@@ -455,9 +452,13 @@ typedef struct { // necessary elements for building secure connection
             tlsOpaque8b_t    resumption;
         } app;
     } secret;
-    // point to the PSK binder section of a encoding (but not sent yet) ClientHello, when we update transcript hash with
-    // the ClientHello, we can easily seperate the binder section from the entire ClientHello
-    tlsOpaque8b_t    psk_binder;
+    // the pointers below point to starting address of the PSK binder section in different buffer when
+    // encoding (but not sent yet) ClientHello, when we update transcript hash with the ClientHello,
+    // we can easily seperate the binder section from the entire ClientHello message.
+    struct {
+        byte    *ext; // point to somewhere in PSK extension item
+        word16   len;
+    } psk_binder_ptr;
     // list of available PSK scheme (pre-shared key) for key exchange phase of the protocol
     tlsPSK_t       **psk_list;
     tlsPSK_t        *chosen_psk;

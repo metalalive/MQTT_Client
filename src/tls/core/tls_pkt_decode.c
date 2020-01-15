@@ -280,13 +280,25 @@ done:
 } // end of tlsDecodeHSfinished
 
 
+// RFC 8446, section 4.6.1 New Session Ticket message
 // struct {
 //     uint32 ticket_lifetime;
 //     uint32 ticket_age_add;
 //     opaque ticket_nonce<0..255>;
-//     opaque ticket<1..2^16-1>;
+//     opaque ticket<1..2^16-1>;  <-- used as the PSK identity
 //     Extension extensions<0..2^16-2>;
 // } NewSessionTicket;
+//
+// ticket_lifetime : indicate lifetime "in secords", in TLS v1.3.
+// * this value MUST NOT be greater than 604800 seconds (7 days).
+// * client also MUST NOT cache a PSK for longer than 7 days
+// * the server may delete the PS earlier than the specified ticket_lifetime
+// ticket_age_add : a 32-bit random value used to obscure the age of the ticket.
+// (make man-in-the-middle attack more difficult ?), ClientHello with PSK extension
+// must include obfuscated_ticket_age, which is addition of this ticket_age_add and
+// "the age of the ticket".
+//
+// "the age of the ticket" in client's view is the time since the receipt of NewTicketMessage
 //
 static tlsRespStatus  tlsDecodeNewSessTkt(tlsSession_t *session)
 {
@@ -303,30 +315,29 @@ static tlsRespStatus  tlsDecodeNewSessTkt(tlsSession_t *session)
         pskitem = (tlsPSK_t *) XMALLOC(sizeof(tlsPSK_t));
         pskitem->flgs.is_resumption = 0x1; //TODO: is it necessary to suport PSK imported by user application ?
         tlsAddItemToList((tlsListItem_t **) session->sec.psk_list, (tlsListItem_t *)pskitem, 0x1); // always insert to the front
-        inlen_decoded += tlsDecodeWord32( &inbuf[inlen_decoded], &pskitem->time_param.timestamp_ms );
+        inlen_decoded += tlsDecodeWord32( &inbuf[inlen_decoded], &pskitem->time_param.ticket_lifetime );
         inlen_decoded += tlsDecodeWord32( &inbuf[inlen_decoded], &pskitem->time_param.ticket_age_add );
         // ticket nonce & ticket bytes are used to derive new PSK that can be used next time
         // when connecting to the same server, by specified expiration time
-        nst_nonce.len  = inbuf[inlen_decoded++];
-        nst_nonce.data = XMALLOC(sizeof(byte) * nst_nonce.len);
-        XMEMCPY(&nst_nonce.data[0], &inbuf[inlen_decoded], nst_nonce.len);
+        nst_nonce.len  =  inbuf[inlen_decoded++];
+        nst_nonce.data = &inbuf[inlen_decoded]; // no need to copy, the entire ticket_nonce must be in the first fragment
         inlen_decoded += nst_nonce.len;
         inlen_decoded += tlsDecodeWord16( &inbuf[inlen_decoded], &pskitem->id.len );
-        // compute pre-shared key (PSK) associated with the ticket
+        // compute pre-shared key (PSK) associated with the ticket (RFC 8446, page 75)
+        // * HKDF-Expand-Label(resumption_master_secret, "resumption", ticket_nonce, Hash.length)
         pskitem->key.len  =  hash_sz;
         pskitem->key.data =  XMALLOC(sizeof(byte) * (pskitem->key.len + pskitem->id.len));
         pskitem->id.data  = &pskitem->key.data[pskitem->key.len];
         status = tlsHKDFexpandLabel( hash_id, &session->sec.secret.app.resumption, &reslabel, &nst_nonce, &pskitem->key );
-        XMEMFREE((void *)nst_nonce.data);
-        nst_nonce.data = NULL;
         if(status < 0) { goto end_of_decode; }
+        pskitem->time_param.timestamp_ms  = mqttSysGetTimeMs(); // record timestamp on receipt of NewSessionTicket
         session->nbytes.remaining_to_recv = pskitem->id.len;
         ////session->last_ext_entry_dec_len = 0x1 << 15;
     } else {
         pskitem = *session->sec.psk_list;
     }
     // For copying opaque ticket<1..2^16-1> from one or more fragments
-    if(session->nbytes.remaining_to_recv > 0) {
+    if((session->nbytes.remaining_to_recv > 0) && (pskitem != NULL)) {
         word16    rdy_cpy_sz = 0;
         word16    copied_sz  = 0;
         copied_sz  = pskitem->id.len - session->nbytes.remaining_to_recv;
@@ -347,6 +358,7 @@ end_of_decode:
         if(list_sz > TLS_MAX_NUM_PSK_LISTITEM) {
             pskitem = (tlsPSK_t *) tlsGetFinalItemFromList((tlsListItem_t *)*session->sec.psk_list);
             tlsRemoveItemFromList((tlsListItem_t **)session->sec.psk_list, (tlsListItem_t *)pskitem);
+            tlsFreePSKentry(pskitem);
         }
         session->flgs.new_session_tkt = 0;
     }

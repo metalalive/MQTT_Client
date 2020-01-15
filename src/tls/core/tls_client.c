@@ -167,7 +167,7 @@ mqttRespStatus   mqttSecureNetconnStart(mqttCtx_t *mctx)
     }
     status = mqttSysNetconnStart( mctx );
     if(status != MQTT_RESP_OK) { return status; }
-    ////  mqttAuthGetBrokerHost( &mctx->broker_host, &mctx->broker_port );
+    //// mqttAuthGetBrokerHost( &mctx->broker_host, &mctx->broker_port );
     // create new secure session
     tls_status = tlsClientSessionCreate(&session);
     if(tls_status >= 0) {

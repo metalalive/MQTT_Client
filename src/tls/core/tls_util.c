@@ -14,7 +14,7 @@ const tlsNamedGrp  tls_supported_named_groups[] = {
     TLS_NAMED_GRP_SECP384R1, TLS_NAMED_GRP_SECP521R1,
 };
 
-// inthis implementation, we support most of signature schemes allowed in TLS v1.3 , except ED448
+// This implementation only supports signature schemes that are mandatory to implement e.g. PSS and PKCS1
 const tlsSignScheme  tls_supported_sign_scheme[] = {
     TLS_SIGNATURE_RSA_PKCS1_SHA256 ,
     TLS_SIGNATURE_RSA_PKCS1_SHA384 ,
@@ -142,14 +142,15 @@ tlsRespStatus  tlsFreeExtEntry(tlsExtEntry_t *in) {
 // every PSK entry nust be created ONLY in tlsDecodeNewSessnTkt()
 tlsRespStatus  tlsFreePSKentry(tlsPSK_t *in) {
     if(in == NULL) { return TLS_RESP_ERRARGS; }
-    XMEMFREE((void *)in->key.data);
-    in->key.data = NULL;
-    in->id.data  = NULL;
+    if(in->key.data != NULL) {
+        XMEMFREE((void *)in->key.data);
+        in->key.data = NULL;
+        in->id.data  = NULL;
+    }
     in->next     = NULL;
     XMEMFREE((void *)in);
     return TLS_RESP_OK;
 } // end of tlsFreePSKentry
-
 
 
 mqttRespStatus   tlsRespCvtToMqttResp(tlsRespStatus in)

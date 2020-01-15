@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+void  tlsEncodeHandshakeHeader(tlsSession_t *session);
 
 tlsRespStatus  tlsGenFinishedVerifyData(tlsSecurityElements_t *sec, tlsOpaque8b_t *base_key, tlsOpaque8b_t *out);
 

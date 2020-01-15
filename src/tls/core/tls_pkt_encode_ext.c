@@ -210,84 +210,200 @@ static tlsExtEntry_t*  tlsGenExtsPSKexMode(void)
 //         case server_hello: uint16 selected_identity;
 //     };
 // } PreSharedKeyExtension;
-static tlsExtEntry_t*  tlsGenExtsPSK(tlsOpaque8b_t *binderstart, tlsPSK_t *psklist)
-{ // TODO: verify
+static tlsExtEntry_t*  tlsGenExtsPSK(tlsSecurityElements_t *sec, tlsPSK_t *psklist)
+{
     tlsPSK_t       *pskitem    = NULL;
     tlsExtEntry_t  *out        = NULL;
     byte           *idbuf      = NULL;
     byte           *bindbuf    = NULL;
-    word16          total_pskid_len   = 0;
-    word16          total_binder_len  = 0;
-    out = (tlsExtEntry_t *) XMALLOC(sizeof(tlsExtEntry_t));
-    out->next = NULL;
-    out->type = TLS_EXT_TYPE_PRE_SHARED_KEY;
-    out->content.len  = 0;
-    out->content.data = NULL;
-    // ----- calculate number of bytes required to decode -----
+    word32          nowtime_ms = 0;
+    word32          tkt_age_ms = 0;
+    word16   total_pskid_len   = 0;
+    word16   total_binder_len  = 0;
+    tlsHashAlgoID  hash_algo_id = 0;
+    // ----- calculate number of bytes required to encode -----
     pskitem = psklist;
+    nowtime_ms = mqttSysGetTimeMs();
     while(pskitem != NULL) {
-        tlsHashAlgoID  hash_algo_id = tlsGetHashAlgoIDBySize( (word16)pskitem->key.len );
-        if(hash_algo_id != TLS_HASH_ALGO_UNKNOWN) {
-            // first 2 bytes for storing size of each PskIdentity, then variable bytes of each
-            // PskIdentity, then 4-byte obfuscated_ticket_age
+        hash_algo_id = tlsGetHashAlgoIDBySize( (word16)pskitem->key.len );
+        // (RFC 8446, section 4.2.11.1)
+        // "the age of the ticket" in client's view is the time since the receipt of NewTicketMessage.
+        tkt_age_ms = mqttGetInterval(nowtime_ms, pskitem->time_param.timestamp_ms);
+        // If age of a ticket (of a PSK item) is greater than ticket_lifetime attribute, or unknown hash method is used,
+        // then remove that PSK item because it's no longer available
+        if(((tkt_age_ms / 1000) >= pskitem->time_param.ticket_lifetime) || (hash_algo_id == TLS_HASH_ALGO_UNKNOWN)) {
+            tlsPSK_t  *rdy2deleteitem = pskitem;
+            tlsRemoveItemFromList((tlsListItem_t **)&pskitem, (tlsListItem_t *)rdy2deleteitem);
+            tlsFreePSKentry(rdy2deleteitem);
+        } else {
+            // first 2 bytes for storing size of identity of each PSK, then variable bytes of identity of each
+            // PSK item, followed by 4-byte obfuscated_ticket_age
             total_pskid_len   += 2 + pskitem->id.len + 4;
             // first byte for storing size of each PskBinderEntry, then variable bytes of each PskBinderEntry
             total_binder_len  += 1 + pskitem->key.len;
-        } // TODO: filter out the PSKs whose binder size is not equal to output size of hash algorithms
-          // supported in this implementation
-        pskitem = pskitem->next;
+            // supported in this implementation
+            pskitem = pskitem->next;
+        }
     } // end of while loop
+    if(total_pskid_len == 0 || total_binder_len == 0) {
+        goto done; // which means all PSK items expired and exceeds ticket_lifetime, return NULL
+    }
     total_pskid_len  += 2; // for storing total size of all PskIdentity items
     total_binder_len += 2; // for storing total size of all PskBinderEntry items
+    out = (tlsExtEntry_t *) XMALLOC(sizeof(tlsExtEntry_t));
+    out->next = NULL;
+    out->type = TLS_EXT_TYPE_PRE_SHARED_KEY;
     out->content.len  = total_pskid_len + total_binder_len;
     out->content.data = XMALLOC(sizeof(byte) * out->content.len);
 
     // ----- encoding PSK identifies -----
     idbuf    =  out->content.data;
     idbuf   +=  tlsEncodeWord16(idbuf, (total_pskid_len - 2));
-    pskitem = psklist;
+    pskitem  =  psklist;
+    nowtime_ms = mqttSysGetTimeMs();
     while(pskitem != NULL) {
-        tlsHashAlgoID  hash_algo_id = tlsGetHashAlgoIDBySize( (word16)pskitem->key.len );
-        if(hash_algo_id != TLS_HASH_ALGO_UNKNOWN) {
-            idbuf  += tlsEncodeWord16(idbuf, pskitem->id.len);
-            XMEMCPY(idbuf, pskitem->id.data, pskitem->id.len);
-            idbuf  += pskitem->id.len;
-            word32  nowtime_ms = mqttSysGetTimeMs();
-            word32  obfuscated_tkt_age = pskitem->time_param.ticket_age_add;
-            obfuscated_tkt_age        += mqttGetInterval(nowtime_ms, pskitem->time_param.timestamp_ms);
-            idbuf  += tlsEncodeWord32(idbuf, obfuscated_tkt_age);
-        }
+        // (RFC 8446, section 4.2.11) An obfuscated version of the age of the key is computed in milliseconds by :
+        // * the initial timestamp on receipt of NewSessionTicket message
+        idbuf  += tlsEncodeWord16(idbuf, pskitem->id.len);
+        XMEMCPY(idbuf, pskitem->id.data, pskitem->id.len);
+        idbuf  += pskitem->id.len;
+        tkt_age_ms  = mqttGetInterval(nowtime_ms, pskitem->time_param.timestamp_ms);
+        // compute obfuscated_ticket_age, by adding ticket_age_add to tkt_age_ms
+        tkt_age_ms += pskitem->time_param.ticket_age_add;
+        idbuf  += tlsEncodeWord32(idbuf, tkt_age_ms);
         pskitem = pskitem->next;
     } // end of while loop
 
     // ----- encoding PSK binders -----
     bindbuf  = &out->content.data[total_pskid_len]; // skip entire OfferedPsks.identities
     XASSERT(bindbuf == idbuf); // TODO: will be removed since it is only for testing purpose
-    binderstart->data = bindbuf;
-    binderstart->len  = total_binder_len;
+    sec->psk_binder_ptr.ext = bindbuf;
+    sec->psk_binder_ptr.len = total_binder_len;
+
     bindbuf +=  tlsEncodeWord16(bindbuf, (total_binder_len - 2));
     pskitem = psklist;
     while(pskitem != NULL) {
-        tlsHashAlgoID  hash_algo_id = tlsGetHashAlgoIDBySize( (word16)pskitem->key.len );
-        if(hash_algo_id != TLS_HASH_ALGO_UNKNOWN) {
-            *bindbuf++ = pskitem->key.len;
-            // binder will be generated & filled in tlsTranscrptHashHSmsgUpdate()
-            // RFC 8446, section 4.2.11.2 PSK Binder :
-            // Each entry in the binders list is computed as an HMAC over a transcript hash,
-            // , including all of the ClientHello but not the binders list itself.
-            //
-            // also, if the client receives HelloRetryRetry & send ClientHello again (e.g. say ClientHello2),
-            // then the binder is derived by :
-            //
-            //     Transcript-Hash(ClientHello1, HelloRetryRequest, Truncate(ClientHello2))
-            //
-            XMEMSET( bindbuf, 0x00, sizeof(byte) * pskitem->key.len );
-            bindbuf += pskitem->key.len;
-        }
-        pskitem = pskitem->next;
+        *bindbuf++ = pskitem->key.len;
+        // update binder of each PSK later, currently just preserve space for the binders
+        XMEMSET( bindbuf, 0x00, sizeof(byte) * pskitem->key.len );
+        bindbuf += pskitem->key.len;
+        pskitem  = pskitem->next;
     } // end of while loop
+done:
     return out;
 } // end of tlsGenExtsPSK
+
+
+
+static tlsRespStatus tlsUpdateExtPSKbinders(tlsSession_t *session, tlsExtEntry_t *curr_ext, word16 *cpy_len)
+{
+    tlsSecurityElements_t *sec = &session->sec;
+    word16     outlen_encoded =  session->outlen_encoded;
+    word16   entry_copied_len =  session->last_ext_entry_enc_len;
+    byte            *outbuf = &session->outbuf.data[0];
+    byte *ext_content_start = &curr_ext->content.data[entry_copied_len - 4];
+    int   offset_from_ptr   =  (int)(ext_content_start - sec->psk_binder_ptr.ext);
+
+    tlsPSK_t   *pskitem   = NULL;
+    tlsHash_t  *hashobj   = NULL; // currently only for SHA256, SHA384
+    byte *CH_no_pskbinder_sha256 = NULL; // transcript hash of ClientHello message, excluding PSK binder
+    byte *CH_no_pskbinder_sha384 = NULL;
+    tlsRespStatus  status = TLS_RESP_OK;
+    tlsOpaque8b_t  binder_key = {0, NULL};
+
+    if(curr_ext->type != TLS_EXT_TYPE_PRE_SHARED_KEY) { goto done; }
+    // check whether currently copying fragment covers starting location of PSK binders section
+    if((offset_from_ptr < 0) && ((offset_from_ptr + *cpy_len) >= 0)) {  }
+    else { goto done; }
+
+    offset_from_ptr = -1 * offset_from_ptr;
+    // From here on, write rest of the bytes in OfferedPsks.identities that haven't been copied to outbuf
+    XMEMCPY(&outbuf[outlen_encoded], ext_content_start, offset_from_ptr);
+    entry_copied_len += offset_from_ptr;
+    outlen_encoded   += offset_from_ptr;
+    *cpy_len         -= offset_from_ptr;
+
+    byte   *in    = outbuf         + session->curr_outmsg_start;
+    word32  inlen = outlen_encoded - session->curr_outmsg_start;
+    if(tlsChkFragStateOutMsg(session) == TLS_RESP_REQ_REINIT) {
+        tlsEncodeHandshakeHeader(session); // update handshake message header earlier at here
+        // skip 5-byte record header for the first fragment of given handshake message
+        in     += TLS_RECORD_LAYER_HEADER_NBYTES;
+        inlen  -= TLS_RECORD_LAYER_HEADER_NBYTES;
+    }
+
+    tlsHashAlgoID hash_id = TLScipherSuiteGetHashID(sec->chosen_ciphersuite);
+    word16  hash_sz[2];
+    hash_sz[0] = mqttHashGetOutlenBytes(MQTT_HASH_SHA256);
+    hash_sz[1] = mqttHashGetOutlenBytes(MQTT_HASH_SHA384);
+    hashobj = (tlsHash_t *) XMALLOC(sizeof(tlsHash_t) * 2);
+    CH_no_pskbinder_sha256 = (byte *) XMALLOC(sizeof(byte) * (hash_sz[0] + hash_sz[1]));
+    CH_no_pskbinder_sha384 = CH_no_pskbinder_sha256  + hash_sz[0];
+
+    if((hash_id == TLS_HASH_ALGO_NOT_NEGO) || (hash_id == TLS_HASH_ALGO_SHA256)) {
+        // copy hash object state from objsha256 (or objsha384) to the new hash object
+        if(sec->hashed_hs_msg.objsha256 == NULL) { status = TLS_RESP_ERR_HASH; goto done; }
+        XMEMCPY(&hashobj[0], sec->hashed_hs_msg.objsha256, sizeof(tlsHash_t));
+        // update new hash object with current fragment (up to but excluding PSK binders section)
+        int resultcode = MGTT_CFG_HASH_SHA256_FN_UPDATE(&hashobj[0], in, inlen);
+        // compute Transcript-Hash(Truncate(ClientHello)), where Turncated(ClientHello) is ClientHello message
+        // wihtout the final PSK binders section
+        resultcode |= MGTT_CFG_HASH_SHA256_FN_DONE(&hashobj[0], CH_no_pskbinder_sha256);
+        if(resultcode != 0) { status = TLS_RESP_ERR_HASH; goto done; }
+    }
+    if((hash_id == TLS_HASH_ALGO_NOT_NEGO) || (hash_id == TLS_HASH_ALGO_SHA384)) {
+        if(sec->hashed_hs_msg.objsha384 == NULL) { status = TLS_RESP_ERR_HASH; goto done; }
+        XMEMCPY(&hashobj[1], sec->hashed_hs_msg.objsha384, sizeof(tlsHash_t));
+        int resultcode = MGTT_CFG_HASH_SHA384_FN_UPDATE(&hashobj[1], in, inlen);
+        resultcode |= MGTT_CFG_HASH_SHA384_FN_DONE(&hashobj[1], CH_no_pskbinder_sha384);
+        if(resultcode != 0) { status = TLS_RESP_ERR_HASH; goto done; }
+    }
+
+    binder_key.data = (byte *) XMALLOC(sizeof(byte) * hash_sz[1]); // hash length of SHA384
+    outbuf  = sec->psk_binder_ptr.ext + 2; // skip 2-byte length field
+    pskitem = *sec->psk_list;
+    while(pskitem != NULL) { // Looping through each PSK item
+        byte *trHash_ch = NULL;
+        hash_id        = tlsGetHashAlgoIDBySize((word16)pskitem->key.len);
+        binder_key.len = pskitem->key.len;
+        switch (hash_id) {
+            case TLS_HASH_ALGO_SHA384:
+                trHash_ch = CH_no_pskbinder_sha384;
+                break;
+            case TLS_HASH_ALGO_SHA256:
+            default:
+                trHash_ch = CH_no_pskbinder_sha256;
+                break;
+        } // end of switch case
+        status = tlsDerivePSKbinderKey(pskitem, &binder_key);   // derive binder secret, binder key
+        if(status < 0) { goto done; }
+        // (RFC 8446, 4.2.11.2) PSKBinderEntry is computed in the same way as the Finished message is computed,
+        // PSKBinderEntry = HMAC(binder_key, Transcript-Hash(Truncate(ClientHello)))
+        outbuf++;
+        TLS_CFG_HMAC_MEMBLOCK_FN(status, hash_id, binder_key.data, binder_key.len, trHash_ch,
+                                 pskitem->key.len, outbuf, pskitem->key.len);
+        if(status < 0) { goto done; }
+        outbuf += pskitem->key.len;
+        pskitem = pskitem->next;
+    } // end of while loop
+done:
+    if(hashobj != NULL) {
+        XMEMFREE((void *)hashobj);
+        hashobj = NULL;
+    }
+    if(CH_no_pskbinder_sha256 != NULL) {
+        XMEMFREE((void *)CH_no_pskbinder_sha256);
+        CH_no_pskbinder_sha256 = NULL;
+        CH_no_pskbinder_sha384 = NULL;
+    }
+    if(binder_key.data != NULL) {
+        XMEMFREE((void *)binder_key.data);
+        binder_key.data = NULL;
+    }
+    session->outlen_encoded         = outlen_encoded  ;
+    session->last_ext_entry_enc_len = entry_copied_len;
+    return status;
+} // end of tlsUpdateExtPSKbinders
 
 
 
@@ -334,13 +450,11 @@ static tlsExtEntry_t*  tlsGenExtsClientHello( tlsSession_t *session )
     curr->next = tlsGenExtsKeyShare(session);
     curr = curr->next;
     if(curr == NULL) { goto failure_gen_ext_list; }
-    if(*session->sec.psk_list != NULL) { // TODO: verify
+    if(*session->sec.psk_list != NULL) {
         curr->next = tlsGenExtsPSKexMode();
         curr = curr->next;
         // PSK must be the latest extension entry in ClientHello
-        curr->next = tlsGenExtsPSK(&session->sec.psk_binder, *session->sec.psk_list);
-        curr = curr->next;
-        if(curr == NULL) { goto failure_gen_ext_list; }
+        curr->next = tlsGenExtsPSK(&session->sec, *session->sec.psk_list);
     } // NOTE: pre-shared key extension MUST be the last entry of the entire extension list
     return out;
 failure_gen_ext_list:
@@ -492,10 +606,16 @@ tlsRespStatus  tlsEncodeExtensions(tlsSession_t *session)
 
         if(session->outbuf.len > outlen_encoded) {
             rdy_cpy_len = XMIN(curr_ext->content.len - (entry_copied_len - 4), session->outbuf.len - outlen_encoded);
+            // special case for checking binders section of PSK extension
+                session->outlen_encoded  = outlen_encoded;
+                session->last_ext_entry_enc_len = entry_copied_len;
+                status = tlsUpdateExtPSKbinders(session, curr_ext, &rdy_cpy_len);
+                outlen_encoded   = session->outlen_encoded;
+                entry_copied_len = session->last_ext_entry_enc_len;
             XMEMCPY( &outbuf[outlen_encoded], &curr_ext->content.data[entry_copied_len - 4], rdy_cpy_len );
             outlen_encoded   += rdy_cpy_len;
             entry_copied_len += rdy_cpy_len;
-            if(entry_copied_len == (4 + curr_ext->content.len)) { // if entire entry is copied to inbuf (current or previous fragment)
+            if(entry_copied_len == (4 + curr_ext->content.len)) { // if entire entry is copied to outbuf
                 entry_copied_len = 0; // finish parsing current extension entry & may iterate over again
                 tlsExtEntry_t  *prev_ext = curr_ext;
                 tlsRemoveItemFromList((tlsListItem_t **)&curr_ext, (tlsListItem_t *)curr_ext);
@@ -515,7 +635,7 @@ tlsRespStatus  tlsEncodeExtensions(tlsSession_t *session)
     if (session->outbuf.len >= outlen_encoded) {
         status = (session->exts != NULL) ? TLS_RESP_REQ_MOREDATA : TLS_RESP_OK ;
     }
-    else { status = TLS_RESP_ERR_ENCODE; }
+    else { XASSERT(NULL); }
     return status;
 } // end of tlsEncodeExtensions
 
