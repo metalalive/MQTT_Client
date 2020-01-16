@@ -137,9 +137,9 @@ void   tlsHSstateTransition(tlsSession_t *session)
             if(session->flgs.hs_server_finish == 0) {
                 if(session->flgs.omit_client_cert_chk == 0) {
                     session->hs_state = TLS_HS_TYPE_CERTIFICATE;
-                    session->flgs.outflight_flush = 0;
                 }
                 session->flgs.hs_server_finish = 1;
+                session->flgs.outflight_flush  = 0;
             } else if(session->flgs.hs_client_finish == 0) {
                 session->flgs.hs_client_finish = 1;
                 session->flgs.outflight_flush  = 1; // TODO: find the better way to let application toggle this flag
