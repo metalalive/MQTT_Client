@@ -314,7 +314,7 @@ mqttRespStatus  mqttClientInit( mqttCtx_t **mctx, int cmd_timeout_ms )
         return MQTT_RESP_ERRMEM ;
     }
     XMEMSET( c, 0x00, sizeof(mqttCtx_t) );
-    // TODO : the Tx / Rx buffer size should depend on transmission capability of underlying system
+    // the Tx / Rx buffer size should depend on transmission capability of underlying system
     c->tx_buf = XMALLOC( sizeof(byte) * MQTT_CTX_TX_BUF_SIZE );
     c->tx_buf_len = MQTT_CTX_TX_BUF_SIZE ;
     if( c->tx_buf == NULL ) {

@@ -51,6 +51,4 @@ C_SOURCES += src/system/middleware/ESP_AT_parser/mqtt_sys.c
 
 C_INCLUDES += -Iinclude/system/middleware/ESP_AT_parser 
 
-C_DEFS += -DMQTT_CFG_SYS_ESP_AT_PARSER
-
 

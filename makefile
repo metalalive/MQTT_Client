@@ -7,10 +7,6 @@ PLUS_C_DEFS ?=
 
 DEBUG ?= no
 
-BUILD_DIR = build
-
-TARGET_LIB_PATH = $(BUILD_DIR)/libmqttclient.a
-
 ######################################
 # source
 ######################################
@@ -55,34 +51,42 @@ C_DEFS = $(foreach def, $(PLUS_C_DEFS), $(addprefix -D, $(def)) )
 # C includes
 C_INCLUDES = -Iinclude \
 
+BUILD_DIR_TOP=build
 
 # include generated build script
 include  ./generate/auto/makefile
 
-#### include hardware platfrom specific files
-include  ./auto/platform/$(PLATFORM).makefile
+ifeq ($(MAKECMDGOALS), utest)
+    include  ./auto/middleware/unknown.makefile
+else  # if unit test is NOT enabled
+    #### include hardware platfrom specific files, (NOTE) don't use cross-compile toolchain in unit test
+    include  ./auto/platform/$(PLATFORM).makefile
+    #### include middleware files, the middleware can be any API software integrated
+    #### with OS (e.g. RTOS, Linux kernel) .
+    include  ./auto/middleware/$(MIDDLEWARE).makefile
 
-#### include middleware files, the middleware can be any API software integrated
-#### with OS (e.g. RTOS, Linux kernel) .
-include  ./auto/middleware/$(MIDDLEWARE).makefile
-
-include  ./generate/auto/after_cfg.makefile
+    include  ./generate/auto/after_cfg.makefile
+endif
 
 #---------------------------------------------------------
 # different files & paths for unit test, integration test 
 #---------------------------------------------------------
-TEST_COMMON_SOURCES = tests/integration/pattern_generator.c  generate/src/mqtt_generate.c
 
-ifeq ($(MAKECMDGOALS), check) # if unit test is enabled
+ifeq ($(MAKECMDGOALS), utest) # if unit test is enabled
 # TODO: complete unit test after completing integration tests.
-    TEST_ENTRY_SOURCES += 
+    BUILD_DIR=$(BUILD_DIR_TOP)/utest
+    TEST_COMMON_SOURCES = 
+    TEST_ENTRY_SOURCES = 
 else
-    ifeq ($(MAKECMDGOALS), tests) # if make goal is 'test', then it is integration test
+    BUILD_DIR=$(BUILD_DIR_TOP)/itest
+    ifeq ($(MAKECMDGOALS), itest) # if make goal is 'test', then it is integration test
+        TEST_COMMON_SOURCES = tests/integration/pattern_generator.c \
+                              generate/src/mqtt_generate.c
         TEST_ENTRY_SOURCES += tests/integration/mqtt_client_tcp.c \
                               tests/integration/rand.c
         C_INCLUDES += -Itests/integration
-    endif #### end of tests
-endif #### end of check
+    endif #### end of itest
+endif #### end of utest
 
 TEST_ENTRY_OBJECTS  = $(addprefix $(BUILD_DIR)/,$(notdir $(TEST_ENTRY_SOURCES:.c=.o)))
 vpath %.c $(sort $(dir $(TEST_ENTRY_SOURCES)))
@@ -145,20 +149,34 @@ LDFLAGS = $(CPU_ARCH_FLAGS) $(LD_SPECS_FILE)  $(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,
 #######################################
 # build the application
 #######################################
-# collect compiled objects from C source files
+# collect C/assembly objects compiled for library (may be built by cross-compile toolchain)
 C_ASM_OBJECTS = $(addprefix $(BUILD_DIR)/,$(notdir $(C_SOURCES:.c=.o)))
 vpath %.c $(sort $(dir $(C_SOURCES)))
-# collect compiled objects from assembly source files
+
 C_ASM_OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(ASM_SOURCES:.s=.o)))
 vpath %.s $(sort $(dir $(ASM_SOURCES)))
 
+TARGET_LIB_NAME=libmqttclient.a
+
+TARGET_LIB_PATH=$(BUILD_DIR)/$(TARGET_LIB_NAME)
+
+ifeq ($(MAKECMDGOALS), itest) # only link the library when building images for integration test
+    POST_PROCESS_BUILD_TESTS = \
+        rm -rf $(BUILD_DIR_TOP)/$(TARGET_LIB_NAME); \
+	ln -s  itest/$(TARGET_LIB_NAME)  $(BUILD_DIR_TOP)/$(TARGET_LIB_NAME);
+endif
+
+
 # ----------------- Goals -------------------
-gen_lib: $(BUILD_DIR)  $(TARGET_LIB_PATH)   
+gen_lib: $(BUILD_DIR)  $(TARGET_LIB_PATH)
 
-tests:  $(TARGET_LIB_PATH)  $(TEST_COMMON_OBJECTS)  $(TEST_ENTRY_OBJECTS) \
+# for unit test, no need to build library and test images using cross-compiler
+# TODO: for few integration tests, no need to build test images with cross-compiler
+utest itest : $(TARGET_LIB_PATH)  $(TEST_COMMON_OBJECTS)  $(TEST_ENTRY_OBJECTS) \
         $(foreach atest, $(TEST_ENTRY_OBJECTS), $(atest:.o=).elf  $(atest:.o=).hex  $(atest:.o=).text  $(atest:.o=).bin )
+	$(POST_PROCESS_BUILD_TESTS)
 
-$(BUILD_DIR)/%.o: %.c makefile | $(BUILD_DIR) 
+$(BUILD_DIR)/%.o: %.c makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
 
 $(BUILD_DIR)/%.o: %.s makefile | $(BUILD_DIR)
@@ -184,13 +202,13 @@ $(TARGET_LIB_PATH): $(C_ASM_OBJECTS)
 	$(DUMP) -Dh $< > $@
 
 $(BUILD_DIR):
-	@mkdir $@
+	@mkdir -p $@
 
 #######################################
 # clean up
 #######################################
 clean:
-	-rm -fR $(BUILD_DIR)
+	-rm -fR $(BUILD_DIR_TOP)
   
 download_3party:
 	@make download_3party -C  third_party

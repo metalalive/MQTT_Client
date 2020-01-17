@@ -16,13 +16,8 @@ extern "C" {
 #include "mqtt/mqtt_drbg.h"
 #include "mqtt/mqtt_auth.h"
 
-// start checking the operating system / middleware used in the implementation
-#if defined(MQTT_CFG_SYS_ESP_AT_PARSER)
-    #include "system/middleware/ESP_AT_parser/mqtt_sys.h"
-#elif defined(MQTT_CFG_SYS_LINUX)
-    #include "system/middleware/Linux/mqtt_sys.h"
-#else
-#endif // end of middleware configuration
+// checking the operating system / middleware used in the implementation
+#include "mqtt_sys.h"
 
 
 // start checking the hardware platform used in the implementation
