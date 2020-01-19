@@ -156,6 +156,8 @@ int main (int argc, char** argv)
 #else
         mqttTestStartFn( NULL );
 #endif
+    } else { // terminate immediately on initialization failure
+        mqttClientDeinit( m_client );
     }
     return 0;
 } // end of main()

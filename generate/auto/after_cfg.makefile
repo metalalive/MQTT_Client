@@ -1,9 +1,10 @@
+COMMON_3PARTY_FILE_SUBST_CMD=
 COMMON_3PARTY_BUILD_CMD=
 COMMON_3PARTY_CLEAN_BUILT_CMD=
 
 
 # build math library libtommath.a for specific CPU platform
-COMMON_3PARTY_BUILD_CMD += \
+COMMON_3PARTY_FILE_SUBST_CMD += \
 cp -rf ../generate/include/mqtt_third_party_config.h                     ./libtommath/mqtt_third_party_config.h; \
 cp -rf ../generate/include/mqtt_third_party_system_config.h              ./libtommath/mqtt_third_party_system_config.h; \
 cp -rf ../include/substitution/third_party/libtommath/tommath_private.h  ./libtommath/tommath_private.h;\
@@ -19,7 +20,7 @@ cp -rf ../src/substitution/third_party/libtommath/s_mp_montgomery_reduce_fast.c 
 COMMON_3PARTY_BUILD_CMD += make libtommath.a V=1  CROSS_COMPILE=$(C_TOOLCHAIN_PREFIX)  CFLAGS="$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(PLUS_C_DEFS)" -C ./libtommath ;
 
 
-COMMON_3PARTY_BUILD_CMD += \
+COMMON_3PARTY_FILE_SUBST_CMD += \
 cp -rf  ../generate/include/mqtt_third_party_config.h               ./libtomcrypt/src/headers/mqtt_third_party_config.h; \
 cp -rf  ../generate/include/mqtt_third_party_system_config.h        ./libtomcrypt/src/headers/mqtt_third_party_system_config.h; \
 cp -rf  ../include/substitution/third_party/libtomcrypt/headers/tomcrypt_custom.h  ./libtomcrypt/src/headers/tomcrypt_custom.h; \
@@ -45,5 +46,8 @@ COMMON_3PARTY_BUILD_CMD += make  V=1 CROSS_COMPILE=$(C_TOOLCHAIN_PREFIX) EXTRALI
 # clean up built common third-party libraries
 COMMON_3PARTY_CLEAN_BUILT_CMD += make clean -C ./libtommath ;
 COMMON_3PARTY_CLEAN_BUILT_CMD += make clean -C ./libtomcrypt ;
+
+COMMON_3PARTY_FILE_SUBST_CMD += \
+cp -rf  ../include/substitution/third_party/Unity/extras/memory/src/unity_memory.h  ./Unity/extras/memory/src/unity_memory.h; \
 
 

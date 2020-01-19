@@ -187,8 +187,9 @@ int mqttEncodeProps( byte *buf, mqttProp_t *props )
 
 int mqttDecodeProps( byte *buf, mqttProp_t **props , word32  props_len )
 {
-    mqttProp_t *curr_prop  = NULL;
-    word32      copied_len = 0;
+    mqttProp_t *curr_prop   = NULL;
+    word32      copied_len  = 0;
+    word32      ptype       = (word32) MQTT_PROP_NONE;
     word32      len ;
     word16      tmp ;
 
@@ -196,15 +197,15 @@ int mqttDecodeProps( byte *buf, mqttProp_t **props , word32  props_len )
         return MQTT_RESP_ERRARGS;
     }
     while(props_len > 0)
-    {   // create new empty node to the given property list.
-        curr_prop = mqttPropertyCreate( props );
-        // no property item available, we skip rest of property bytes that hasn't been copied.
-        if(curr_prop == NULL) { return MQTT_RESP_ERRMEM; }
-        // first byte of each property must represent the type
-        len           = mqttDecodeVarBytes((const byte *)buf, (word32 *)&curr_prop->type );
+    {   // first byte of each property must represent the type
+        len           = mqttDecodeVarBytes((const byte *)buf, &ptype);
         props_len    -= len;
         copied_len   += len;
         buf          += len;
+        // create new empty node to the given property list.
+        curr_prop = mqttPropertyCreate(props, (mqttPropertyType)ptype);
+        // no property item available, we skip rest of property bytes that hasn't been copied.
+        if(curr_prop == NULL) { return MQTT_RESP_ERRMEM; }
         switch( mqttQueryPropDataType[curr_prop->type] )
         {
             case MQTT_DATA_TYPE_BYTE         : 

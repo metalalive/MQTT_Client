@@ -1,6 +1,7 @@
 #include "mqtt_include.h"
 // due to GCC bug 53119, the static initialization code should be wrapped by double braces
-static mqttProp_t availPropertyPool[MQTT_MAX_NUM_PROPS] = {{0}};
+static mqttProp_t mqttAvailPropertyPool[MQTT_MAX_NUM_PROPS] = {{0}};
+static byte       mqttNumClientsCtx = 0;
 
 // ------------------- global variables that are accessed by implementation files -------------------
 // find appropriate data type for each property defined in MQTT protocol
@@ -67,7 +68,7 @@ static mqttRespStatus mqttCleanUpRecvpkt( mqttCtx_t *mctx, mqttCtrlPktType next_
         case MQTT_PACKET_TYPE_CONNACK  :
         {
             mqttPktHeadConnack_t *connack = &mctx->recv_pkt.connack ; 
-            // free the properties here if we take some space on availPropertyPool[...] while decoding the packet
+            // free the properties here if we take some space on mqttAvailPropertyPool[...] while decoding the packet
             mqttPropertyDel( connack->props );
             XMEMSET((void *)connack, 0x00, sizeof(mqttPktHeadConnack_t));
             break;
@@ -301,12 +302,16 @@ mqttRespStatus  mqttClientInit( mqttCtx_t **mctx, int cmd_timeout_ms )
 {
 #define  MQTT_CTX_TX_BUF_SIZE             0x100
 #define  MQTT_CTX_RX_BUF_SIZE             MQTT_RECV_PKT_MAXBYTES
+    if(mctx == NULL || cmd_timeout_ms <= 0) { return MQTT_RESP_ERRARGS; }
     mqttRespStatus  status = MQTT_RESP_OK;
     // initialize underlying system platform first.
     status = mqttSysInit();
     if(status != MQTT_RESP_OK) { return status; }
     // clear static data, we internally use it to store property data for each MQTT command
-    XMEMSET( &availPropertyPool, 0x00, sizeof(mqttProp_t) * MQTT_MAX_NUM_PROPS );
+    if(mqttNumClientsCtx == 0) {
+        XMEMSET( &mqttAvailPropertyPool, 0x00, sizeof(mqttProp_t) * MQTT_MAX_NUM_PROPS );
+    }
+    mqttNumClientsCtx++;
     // create global structure mqttCtx_t object
     mqttCtx_t *c = NULL;
     c  =  XMALLOC( sizeof(mqttCtx_t) );
@@ -424,23 +429,27 @@ mqttRespStatus  mqttClientWaitPkt( mqttCtx_t *mctx, mqttCtrlPktType wait_cmdtype
 
 
 
-mqttProp_t*  mqttPropertyCreate( mqttProp_t **head )
+mqttProp_t*  mqttPropertyCreate(mqttProp_t **head , mqttPropertyType type)
 { // TODO: mutex is required in multithreading case
-    mqttProp_t*  curr_node = *head;
+    mqttProp_t*  curr_node = NULL;
     mqttProp_t*  prev_node = NULL;
     uint8_t      idx = 0;
-    while( curr_node != NULL ) {
+    if(head == NULL || type == MQTT_PROP_NONE) { return curr_node; }
+    curr_node = *head;
+    while((curr_node != NULL) && (curr_node->type != MQTT_PROP_NONE)) {
         prev_node = curr_node;
-        curr_node = curr_node->next; 
+        curr_node = curr_node->next;
     }
     // pick up one available node 
     for(idx=0; idx<MQTT_MAX_NUM_PROPS ; idx++) {
-        if(availPropertyPool[idx].type == MQTT_PROP_NONE) {
-            curr_node = &availPropertyPool[idx] ;
+        if(mqttAvailPropertyPool[idx].type == MQTT_PROP_NONE) {
+            curr_node = &mqttAvailPropertyPool[idx] ;
             break;
         }
     }
     if(curr_node != NULL){
+        curr_node->next = NULL;
+        curr_node->type = type;
         if(prev_node == NULL){
             *head = curr_node;
         }
@@ -804,10 +813,12 @@ mqttRespStatus  mqttSendAuth( mqttCtx_t *mctx )
 
     auth_send  = &mctx->send_pkt.auth;
     auth_send->props = NULL;
-    auth_send_mthd  = mqttPropertyCreate( &auth_send->props );
-    auth_send_data  = mqttPropertyCreate( &auth_send->props );
-    if(auth_send_mthd == NULL) { mqttPropertyDel(auth_send->props);  return MQTT_RESP_ERRMEM; }
-    if(auth_send_data == NULL) { mqttPropertyDel(auth_send->props);  return MQTT_RESP_ERRMEM; }
+    auth_send_mthd  = mqttPropertyCreate(&auth_send->props , MQTT_PROP_AUTH_METHOD);
+    auth_send_data  = mqttPropertyCreate(&auth_send->props , MQTT_PROP_AUTH_DATA);
+    if(auth_send_mthd == NULL || auth_send_data == NULL) {
+        mqttPropertyDel(auth_send->props);
+        return MQTT_RESP_ERRMEM;
+    }
     // run callback to fill in  authentication method / data .
     // NOTE: the callback callee must handle memory management on their own 
     //       (e.g. free & allocate in user application, this MQTT implementation
@@ -815,9 +826,8 @@ mqttRespStatus  mqttSendAuth( mqttCtx_t *mctx )
     mctx->eauth_setup_cb(  &auth_recv_data->body.str, &auth_send_data->body.str, &reason_str );
     // reason string is optional in AUTH packet
     if((reason_str.data != NULL) && (reason_str.len > 0)) {
-        auth_send_reason_str = mqttPropertyCreate( &auth_send->props );
+        auth_send_reason_str = mqttPropertyCreate(&auth_send->props, MQTT_PROP_REASON_STR);
         if(auth_send_reason_str == NULL) { mqttPropertyDel(auth_send->props);  return MQTT_RESP_ERRMEM; }
-        auth_send_reason_str->type = MQTT_PROP_REASON_STR;
         auth_send_reason_str->body.str.data = reason_str.data;
         auth_send_reason_str->body.str.len  = reason_str.len;
     }
@@ -825,8 +835,6 @@ mqttRespStatus  mqttSendAuth( mqttCtx_t *mctx )
     // it's mandatory in MQTT v5 protocol.
     auth_send_mthd->body.str.data = auth_recv_mthd->body.str.data ; // TODO: recheck to avoid memory leak issues
     auth_send_mthd->body.str.len  = auth_recv_mthd->body.str.len ;
-    auth_send_mthd->type   = MQTT_PROP_AUTH_METHOD;
-    auth_send_data->type   = MQTT_PROP_AUTH_DATA;
     auth_send->reason_code = MQTT_REASON_CNTNU_AUTH;
 
     mctx->flgs.recv_mode  = 0;

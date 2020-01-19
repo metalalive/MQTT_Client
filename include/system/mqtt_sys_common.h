@@ -16,6 +16,14 @@ extern "C" {
 #define  XMALLOC  malloc
 #endif 
 
+#ifndef  XCALLOC
+#define  XCALLOC  calloc
+#endif
+
+#ifndef  XREALLOC
+#define  XREALLOC  realloc 
+#endif
+
 #ifndef  XMEMCPY
 #define  XMEMCPY  memcpy
 #endif 

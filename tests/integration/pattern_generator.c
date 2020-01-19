@@ -297,10 +297,8 @@ static mqttRespStatus mqttTestRandSetupProps( mqttDRBG_t *drbg, mqttPropertyType
         list_size--;
         // start generating random data to each property structure
         curr_prop = NULL; 
-        curr_prop = mqttPropertyCreate( head_prop );
+        curr_prop = mqttPropertyCreate(head_prop, select_type);
         if(curr_prop == NULL){ status = MQTT_RESP_ERRMEM; break; }
-        curr_prop->next = NULL; 
-        curr_prop->type = select_type;
         mqttTestRandSetupProp( drbg, curr_prop );
     } // end of for-loop
     return status;

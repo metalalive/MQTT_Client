@@ -152,7 +152,7 @@ mqttRespStatus  mqttSendDisconnect( mqttCtx_t *mctx );
 
 
 // create new property node to a given list, return the added item
-mqttProp_t*  mqttPropertyCreate( mqttProp_t **head );
+mqttProp_t*  mqttPropertyCreate(mqttProp_t **head, mqttPropertyType type);
 
 // delete/free the allocated space to entire list, start from the given head
 void         mqttPropertyDel( mqttProp_t *head );
