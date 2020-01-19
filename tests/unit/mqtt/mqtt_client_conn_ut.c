@@ -77,6 +77,7 @@ static void  mock_mqttClientDeinit( mqttCtx_t *mctx )
 TEST_GROUP(mqttClientInit);
 TEST_GROUP(mqttPropertyCreate);
 TEST_GROUP(mqttPropertyDel);
+TEST_GROUP(mqttPropErrChk);
 
 TEST_GROUP_RUNNER(mqttClientInit)
 {
@@ -99,6 +100,21 @@ TEST_GROUP_RUNNER(mqttPropertyDel)
     RUN_TEST_CASE(mqttPropertyDel, take_some_alloc_space);
 }
 
+TEST_GROUP_RUNNER(mqttPropErrChk)
+{
+    RUN_TEST_CASE(mqttPropErrChk, in_null);
+    RUN_TEST_CASE(mqttPropErrChk, dup_user_prop);
+    RUN_TEST_CASE(mqttPropErrChk, dup_sub_id_in_publish);
+    RUN_TEST_CASE(mqttPropErrChk, dup_prop_cannot_repeat);
+    RUN_TEST_CASE(mqttPropErrChk, strpair_integrity);
+    RUN_TEST_CASE(mqttPropErrChk, var_int_limit);
+    RUN_TEST_CASE(mqttPropErrChk, update_keepalive);
+    RUN_TEST_CASE(mqttPropErrChk, update_topic_alias_max);
+    RUN_TEST_CASE(mqttPropErrChk, chk_topic_alias_pubmsg);
+    RUN_TEST_CASE(mqttPropErrChk, chk_max_pkt_sz);
+}
+
+
 TEST_SETUP(mqttClientInit)
 {
     unittest_mctx = NULL;
@@ -111,18 +127,24 @@ TEST_SETUP(mqttClientInit)
 TEST_SETUP(mqttPropertyCreate)
 {
     int timeout = 100;
-    mqttRespStatus status = MQTT_RESP_OK;
     unittest_mctx = NULL;
-    status = mqttClientInit(&unittest_mctx, timeout);
+    mqttClientInit(&unittest_mctx, timeout);
 }
 
 TEST_SETUP(mqttPropertyDel)
 {
     int timeout = 100;
-    mqttRespStatus status = MQTT_RESP_OK;
     unittest_mctx = NULL;
-    status = mqttClientInit(&unittest_mctx, timeout);
+    mqttClientInit(&unittest_mctx, timeout);
 }
+
+TEST_SETUP(mqttPropErrChk)
+{
+    int timeout = 100;
+    unittest_mctx = NULL;
+    mqttClientInit(&unittest_mctx, timeout);
+}
+
 
 TEST_TEAR_DOWN(mqttClientInit)
 {
@@ -146,6 +168,13 @@ TEST_TEAR_DOWN(mqttPropertyDel)
     mock_mqttClientDeinit( unittest_mctx );
     unittest_mctx = NULL;
 }
+
+TEST_TEAR_DOWN(mqttPropErrChk)
+{
+    mock_mqttClientDeinit( unittest_mctx );
+    unittest_mctx = NULL;
+}
+
 
 
 // ------------------------------ start test body  ------------------------------
@@ -340,12 +369,327 @@ TEST(mqttPropertyDel, take_some_alloc_space)
 } // end of TEST(mqttPropertyDel, take_some_alloc_space)
 
 
+TEST(mqttPropErrChk, in_null)
+{
+    mqttRespStatus status = MQTT_RESP_OK;
+
+    TEST_ASSERT_NOT_EQUAL(NULL, unittest_mctx);
+    status = mqttPropErrChk(NULL, MQTT_PACKET_TYPE_RESERVED, NULL);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERRARGS, status);
+    status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_RESERVED, NULL);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status); // it's ok to give NULL property list
+} // end of TEST(mqttPropErrChk, in_null)
+
+
+TEST(mqttPropErrChk, dup_user_prop)
+{
+    mqttProp_t  *new_prop  = NULL;
+    mqttProp_t **prop_list = NULL;
+    mqttPropertyType ptype = MQTT_PROP_NONE;
+    mqttRespStatus status = MQTT_RESP_OK;
+    word16 nbytes_alloc   = 0x20;
+
+    TEST_ASSERT_NOT_EQUAL(NULL, unittest_mctx);
+
+    prop_list = &unittest_mctx->send_pkt.conn.props;
+    ptype = MQTT_PROP_USER_PROPERTY;
+    {
+        new_prop = mqttPropertyCreate(prop_list, ptype);
+        new_prop->body.strpair[0].len  = nbytes_alloc;
+        new_prop->body.strpair[0].data = XMALLOC(sizeof(byte) * nbytes_alloc);
+        new_prop->body.strpair[1].len  = nbytes_alloc;
+        new_prop->body.strpair[1].data = XMALLOC(sizeof(byte) * nbytes_alloc);
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_CONNECT, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    }
+    {
+        new_prop = mqttPropertyCreate(prop_list, ptype);
+        new_prop->body.strpair[0].len  = nbytes_alloc;
+        new_prop->body.strpair[0].data = XMALLOC(sizeof(byte) * nbytes_alloc);
+        new_prop->body.strpair[1].len  = nbytes_alloc;
+        new_prop->body.strpair[1].data = XMALLOC(sizeof(byte) * nbytes_alloc);
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_CONNECT, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    }
+    mqttPropertyDel(*prop_list);
+} // end of TEST_CASE(mqttPropErrChk, dup_user_prop)
+
+
+TEST(mqttPropErrChk, dup_sub_id_in_publish)
+{
+    mqttProp_t  *new_prop  = NULL;
+    mqttProp_t **prop_list = NULL;
+    mqttPropertyType ptype = MQTT_PROP_NONE;
+    mqttRespStatus status = MQTT_RESP_OK;
+
+    TEST_ASSERT_NOT_EQUAL(NULL, unittest_mctx);
+
+    prop_list = &unittest_mctx->send_pkt.pub_msg.props;
+    ptype = MQTT_PROP_SUBSCRIBE_ID;
+    unittest_mctx->flgs.recv_mode = 1; // temporarily avoid property error, will test this later
+    {
+        new_prop = mqttPropertyCreate(prop_list, ptype);
+        new_prop->body.u32 = 0x2;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_PUBLISH, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    }
+    {
+        new_prop = mqttPropertyCreate(prop_list, ptype);
+        new_prop->body.u32 = 0x5;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_PUBLISH, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    }
+    {
+        new_prop = mqttPropertyCreate(prop_list, ptype);
+        new_prop->body.u32 = 0x7;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_PUBLISH, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    }
+    mqttPropertyDel(*prop_list);
+} // end of TEST(mqttPropErrChk, dup_sub_id_in_publish)
+
+
+TEST(mqttPropErrChk, dup_prop_cannot_repeat)
+{
+    mqttProp_t  *new_prop  = NULL;
+    mqttProp_t **prop_list = NULL;
+    mqttPropertyType ptype = MQTT_PROP_NONE;
+    mqttRespStatus status = MQTT_RESP_OK;
+    word16 nbytes_alloc   = 0x20;
+
+    TEST_ASSERT_NOT_EQUAL(NULL, unittest_mctx);
+
+    prop_list = &unittest_mctx->send_pkt.pub_msg.props;
+    ptype = MQTT_PROP_CONTENT_TYPE;
+    {
+        new_prop = mqttPropertyCreate(prop_list, ptype);
+        new_prop->body.str.len  = nbytes_alloc;
+        new_prop->body.str.data = XMALLOC(sizeof(byte) * nbytes_alloc);
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_PUBLISH, *prop_list);
+        TEST_ASSERT_EQUAL_UINT(MQTT_RESP_OK, status);
+    }
+    ptype = MQTT_PROP_TOPIC_ALIAS;
+    unittest_mctx->flgs.recv_mode = 0; // temporarily avoid property error, will test this later
+    unittest_mctx->send_topic_alias_max = 13;
+    {
+        new_prop = mqttPropertyCreate(prop_list, ptype);
+        new_prop->body.u16 = 11;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_PUBLISH, *prop_list);
+        TEST_ASSERT_EQUAL_UINT(MQTT_RESP_OK, status);
+    }
+    ptype = MQTT_PROP_CONTENT_TYPE;
+    {
+        new_prop = mqttPropertyCreate(prop_list, ptype);
+        new_prop->body.str.len  = nbytes_alloc;
+        new_prop->body.str.data = XMALLOC(sizeof(byte) * nbytes_alloc);
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_PUBLISH, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_PROP_REPEAT, status);
+        TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_PROTOCOL_ERR, unittest_mctx->err_info.reason_code);
+        TEST_ASSERT_EQUAL_UINT8(ptype, unittest_mctx->err_info.prop_id);
+    }
+    mqttPropertyDel(*prop_list);
+} // end of TEST(mqttPropErrChk, dup_prop_cannot_repeat)
+
+
+TEST(mqttPropErrChk, strpair_integrity)
+{
+    mqttProp_t  *new_prop  = NULL;
+    mqttProp_t **prop_list = NULL;
+    mqttPropertyType ptype = MQTT_PROP_NONE;
+    mqttRespStatus status = MQTT_RESP_OK;
+    word16 nbytes_alloc   = 0x20;
+
+    TEST_ASSERT_NOT_EQUAL(NULL, unittest_mctx);
+
+    prop_list = &unittest_mctx->send_pkt.conn.props;
+    ptype = MQTT_PROP_USER_PROPERTY;
+    {
+        new_prop = mqttPropertyCreate(prop_list, ptype);
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_CONNECT, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_INTEGRITY, status);
+
+        new_prop->body.strpair[0].len  = nbytes_alloc;
+        new_prop->body.strpair[0].data = XMALLOC(sizeof(byte) * nbytes_alloc);
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_CONNECT, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_INTEGRITY, status);
+
+        new_prop->body.strpair[1].len  = nbytes_alloc;
+        new_prop->body.strpair[1].data = XMALLOC(sizeof(byte) * nbytes_alloc);
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_CONNECT, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    }
+    mqttPropertyDel(*prop_list);
+} // end of TEST(mqttPropErrChk, strpair_integrity)
+
+
+TEST(mqttPropErrChk, var_int_limit)
+{
+    mqttProp_t  *new_prop  = NULL;
+    mqttProp_t **prop_list = NULL;
+    mqttPropertyType ptype = MQTT_PROP_NONE;
+    mqttRespStatus status = MQTT_RESP_OK;
+
+    prop_list = &unittest_mctx->send_pkt.pub_msg.props;
+    ptype = MQTT_PROP_SUBSCRIBE_ID;
+    unittest_mctx->flgs.recv_mode = 1; // temporarily avoid property error, will test this later
+    {
+        new_prop = mqttPropertyCreate(prop_list, ptype);
+        new_prop->body.u32 = 0x2;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_PUBLISH, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+        new_prop->body.u32  = (0x1 << 28);
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_PUBLISH, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_PROP, status);
+        TEST_ASSERT_EQUAL_UINT8(ptype, unittest_mctx->err_info.prop_id);
+        new_prop->body.u32 -= 1;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_PUBLISH, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    }
+    mqttPropertyDel(*prop_list);
+} // end of TEST(mqttPropErrChk, var_int_limit)
+
+
+TEST(mqttPropErrChk, update_keepalive)
+{
+    mqttProp_t  *new_prop  = NULL;
+    mqttProp_t **prop_list = NULL;
+    mqttPropertyType ptype = MQTT_PROP_NONE;
+    mqttRespStatus status = MQTT_RESP_OK;
+
+    prop_list = &unittest_mctx->recv_pkt.connack.props;
+    ptype = MQTT_PROP_SERVER_KEEP_ALIVE;
+    unittest_mctx->flgs.recv_mode = 1;
+    {
+        new_prop = mqttPropertyCreate(prop_list, ptype);
+        new_prop->body.u16 = 0xfffe;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_CONNACK, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+        TEST_ASSERT_EQUAL_UINT16(new_prop->body.u16, unittest_mctx->keep_alive_sec);
+    }
+    mqttPropertyDel(*prop_list);
+} // end of TEST(mqttPropErrChk, update_keepalive)
+
+
+TEST(mqttPropErrChk, update_topic_alias_max)
+{
+    mqttProp_t  *new_prop  = NULL;
+    mqttProp_t **prop_list = NULL;
+    mqttPropertyType ptype = MQTT_PROP_NONE;
+    mqttRespStatus status = MQTT_RESP_OK;
+
+    ptype = MQTT_PROP_TOPIC_ALIAS_MAX;
+    prop_list = &unittest_mctx->recv_pkt.connack.props;
+    unittest_mctx->flgs.recv_mode = 1;
+    new_prop = mqttPropertyCreate(prop_list, ptype);
+    new_prop->body.u16 = 0x4fd;
+    status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_CONNACK, *prop_list);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT16(new_prop->body.u16, unittest_mctx->send_topic_alias_max);
+
+    new_prop->body.u16 = 0x2f7;
+    unittest_mctx->flgs.recv_mode = 0;
+    status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_CONNECT, *prop_list);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT16(new_prop->body.u16, unittest_mctx->recv_topic_alias_max);
+
+    mqttPropertyDel(*prop_list);
+} // end of TEST(mqttPropErrChk, update_topic_alias_max)
+
+
+TEST(mqttPropErrChk, chk_topic_alias_pubmsg)
+{
+    mqttProp_t  *new_prop  = NULL;
+    mqttProp_t **prop_list = NULL;
+    mqttPropertyType ptype = MQTT_PROP_NONE;
+    mqttRespStatus status = MQTT_RESP_OK;
+
+    unittest_mctx->send_topic_alias_max = 0x1;
+    unittest_mctx->recv_topic_alias_max = 0x2;
+    prop_list = &unittest_mctx->send_pkt.pub_msg.props;
+    ptype = MQTT_PROP_TOPIC_ALIAS;
+    new_prop = mqttPropertyCreate(prop_list, ptype);
+    { // assume the client gets this property in the PUBLISH command that is ready to send out
+        unittest_mctx->flgs.recv_mode = 0;
+        new_prop->body.u16 = 0;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_PUBLISH, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_PROP, status);
+        TEST_ASSERT_EQUAL_UINT8(ptype, unittest_mctx->err_info.prop_id);
+        TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_TOPIC_ALIAS_INVALID, unittest_mctx->err_info.reason_code);
+        new_prop->body.u16 = 1 + unittest_mctx->send_topic_alias_max;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_PUBLISH, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_PROP, status);
+        TEST_ASSERT_EQUAL_UINT8(ptype, unittest_mctx->err_info.prop_id);
+        TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_TOPIC_ALIAS_INVALID, unittest_mctx->err_info.reason_code);
+        new_prop->body.u16 -= 1;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_PUBLISH, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    }
+    { // assume the client gets this property from received PUBLISH command
+        unittest_mctx->flgs.recv_mode = 1;
+        new_prop->body.u16 = 1 + unittest_mctx->recv_topic_alias_max;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_PUBLISH, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_PROP, status);
+        TEST_ASSERT_EQUAL_UINT8(ptype, unittest_mctx->err_info.prop_id);
+        TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_TOPIC_ALIAS_INVALID, unittest_mctx->err_info.reason_code);
+        new_prop->body.u16 -= 1;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_PUBLISH, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    }
+    mqttPropertyDel(*prop_list);
+} // end of TEST(mqttPropErrChk, chk_topic_alias_pubmsg)
+
+
+TEST(mqttPropErrChk, chk_max_pkt_sz)
+{
+    mqttProp_t  *new_prop  = NULL;
+    mqttProp_t **prop_list = NULL;
+    mqttPropertyType ptype = MQTT_PROP_NONE;
+    mqttRespStatus status = MQTT_RESP_OK;
+
+    ptype = MQTT_PROP_MAX_PKT_SIZE;
+    {
+        prop_list = &unittest_mctx->send_pkt.conn.props;
+        unittest_mctx->flgs.recv_mode = 0;
+        new_prop = mqttPropertyCreate(prop_list, ptype);
+        new_prop->body.u32 = 0;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_CONNECT, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_PROP, status);
+        TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_PROTOCOL_ERR, unittest_mctx->err_info.reason_code);
+        new_prop->body.u32 = MQTT_RECV_PKT_MAXBYTES + 1;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_CONNECT, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_PROP, status);
+        TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_RX_MAX_EXCEEDED, unittest_mctx->err_info.reason_code);
+        new_prop->body.u32 -= 1;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_CONNECT, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK , status);
+    }
+    {
+        prop_list = &unittest_mctx->recv_pkt.connack.props;
+        unittest_mctx->flgs.recv_mode = 1;
+        new_prop = mqttPropertyCreate(prop_list, ptype);
+        new_prop->body.u32 = MQTT_PROTOCOL_PKT_MAXBYTES + 1;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_CONNACK, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_PROP, status);
+        TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_PROTOCOL_ERR, unittest_mctx->err_info.reason_code);
+        new_prop->body.u32 -= 1;
+        status = mqttPropErrChk(unittest_mctx, MQTT_PACKET_TYPE_CONNACK, *prop_list);
+        TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK , status);
+        TEST_ASSERT_EQUAL_UINT(new_prop->body.u32, unittest_mctx->send_pkt_maxbytes);
+    }
+    mqttPropertyDel(unittest_mctx->send_pkt.conn.props);
+    mqttPropertyDel(unittest_mctx->recv_pkt.connack.props);
+} // end of TEST(mqttPropErrChk, chk_max_pkt_sz)
+
+
+
+
 
 static void RunAllTestGroups(void)
 {
     RUN_TEST_GROUP(mqttClientInit);
     RUN_TEST_GROUP(mqttPropertyCreate);
     RUN_TEST_GROUP(mqttPropertyDel);
+    RUN_TEST_GROUP(mqttPropErrChk);
 } // end of RunAllTestGroups
 
 
