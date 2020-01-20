@@ -668,18 +668,23 @@ mqttRespStatus  mqttPropErrChk( mqttCtx_t *mctx,  mqttCtrlPktType cmdtype, mqttP
                 break;
             case MQTT_PROP_REASON_STR:
                 // if request problem information property is applied, then we must ensure there are no reason
-                // string included in a packet other than CONNACK, DISCONNECT, and PUBLISH
-                if(mctx->flgs.req_probm_info == 0) {
-                    switch(cmdtype) {
-                        case MQTT_PACKET_TYPE_AUTH: 
-                        case MQTT_PACKET_TYPE_CONNACK    :
-                        case MQTT_PACKET_TYPE_PUBLISH    :
-                        case MQTT_PACKET_TYPE_DISCONNECT :
-                            break;
-                        default:
-                            mctx->err_info.reason_code = MQTT_REASON_PROTOCOL_ERR;
-                            status = MQTT_RESP_ERR_PROP;
-                    }
+                // string included in a command packet except CONNACK, DISCONNECT, and PUBLISH
+                switch(cmdtype) {
+                    case MQTT_PACKET_TYPE_AUTH:
+                    case MQTT_PACKET_TYPE_CONNACK :
+                    case MQTT_PACKET_TYPE_PUBLISH :
+                    case MQTT_PACKET_TYPE_DISCONNECT :
+                        break;
+                    case MQTT_PACKET_TYPE_PUBACK  :
+                    case MQTT_PACKET_TYPE_PUBRECV :
+                    case MQTT_PACKET_TYPE_PUBREL  :
+                    case MQTT_PACKET_TYPE_PUBCOMP :
+                    case MQTT_PACKET_TYPE_SUBACK   :
+                    case MQTT_PACKET_TYPE_UNSUBACK :
+                       if(mctx->flgs.req_probm_info == 1) { break; }
+                    default:
+                        mctx->err_info.reason_code = MQTT_REASON_PROTOCOL_ERR;
+                        status = MQTT_RESP_ERR_PROP;
                 }
                 break;
             case MQTT_PROP_SUBSCRIBE_ID          :
