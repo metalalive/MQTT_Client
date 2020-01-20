@@ -13,4 +13,6 @@ script:
     - make  itest  DEBUG=yes  PLUS_C_DEFS="MQTT_CFG_RUN_TEST_THREAD"
     - make  utest  DEBUG=yes
 
+after_success:
+    - bash <(curl -s https://codecov.io/bash)
 

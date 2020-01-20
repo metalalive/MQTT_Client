@@ -101,6 +101,7 @@ ifdef GCC_PATH
     CP = $(GCC_PATH)/$(C_TOOLCHAIN_PREFIX)objcopy
     SZ = $(GCC_PATH)/$(C_TOOLCHAIN_PREFIX)size
     AR = $(GCC_PATH)/$(C_TOOLCHAIN_PREFIX)ar
+    CCOV = $(GCC_PATH)/$(C_TOOLCHAIN_PREFIX)gcov
     DUMP = $(GCC_PATH)/$(C_TOOLCHAIN_PREFIX)objdump
 else
     CC = $(C_TOOLCHAIN_PREFIX)gcc
@@ -108,6 +109,7 @@ else
     CP = $(C_TOOLCHAIN_PREFIX)objcopy
     SZ = $(C_TOOLCHAIN_PREFIX)size
     AR = $(C_TOOLCHAIN_PREFIX)ar
+    CCOV = $(C_TOOLCHAIN_PREFIX)gcov
     DUMP = $(C_TOOLCHAIN_PREFIX)objdump
 endif
 
@@ -127,6 +129,7 @@ ifeq ($(DEBUG), yes)
 CFLAGS += -g -gdwarf-2
 endif
 
+
 # Generate dependency information
 CFLAGS += -MMD -MP -MF"$(@:%.o=%.d)"
 
@@ -142,6 +145,10 @@ LIBDIR =
 # TODO: xxx.map should be platform-specific 
 LDFLAGS = $(CPU_ARCH_FLAGS) $(LD_SPECS_FILE)  $(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$<.map,--cref -Wl,--gc-sections
 
+ifeq ($(MAKECMDGOALS), utest_helper) # if unit test is enabled
+CFLAGS  += -coverage
+LDFLAGS += -coverage
+endif
 
 
 #######################################
@@ -172,11 +179,12 @@ itest : $(TARGET_LIB_PATH)  $(TEST_COMMON_OBJECTS)  $(TEST_ENTRY_OBJECTS) \
 
 utest_helper : $(C_ASM_OBJECTS) $(TEST_COMMON_OBJECTS)  $(TEST_ENTRY_OBJECTS)
 	$(foreach atest, $(TEST_ENTRY_OBJECTS), $(CC) $(LDFLAGS) $(atest) $(atest:%_ut.o=%.o) $(TEST_COMMON_OBJECTS) -o $(atest:.o=.out);)
+	$(foreach atest, $(TEST_ENTRY_OBJECTS), $(atest:.o=.out);)
 
-####	$(foreach atest, $(TEST_ENTRY_OBJECTS), $(atest:.o=.out);)
 utest:
 	@make file_subst -C third_party;
 	@make utest_helper DEBUG=$(DEBUG);
+	$(CCOV) -f build/utest/mqtt_client_conn.o;
 
 $(BUILD_DIR)/%.o: %.c makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
