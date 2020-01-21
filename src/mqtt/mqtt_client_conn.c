@@ -805,56 +805,56 @@ mqttRespStatus  mqttSendAuth( mqttCtx_t *mctx )
     mqttProp_t      *auth_send_reason_str = NULL;
     mqttStr_t        reason_str = {0, NULL};
 
-    if( mctx == NULL ){ return MQTT_RESP_ERRARGS; }
-    else if(mctx->eauth_final_cb == NULL){ return MQTT_RESP_ERRARGS; }
-    else if(mctx->eauth_setup_cb == NULL){ return MQTT_RESP_ERRARGS; }
+    if((mctx == NULL) || (mctx->eauth_final_cb == NULL) || (mctx->eauth_setup_cb == NULL)){
+        return MQTT_RESP_ERRARGS;
+    }
     // get auth method & data that previously received, the information could
     // be referred to this AUTH packet
     auth_recv  = &mctx->recv_pkt.auth;
     auth_recv_mthd = mqttGetPropByType( auth_recv->props, MQTT_PROP_AUTH_METHOD );
     auth_recv_data = mqttGetPropByType( auth_recv->props, MQTT_PROP_AUTH_DATA )  ;
-    if(auth_recv_mthd == NULL){ return MQTT_RESP_ERR_PROP; }
-    if(auth_recv_data == NULL){ return MQTT_RESP_ERR_PROP; }
-
+    if((auth_recv_mthd == NULL) || (auth_recv_data == NULL)){
+        status = MQTT_RESP_ERR_PROP; goto done;
+    }
     auth_send  = &mctx->send_pkt.auth;
     auth_send->props = NULL;
     auth_send_mthd  = mqttPropertyCreate(&auth_send->props , MQTT_PROP_AUTH_METHOD);
     auth_send_data  = mqttPropertyCreate(&auth_send->props , MQTT_PROP_AUTH_DATA);
     if(auth_send_mthd == NULL || auth_send_data == NULL) {
-        mqttPropertyDel(auth_send->props);
-        return MQTT_RESP_ERRMEM;
+        status = MQTT_RESP_ERRMEM; goto done;
     }
     // run callback to fill in  authentication method / data .
     // NOTE: the callback callee must handle memory management on their own 
     //       (e.g. free & allocate in user application, this MQTT implementation
     //        will NOT help to do that )
-    mctx->eauth_setup_cb(  &auth_recv_data->body.str, &auth_send_data->body.str, &reason_str );
+    status = mctx->eauth_setup_cb( &auth_recv_data->body.str, &auth_send_data->body.str, &reason_str );
+    if(status < 0) { goto done; }
     // reason string is optional in AUTH packet
     if((reason_str.data != NULL) && (reason_str.len > 0)) {
         auth_send_reason_str = mqttPropertyCreate(&auth_send->props, MQTT_PROP_REASON_STR);
-        if(auth_send_reason_str == NULL) { mqttPropertyDel(auth_send->props);  return MQTT_RESP_ERRMEM; }
+        if(auth_send_reason_str == NULL) { status = MQTT_RESP_ERRMEM; goto done; }
         auth_send_reason_str->body.str.data = reason_str.data;
         auth_send_reason_str->body.str.len  = reason_str.len;
     }
     // copy authentication method from previous AUTH packet, to this AUTH packet which is ready to send
     // it's mandatory in MQTT v5 protocol.
-    auth_send_mthd->body.str.data = auth_recv_mthd->body.str.data ; // TODO: recheck to avoid memory leak issues
+    auth_send_mthd->body.str.data = auth_recv_mthd->body.str.data ;
     auth_send_mthd->body.str.len  = auth_recv_mthd->body.str.len ;
     auth_send->reason_code = MQTT_REASON_CNTNU_AUTH;
 
     mctx->flgs.recv_mode  = 0;
     status = mqttPropErrChk( mctx, MQTT_PACKET_TYPE_AUTH, auth_send->props );
-    if(status < 0) { return status; }
+    if(status < 0) { goto done; }
 
     tx_buf     =  mctx->tx_buf;
     tx_buf_len =  mctx->tx_buf_len;
 
     pkt_total_len  = mqttGetPktLenAuth( auth_send, mctx->send_pkt_maxbytes );
     if(pkt_total_len < 0) { // could return error code defined in 
-        return  (mqttRespStatus)pkt_total_len;
+        status = (mqttRespStatus)pkt_total_len; goto done;
     }
     else if(pkt_total_len == 0) {
-        return  MQTT_RESP_MALFORMED_DATA;
+        status = MQTT_RESP_MALFORMED_DATA; goto done;
     }
     else if(pkt_total_len > tx_buf_len){
         tx_buf = (byte *)XMALLOC( sizeof(byte) * pkt_total_len );
@@ -864,11 +864,27 @@ mqttRespStatus  mqttSendAuth( mqttCtx_t *mctx )
     // free the extra allocated space before we check result state
     if(pkt_total_len > tx_buf_len){ XMEMFREE((void *)tx_buf); }
     mctx->last_send_cmdtype = MQTT_PACKET_TYPE_AUTH;
+    if(status < 0) { goto done; }
     // run finalize callback after sending out the AUTH packet
-    mctx->eauth_final_cb( &auth_send_data->body.str,  &reason_str );
+    status = mctx->eauth_final_cb( &auth_send_data->body.str,  &reason_str );
+
     // note that the next received packet will be either another AUTH packet or CONNACK packet,
-    // since this function mqttSendAuth() is internally called in the loop of mqttClientWaitPkt()
-    // , we'll simply return back to that loop and wait for next incoming packet at there.
+    // since this function mqttSendAuth() should ONLY be internally called in the loop of mqttClientWaitPkt()
+    // , this function simply returns back to that loop and wait for next incoming packet at there.
+done:
+    if(auth_send != NULL) {
+        if(auth_send->props != NULL) {
+            if(auth_send_mthd != NULL) {
+                // directly set NULL immediately after packet is encoded, to avoid the same location from
+                // deallocating twice (valgrind will report such error)
+                auth_send_mthd->body.str.data = NULL;
+                auth_send_mthd->body.str.len  = 0;
+                auth_send_mthd = NULL;
+            }
+            mqttPropertyDel(auth_send->props);
+            auth_send->props = NULL;
+        }
+    }
     return status;
 } // end of mqttSendAuth
 

@@ -11,7 +11,6 @@ static int             mock_get_pktlen_return_val;
 static int             mock_encode_pkt_return_val;
 static word32          mock_nbytes_pktread;
 static const byte     *mock_rawbytes_pktread;
-static mqttProp_t     *mock_prop_t_return;
 #if defined(MQTT_CFG_USE_TLS)
 static tlsRespStatus  mock_tlsinit_return_val;
 #endif // end of MQTT_CFG_USE_TLS
@@ -63,6 +62,11 @@ int  mqttGetPktLenAuth ( mqttAuth_t *auth, word32 max_pkt_sz )
     return  mock_get_pktlen_return_val;
 }
 
+int  mqttGetPktLenDisconn ( mqttPktDisconn_t *disconn, word32 max_pkt_sz )
+{
+    return  mock_get_pktlen_return_val;
+}
+
 int  mqttEncodePktConnect( byte *tx_buf, word32 tx_buf_len, mqttConn_t *conn )
 {
     return  mock_encode_pkt_return_val;
@@ -73,9 +77,21 @@ int  mqttEncodePktAuth( byte *tx_buf, word32 tx_buf_len, mqttAuth_t *auth )
     return  mock_encode_pkt_return_val;
 }
 
+int  mqttEncodePktDisconn( byte *tx_buf, word32 tx_buf_len, mqttPktDisconn_t *disconn )
+{
+    return  mock_encode_pkt_return_val;
+}
+
 mqttProp_t*  mqttGetPropByType( mqttProp_t* head, mqttPropertyType type )
 {
-    return  mock_prop_t_return;
+    if(type == MQTT_PROP_NONE) { return NULL; }
+    mqttProp_t *curr_node = NULL;
+
+    for(curr_node = head; curr_node != NULL; curr_node = curr_node->next ) 
+    {
+        if(curr_node->type == type) { break; }
+    } // end of for-loop
+    return curr_node;
 } // end of mqttGetPropByType
 
 
@@ -138,7 +154,21 @@ static void  mock_mqttClientDeinit( mqttCtx_t *mctx )
 
 static mqttRespStatus mock_mqttAuthSetupCallback(const mqttStr_t *auth_data_in,  mqttStr_t *auth_data_out, mqttStr_t *reason_str_out )
 {
-    return MQTT_RESP_OK;
+    mqttRespStatus status = MQTT_RESP_OK;
+    const byte nbytes_alloc = 0x20;
+    if(auth_data_out != NULL) {
+        if(auth_data_out->data == NULL) {
+            auth_data_out->len  = nbytes_alloc;
+            auth_data_out->data = XMALLOC(sizeof(byte) * nbytes_alloc);
+        }
+    }
+    if(reason_str_out != NULL) {
+        if(reason_str_out->data == NULL) {
+            reason_str_out->len  = nbytes_alloc;
+            reason_str_out->data = XMALLOC(sizeof(byte) * nbytes_alloc);
+        }
+    }
+    return status;
 } // end of mock_mqttAuthSetupCallback
 
 static mqttRespStatus mock_mqttAuthFinalCallback(mqttStr_t *auth_data_sent,  mqttStr_t *auth_reason_out)
@@ -155,6 +185,7 @@ TEST_GROUP(mqttPropertyDel);
 TEST_GROUP(mqttPropErrChk);
 TEST_GROUP(mqttSendConnect);
 TEST_GROUP(mqttSendAuth);
+TEST_GROUP(mqttSendDisconnect);
 
 TEST_GROUP_RUNNER(mqttClientInit)
 {
@@ -217,7 +248,14 @@ TEST_GROUP_RUNNER(mqttSendConnect)
 TEST_GROUP_RUNNER(mqttSendAuth)
 {
     RUN_TEST_CASE(mqttSendAuth, in_null);
+    RUN_TEST_CASE(mqttSendAuth, process_auth_data_user_cb);
 }
+
+TEST_GROUP_RUNNER(mqttSendDisconnect)
+{
+    RUN_TEST_CASE(mqttSendDisconnect, err_chk);
+}
+
 
 
 TEST_SETUP(mqttClientInit)
@@ -257,13 +295,20 @@ TEST_SETUP(mqttSendConnect)
     mqttClientInit(&unittest_mctx, timeout);
 }
 
-
 TEST_SETUP(mqttSendAuth)
 {
     int timeout = 100;
     unittest_mctx = NULL;
     mqttClientInit(&unittest_mctx, timeout);
 }
+
+TEST_SETUP(mqttSendDisconnect)
+{
+    int timeout = 100;
+    unittest_mctx = NULL;
+    mqttClientInit(&unittest_mctx, timeout);
+}
+
 
 
 TEST_TEAR_DOWN(mqttClientInit)
@@ -310,9 +355,26 @@ TEST_TEAR_DOWN(mqttSendConnect)
 
 TEST_TEAR_DOWN(mqttSendAuth)
 {
+    mqttAuth_t  *auth_recv = &unittest_mctx->recv_pkt.auth;
+    mqttAuth_t  *auth_send = &unittest_mctx->send_pkt.auth;
+    mqttPropertyDel(auth_send->props);
+    auth_send->props = NULL;
+    mqttPropertyDel(auth_recv->props);
+    auth_recv->props = NULL;
     mock_mqttClientDeinit( unittest_mctx );
     unittest_mctx = NULL;
 }
+
+TEST_TEAR_DOWN(mqttSendDisconnect)
+{
+    mqttPktDisconn_t *disconn = NULL;
+    disconn = &unittest_mctx->send_pkt.disconn;
+    mqttPropertyDel(disconn->props);
+    disconn->props = NULL;
+    mock_mqttClientDeinit( unittest_mctx );
+    unittest_mctx = NULL;
+}
+
 
 
 // ------------------------------ start test body  ------------------------------
@@ -1295,7 +1357,6 @@ TEST(mqttSendConnect, err_net_pkt_recv)
     mock_get_pktlen_return_val = unittest_mctx->tx_buf_len + 1;
     mock_encode_pkt_return_val = unittest_mctx->tx_buf_len + 1;
     mock_net_pktwrite_return_val = MQTT_RESP_OK;
-    unittest_mctx->last_send_cmdtype = MQTT_PACKET_TYPE_RESERVED;
     // but receiving & decoding packet function goes wrong
     mock_net_pktread_return_val = MQTT_RESP_TIMEOUT;
     status = mqttSendConnect(unittest_mctx, NULL);
@@ -1324,9 +1385,11 @@ TEST(mqttSendConnect, recv_decode_connack_ok)
 
     mock_nbytes_pktread   = sizeof(mock_rawbytes_connack);
     mock_rawbytes_pktread = &mock_rawbytes_connack[0];
+    unittest_mctx->last_send_cmdtype = MQTT_PACKET_TYPE_RESERVED;
 
     status = mqttSendConnect(unittest_mctx, &connack);
     TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PACKET_TYPE_CONNECT, unittest_mctx->last_send_cmdtype);
     TEST_ASSERT_EQUAL_UINT(&unittest_mctx->recv_pkt.connack, connack);
 } // end of TEST(mqttSendConnect, recv_decode_connack_ok)
 
@@ -1343,13 +1406,87 @@ TEST(mqttSendAuth, in_null)
     status = mqttSendAuth(unittest_mctx);
     TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERRARGS, status);
 
-    unittest_mctx->eauth_final_cb = mock_mqttAuthSetupCallback;
-    unittest_mctx->eauth_setup_cb = mock_mqttAuthFinalCallback;
-    mock_prop_t_return = NULL;
+    unittest_mctx->eauth_final_cb = mock_mqttAuthFinalCallback;
+    unittest_mctx->eauth_setup_cb = mock_mqttAuthSetupCallback;
     status = mqttSendAuth(unittest_mctx);
     TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_PROP, status);
-
 } // end of TEST(mqttSendAuth, in_null)
+
+
+TEST(mqttSendAuth, process_auth_data_user_cb)
+{
+    mqttAuth_t  *auth_recv = NULL;
+    mqttProp_t  *tmp_prop  = NULL;
+    mqttRespStatus status  = MQTT_RESP_OK;
+    byte nbytes_alloc = 0x20;
+
+    unittest_mctx->last_send_cmdtype = MQTT_PACKET_TYPE_RESERVED;
+    unittest_mctx->eauth_final_cb = mock_mqttAuthFinalCallback;
+    unittest_mctx->eauth_setup_cb = mock_mqttAuthSetupCallback;
+    // assume server sends AUTH command back after CONNECT sent by client
+    auth_recv  = &unittest_mctx->recv_pkt.auth;
+    auth_recv->props = NULL;
+    tmp_prop  = mqttPropertyCreate(&auth_recv->props, MQTT_PROP_AUTH_METHOD);
+    tmp_prop->body.str.len  = nbytes_alloc;
+    tmp_prop->body.str.data = XMALLOC(sizeof(byte) * nbytes_alloc);
+    tmp_prop  = mqttPropertyCreate(&auth_recv->props, MQTT_PROP_AUTH_DATA);
+    tmp_prop->body.str.len  = nbytes_alloc;
+    tmp_prop->body.str.data = XMALLOC(sizeof(byte) * nbytes_alloc);
+    // delibarately take all available property items, mqttSendAuth() should return error due
+    // to lack of available property items
+    tmp_prop = mqttPropertyCreate(&auth_recv->props, MQTT_PROP_USER_PROPERTY);
+    while(mqttPropertyCreate(&auth_recv->props, MQTT_PROP_USER_PROPERTY) != NULL);
+    status = mqttSendAuth(unittest_mctx);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERRMEM, status);
+    TEST_ASSERT_EQUAL_UINT(NULL, unittest_mctx->send_pkt.auth.props);
+    // release property items allocated and pointed by tmp_prop
+    mqttPropertyDel(tmp_prop);
+    TEST_ASSERT_EQUAL_UINT(tmp_prop, auth_recv->props->next->next);
+    auth_recv->props->next->next = NULL; // TODO: find better way to deallocate property list item
+
+    mock_get_pktlen_return_val = (int) MQTT_RESP_ERR_EXCEED_PKT_SZ;
+    status = mqttSendAuth(unittest_mctx);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_EXCEED_PKT_SZ, status);
+
+    mock_get_pktlen_return_val = (int) 0x0;
+    status = mqttSendAuth(unittest_mctx);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_MALFORMED_DATA, status);
+    // assume everything in mqttSendAuth() works well
+    mock_get_pktlen_return_val = unittest_mctx->tx_buf_len + 1;
+    mock_encode_pkt_return_val = unittest_mctx->tx_buf_len + 1;
+    mock_net_pktwrite_return_val = MQTT_RESP_OK;
+    mock_net_pktread_return_val  = MQTT_RESP_OK;
+    status = mqttSendAuth(unittest_mctx);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PACKET_TYPE_AUTH, unittest_mctx->last_send_cmdtype);
+} // end of TEST(mqttSendAuth, in_null)
+
+
+TEST(mqttSendDisconnect, err_chk)
+{
+    mqttPktDisconn_t *disconn = NULL;
+    mqttRespStatus status  = MQTT_RESP_OK;
+
+    disconn = &unittest_mctx->send_pkt.disconn;
+
+    mock_get_pktlen_return_val = (int) MQTT_RESP_ERR_EXCEED_PKT_SZ;
+    status = mqttSendDisconnect(unittest_mctx);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_EXCEED_PKT_SZ, status);
+
+    mock_get_pktlen_return_val = (int) 0x0;
+    status = mqttSendDisconnect(unittest_mctx);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_MALFORMED_DATA, status);
+
+    // assume everything in mqttSendDisconnect() works well
+    mock_get_pktlen_return_val = unittest_mctx->tx_buf_len + 1;
+    mock_encode_pkt_return_val = unittest_mctx->tx_buf_len + 1;
+    mock_net_pktwrite_return_val = MQTT_RESP_OK;
+    mock_net_pktread_return_val  = MQTT_RESP_OK;
+    status = mqttSendDisconnect(unittest_mctx);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PACKET_TYPE_DISCONNECT, unittest_mctx->last_send_cmdtype);
+} // end of TEST(mqttSendDisconnect, in_null)
+
 
 
 
@@ -1364,6 +1501,7 @@ static void RunAllTestGroups(void)
     RUN_TEST_GROUP(mqttPropErrChk);
     RUN_TEST_GROUP(mqttSendConnect);
     RUN_TEST_GROUP(mqttSendAuth);
+    RUN_TEST_GROUP(mqttSendDisconnect);
 } // end of RunAllTestGroups
 
 
