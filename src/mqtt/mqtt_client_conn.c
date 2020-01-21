@@ -277,16 +277,15 @@ static mqttRespStatus   mqttSubsTopicsErrChk( mqttCtx_t *mctx, mqttPktSubs_t *su
 
 static mqttRespStatus   mqttPubTopicErrChk( mqttCtx_t *mctx, mqttStr_t *topic_name )
 {
-    if((mctx==NULL) || (topic_name==NULL)) { return MQTT_RESP_ERRARGS; }
+    if((topic_name == NULL) || (topic_name->data == NULL) || (topic_name->len == 0)) {
+        return MQTT_RESP_ERR_INTEGRITY;
+    }
     mqttRespStatus    status = MQTT_RESP_OK;
     byte             *curr_filter_data;
     word16            curr_filter_len;
 
     curr_filter_data = topic_name->data;
     curr_filter_len  = topic_name->len;
-    if(curr_filter_data == NULL || curr_filter_len == 0) {
-        return MQTT_RESP_ERR_INTEGRITY;
-    }
     status = mqttTopicWildcardChk( 0, curr_filter_data, curr_filter_len,
                                   &mctx->err_info.reason_code );
     if(status < 0) { return status; }
@@ -947,6 +946,7 @@ mqttRespStatus  mqttSendPublish( mqttCtx_t *mctx, mqttPktPubResp_t **pubresp_out
         return MQTT_RESP_ERRARGS;
     }
     else if( mctx->send_pkt.pub_msg.retain==1 && mctx->flgs.retain_avail==0 ) {
+        mctx->err_info.reason_code = MQTT_REASON_RETAIN_NOT_SUPPORTED;
         return MQTT_RESP_ERRARGS;
     }
 
@@ -983,26 +983,27 @@ mqttRespStatus  mqttSendPublish( mqttCtx_t *mctx, mqttPktPubResp_t **pubresp_out
         if( status < 0 ) { return status; }
 
         // TODO: clean up members of mctx->send_pkt.pub_msg before following if-statement
-        if(qos > MQTT_QOS_0) {
+        if(qos == MQTT_QOS_0) {
+            // for QoS = 0 delivery procotol, this publisher shot and forgot, it never
+            // checks whether receiver really got this published message.
+            break;
+        } else {
             wait_cmdtype = (qos==MQTT_QOS_1) ? MQTT_PACKET_TYPE_PUBACK: MQTT_PACKET_TYPE_PUBRECV;
             // implement qos=1 or 2 wait for response packet
             status = mqttClientWaitPkt( mctx, wait_cmdtype, msg->packet_id, (void **)pubresp_out );
-            if(status < 0) { break; }
-        }
-        if((qos == MQTT_QOS_1) && (status == MQTT_RESP_TIMEOUT) && (repeat_send < MQTT_PUBLISH_QOS1_PKT_MAX_SEND)) {
-            // we send PUBLISH packet again if QoS = 1 and we didn't get PUBACK from the
-            // broker after a period of time passed.
-            repeat_send++;
-            msg->duplicate = 1;
-        }
-        else {
-           // for QoS = 0 delivery procotol, this publisher shot and forgot, it never
-           // checks whether receiver really got this published message.
-           // for QoS = 2 delivery procotol, this publisher will send PUBREL in
-           // mqttDecodePkt() immediately after receiving PUBRECV, then wait for 
-           // PUBCOMP packet, the publisher will NOT send PUBLISH packet again.
-           break;
-        }
+            if((qos == MQTT_QOS_1) && (status == MQTT_RESP_TIMEOUT) && (repeat_send < MQTT_PUBLISH_QOS1_PKT_MAX_SEND)) {
+                // we send PUBLISH packet again if QoS = 1 and we didn't get PUBACK from the
+                // broker after a period of time passed.
+                repeat_send++;
+                msg->duplicate = 1;
+            }
+            else {
+               // for QoS = 2 delivery procotol, this publisher will send PUBREL in
+               // mqttDecodePkt() immediately after receiving PUBRECV, then wait for 
+               // PUBCOMP packet, the publisher will NOT send PUBLISH packet again.
+               break;
+            }
+        } // end of if qos == MQTT_QOS_0
     } // end of outer while-loop
     return status;
 } // end of mqttSendPublish
