@@ -17,7 +17,10 @@ static tlsRespStatus  mock_tlsinit_return_val;
 #endif // end of MQTT_CFG_USE_TLS
 
 static byte mock_rawbytes_connack[0x4] = {0x20, 0x02, 0x00, 0x00};
-static byte mock_rawbytes_suback[0x5]  = {0x40, 0x03, 0x00, 0x01, 0x10};
+static byte mock_rawbytes_puback[0x5]  = {0x40, 0x03, 0x00, 0x01, 0x10};
+static byte mock_rawbytes_pubrel[0x5]  = {0x62, 0x03, 0x00, 0x01, 0x00};
+static byte mock_rawbytes_pubcomp[0x5] = {0x70, 0x03, 0x00, 0x01, 0x00};
+static byte mock_rawbytes_suback[0x7]  = {0x90, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00};
 
 // ---------------- mock or dummy functions declaration ------------------
 mqttRespStatus  mqttSysInit( void )
@@ -59,7 +62,20 @@ mqttRespStatus  mqttDecodePkt( struct __mqttCtx *mctx, byte *buf, word32 buf_len
         case MQTT_PACKET_TYPE_PUBCOMP:
             (*(mqttPktPubResp_t **)p_decode)->packet_id = mock_mqtt_pkt_id;
             *recv_pkt_id = mock_mqtt_pkt_id;
+            if((cmdtype==MQTT_PACKET_TYPE_PUBRECV) || (cmdtype==MQTT_PACKET_TYPE_PUBREL)) {
+                // send next publish response packet.
+                mqttPktPubResp_t *pub_resp = &mctx->send_pkt_qos2.pub_resp ;
+                pub_resp->props       = NULL; // don't send extra properties in response packet for simplicity
+                pub_resp->packet_id   = *recv_pkt_id ;
+                pub_resp->reason_code =  MQTT_REASON_SUCCESS;
+                mock_decode_pkt_return_val = mqttSendPubResp( mctx, (cmdtype + 1), (mqttPktPubResp_t **)p_decode );
+            }
             break;
+        case MQTT_PACKET_TYPE_SUBACK  :
+        case MQTT_PACKET_TYPE_UNSUBACK:
+            (*(mqttPktPubResp_t **)p_decode)->packet_id = mock_mqtt_pkt_id;
+            *recv_pkt_id = mock_mqtt_pkt_id;
+            // TODO: feed reason code for each subscribed topic
         default:
             break;
     } // end of switch case
@@ -85,6 +101,20 @@ int  mqttGetPktLenPublish( mqttMsg_t *msg, word32 max_pkt_sz )
 {
     return  mock_get_pktlen_return_val;
 }
+int  mqttGetPktLenPubResp ( mqttPktPubResp_t *resp, word32 max_pkt_sz )
+{
+    return  mock_get_pktlen_return_val;
+}
+
+int  mqttGetPktLenSubscribe ( mqttPktSubs_t *subs, word32 max_pkt_sz )
+{
+    return  mock_get_pktlen_return_val;
+}
+
+int  mqttGetPktLenUnsubscribe ( mqttPktUnsubs_t *unsubs, word32 max_pkt_sz )
+{
+    return  mock_get_pktlen_return_val;
+}
 
 int  mqttEncodePktConnect( byte *tx_buf, word32 tx_buf_len, mqttConn_t *conn )
 {
@@ -102,6 +132,21 @@ int  mqttEncodePktDisconn( byte *tx_buf, word32 tx_buf_len, mqttPktDisconn_t *di
 }
 
 int  mqttEncodePktPublish( byte *tx_buf, word32 tx_buf_len, struct __mqttMsg  *msg )
+{
+    return  mock_encode_pkt_return_val;
+}
+
+int  mqttEncodePktPubResp( byte *tx_buf, word32 tx_buf_len, mqttPktPubResp_t *resp, mqttCtrlPktType cmdtype )
+{
+    return  mock_encode_pkt_return_val;
+}
+
+int  mqttEncodePktSubscribe( byte *tx_buf, word32 tx_buf_len, mqttPktSubs_t *subs )
+{
+    return  mock_encode_pkt_return_val;
+}
+
+int  mqttEncodePktUnsubscribe( byte *tx_buf, word32 tx_buf_len, mqttPktUnsubs_t *unsubs )
 {
     return  mock_encode_pkt_return_val;
 }
@@ -205,6 +250,8 @@ TEST_GROUP(mqttSendConnect);
 TEST_GROUP(mqttSendAuth);
 TEST_GROUP(mqttSendDisconnect);
 TEST_GROUP(mqttSendPublish);
+TEST_GROUP(mqttSendPubResp);
+TEST_GROUP(mqttSendSubscribe);
 
 TEST_GROUP_RUNNER(mqttClientInit)
 {
@@ -282,6 +329,19 @@ TEST_GROUP_RUNNER(mqttSendPublish)
 }
 
 
+TEST_GROUP_RUNNER(mqttSendPubResp)
+{
+    RUN_TEST_CASE(mqttSendPubResp, wrong_args);
+    RUN_TEST_CASE(mqttSendPubResp, qos2_pubrecv_sent);
+    RUN_TEST_CASE(mqttSendPubResp, qos2_pubrel_sent);
+}
+
+TEST_GROUP_RUNNER(mqttSendSubscribe)
+{
+    RUN_TEST_CASE(mqttSendSubscribe, invalid_topics);
+    RUN_TEST_CASE(mqttSendSubscribe, topics_sent);
+}
+
 
 TEST_SETUP(mqttClientInit)
 {
@@ -340,6 +400,21 @@ TEST_SETUP(mqttSendPublish)
     unittest_mctx = NULL;
     mqttClientInit(&unittest_mctx, timeout);
 }
+
+TEST_SETUP(mqttSendPubResp)
+{
+    int timeout = 100;
+    unittest_mctx = NULL;
+    mqttClientInit(&unittest_mctx, timeout);
+}
+
+TEST_SETUP(mqttSendSubscribe)
+{
+    int timeout = 100;
+    unittest_mctx = NULL;
+    mqttClientInit(&unittest_mctx, timeout);
+}
+
 
 
 
@@ -420,6 +495,30 @@ TEST_TEAR_DOWN(mqttSendPublish)
     mqttPropertyDel(resp->props);
     resp->props = NULL;
 
+    mqttClientDeinit( unittest_mctx );
+    unittest_mctx = NULL;
+}
+
+
+TEST_TEAR_DOWN(mqttSendPubResp)
+{
+    mqttPktPubResp_t  *resp = NULL;
+
+    resp = &unittest_mctx->recv_pkt.pub_resp;
+    mqttPropertyDel(resp->props);
+    resp->props = NULL;
+
+    resp = &unittest_mctx->send_pkt.pub_resp;
+    mqttPropertyDel(resp->props);
+    resp->props = NULL;
+
+    mqttClientDeinit( unittest_mctx );
+    unittest_mctx = NULL;
+}
+
+
+TEST_TEAR_DOWN(mqttSendSubscribe)
+{
     mqttClientDeinit( unittest_mctx );
     unittest_mctx = NULL;
 }
@@ -1614,14 +1713,15 @@ TEST(mqttSendPublish, qos1_sent_ok)
 
     mock_net_pktread_return_val  = MQTT_RESP_OK;
     mock_mqtt_pkt_id = 0x010b; // TODO: randomly give non-zero packet ID
-    mock_rawbytes_suback[2] = mock_mqtt_pkt_id >> 0x8;
-    mock_rawbytes_suback[3] = mock_mqtt_pkt_id & 0xff;
-    mock_nbytes_pktread   = sizeof(mock_rawbytes_suback);
-    mock_rawbytes_pktread = &mock_rawbytes_suback[0];
+    mock_rawbytes_puback[2] = mock_mqtt_pkt_id >> 0x8;
+    mock_rawbytes_puback[3] = mock_mqtt_pkt_id & 0xff;
+    mock_nbytes_pktread   = sizeof(mock_rawbytes_puback);
+    mock_rawbytes_pktread = &mock_rawbytes_puback[0];
     unittest_mctx->last_send_cmdtype = MQTT_PACKET_TYPE_RESERVED;
 
     status = mqttSendPublish(unittest_mctx, &resp);
     TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PACKET_TYPE_PUBACK , unittest_mctx->last_recv_cmdtype);
     TEST_ASSERT_EQUAL_UINT8(MQTT_PACKET_TYPE_PUBLISH, unittest_mctx->last_send_cmdtype);
     TEST_ASSERT_EQUAL_UINT(&unittest_mctx->recv_pkt.pub_resp, resp);
     TEST_ASSERT_EQUAL_UINT16(mock_mqtt_pkt_id, resp->packet_id);
@@ -1630,6 +1730,204 @@ TEST(mqttSendPublish, qos1_sent_ok)
     XMEMFREE(msg->topic.data);
     msg->topic.data = NULL;
 } // end of TEST(mqttSendPublish, qos1_sent_ok)
+
+
+TEST(mqttSendPubResp, wrong_args)
+{
+    mqttPktPubResp_t *resp_in  = NULL;
+    mqttRespStatus  status = MQTT_RESP_OK;
+
+    resp_in = &unittest_mctx->send_pkt.pub_resp;
+    status  = mqttSendPubResp(unittest_mctx, MQTT_PACKET_TYPE_PUBLISH, NULL);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERRARGS, status);
+
+    resp_in->props = NULL;
+    mock_get_pktlen_return_val = (int) MQTT_RESP_ERR_EXCEED_PKT_SZ;
+    status  = mqttSendPubResp(unittest_mctx, MQTT_PACKET_TYPE_PUBRECV, NULL);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_EXCEED_PKT_SZ, status);
+
+    mock_get_pktlen_return_val = (int) 0x0;
+    status = mqttSendPubResp(unittest_mctx, MQTT_PACKET_TYPE_PUBRECV, NULL);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_MALFORMED_DATA, status);
+} // end of TEST(mqttSendPubResp, wrong_args)
+
+
+TEST(mqttSendPubResp, qos2_pubrecv_sent)
+{
+    mqttPktPubResp_t *resp_out = NULL;
+    mqttPktPubResp_t *resp_in  = NULL;
+    mqttRespStatus  status = MQTT_RESP_OK;
+
+    resp_in = &unittest_mctx->send_pkt.pub_resp;
+    resp_in->props = NULL;
+
+    mock_get_pktlen_return_val = unittest_mctx->tx_buf_len + 1;
+    mock_encode_pkt_return_val = unittest_mctx->tx_buf_len + 1;
+    mock_net_pktwrite_return_val = MQTT_RESP_OK;
+    mock_net_pktread_return_val  = MQTT_RESP_OK;
+
+    mock_mqtt_pkt_id   = 0x012c; // TODO: randomly give non-zero packet ID
+    resp_in->packet_id = mock_mqtt_pkt_id;
+    mock_rawbytes_pubrel[2] = mock_mqtt_pkt_id >> 0x8;
+    mock_rawbytes_pubrel[3] = mock_mqtt_pkt_id & 0xff;
+    mock_nbytes_pktread   =  sizeof(mock_rawbytes_pubrel);
+    mock_rawbytes_pktread = &mock_rawbytes_pubrel[0];
+    status  = mqttSendPubResp(unittest_mctx, MQTT_PACKET_TYPE_PUBRECV, &resp_out);
+
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PACKET_TYPE_PUBREL , unittest_mctx->last_recv_cmdtype);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PACKET_TYPE_PUBCOMP, unittest_mctx->last_send_cmdtype);
+    TEST_ASSERT_EQUAL_UINT(&unittest_mctx->recv_pkt_qos2.pub_resp, resp_out);
+    TEST_ASSERT_EQUAL_UINT16(mock_mqtt_pkt_id, resp_out->packet_id);
+    TEST_ASSERT_LESS_THAN_UINT8(MQTT_REASON_UNSPECIFIED_ERR, resp_out->reason_code);
+} // end of TEST(mqttSendPubResp, qos2_pubrecv_sent)
+
+
+TEST(mqttSendPubResp, qos2_pubrel_sent)
+{
+    mqttPktPubResp_t *resp_out = NULL;
+    mqttPktPubResp_t *resp_in  = NULL;
+    mqttRespStatus  status = MQTT_RESP_OK;
+
+    resp_in = &unittest_mctx->send_pkt.pub_resp;
+    resp_in->props = NULL;
+
+    mock_get_pktlen_return_val = unittest_mctx->tx_buf_len + 1;
+    mock_encode_pkt_return_val = unittest_mctx->tx_buf_len + 1;
+    mock_net_pktwrite_return_val = MQTT_RESP_OK;
+    mock_net_pktread_return_val  = MQTT_RESP_OK;
+
+    mock_mqtt_pkt_id   = 0x023d; // TODO: randomly give non-zero packet ID
+    mock_rawbytes_pubcomp[2] = mock_mqtt_pkt_id >> 0x8;
+    mock_rawbytes_pubcomp[3] = mock_mqtt_pkt_id & 0xff;
+    mock_nbytes_pktread   =  sizeof(mock_rawbytes_pubcomp);
+    mock_rawbytes_pktread = &mock_rawbytes_pubcomp[0];
+    status  = mqttSendPubResp(unittest_mctx, MQTT_PACKET_TYPE_PUBREL, &resp_out);
+
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PACKET_TYPE_PUBCOMP, unittest_mctx->last_recv_cmdtype);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PACKET_TYPE_PUBREL , unittest_mctx->last_send_cmdtype);
+    TEST_ASSERT_EQUAL_UINT(&unittest_mctx->recv_pkt_qos2.pub_resp, resp_out);
+    TEST_ASSERT_EQUAL_UINT16(mock_mqtt_pkt_id, resp_out->packet_id);
+} // end of TEST(mqttSendPubResp, qos2_pubrel_sent)
+
+
+TEST(mqttSendSubscribe, invalid_topics)
+{
+    mqttPktSubs_t   *subs = NULL;
+    mqttRespStatus status = MQTT_RESP_OK;
+
+    subs = &unittest_mctx->send_pkt.subs;
+
+    subs->topics = NULL;
+    subs->topic_cnt = 0;
+    status = mqttSendSubscribe(unittest_mctx, NULL);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_PROTOCOL_ERR, unittest_mctx->err_info.reason_code);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_INVALID_TOPIC, status);
+
+    subs->props = NULL;
+    subs->topic_cnt = 2;
+    subs->topics = (mqttTopic_t *)XMALLOC(sizeof(mqttTopic_t) * subs->topic_cnt);
+    subs->topics[0].filter.len  = 0;
+    subs->topics[0].filter.data = NULL;
+    subs->topics[1].filter.len  = 0;
+    subs->topics[1].filter.data = NULL;
+    status = mqttSendSubscribe(unittest_mctx, NULL);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_INTEGRITY, status);
+
+    unittest_mctx->flgs.wildcard_subs_avail = 0x1;
+    subs->topics[0].filter.data = (byte *) XMALLOC(sizeof(byte) * 0x20);
+    subs->topics[1].filter.data = (byte *) XMALLOC(sizeof(byte) * 0x20);
+
+    XMEMCPY(subs->topics[0].filter.data, (byte *)&("multilvl/#sep"), 13);
+    subs->topics[0].filter.len  = 13;
+    status = mqttSendSubscribe(unittest_mctx, NULL);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_INVALID_TOPIC, status);
+
+    XMEMCPY(subs->topics[0].filter.data, (byte *)&("multilvl/sep#"), 13);
+    subs->topics[0].filter.len  = 13;
+    status = mqttSendSubscribe(unittest_mctx, NULL);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_INVALID_TOPIC, status);
+
+    XMEMCPY(subs->topics[0].filter.data, (byte *)&("multilvl/sep/#"), 14);
+    subs->topics[0].filter.len  = 14;
+    XMEMCPY(subs->topics[1].filter.data, (byte *)&("singlelvl/s+ep"), 14);
+    subs->topics[1].filter.len  = 0;
+    status = mqttSendSubscribe(unittest_mctx, NULL);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_INTEGRITY, status);
+
+    subs->topics[1].filter.len  = 14;
+    status = mqttSendSubscribe(unittest_mctx, NULL);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_INVALID_TOPIC, status);
+
+    XMEMCPY(subs->topics[1].filter.data, (byte *)&("singlelvl/+sep"), 14);
+    subs->topics[1].filter.len = 14;
+    status = mqttSendSubscribe(unittest_mctx, NULL);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_INVALID_TOPIC, status);
+
+    XMEMCPY(subs->topics[1].filter.data, (byte *)&("singlelvl/+/sep"), 15);
+    subs->topics[1].filter.len = 15;
+    mock_get_pktlen_return_val = (int) MQTT_RESP_ERR_EXCEED_PKT_SZ;
+    status = mqttSendSubscribe(unittest_mctx, NULL);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_EXCEED_PKT_SZ, status);
+
+    XMEMFREE(subs->topics[0].filter.data);
+    XMEMFREE(subs->topics[1].filter.data);
+    subs->topics[0].filter.data = NULL;
+    subs->topics[1].filter.data = NULL;
+    XMEMFREE(subs->topics);
+    subs->topics = NULL;
+} // end of TEST(mqttSendSubscribe, invalid_topics)
+
+
+TEST(mqttSendSubscribe, topics_sent)
+{
+    mqttPktSubs_t   *subs   = NULL;
+    mqttPktSuback_t *suback = NULL;
+    mqttRespStatus status = MQTT_RESP_OK;
+
+    subs = &unittest_mctx->send_pkt.subs;
+
+    unittest_mctx->flgs.wildcard_subs_avail = 0x1;
+    subs->topic_cnt = 2;
+    subs->topics = (mqttTopic_t *)XMALLOC(sizeof(mqttTopic_t) * subs->topic_cnt);
+    subs->topics[0].filter.data = (byte *) XMALLOC(sizeof(byte) * 0x20);
+    subs->topics[1].filter.data = (byte *) XMALLOC(sizeof(byte) * 0x20);
+    XMEMCPY(subs->topics[0].filter.data, (byte *)&("multilvl/sep/#"), 14);
+    subs->topics[0].filter.len = 14;
+    XMEMCPY(subs->topics[1].filter.data, (byte *)&("singlelvl/+/sep"), 15);
+    subs->topics[1].filter.len = 15;
+    subs->topics[0].qos = MQTT_QOS_2;
+    subs->topics[1].qos = MQTT_QOS_1;
+
+    mock_get_pktlen_return_val = unittest_mctx->tx_buf_len + 1;
+    mock_encode_pkt_return_val = unittest_mctx->tx_buf_len + 1;
+    mock_net_pktwrite_return_val = MQTT_RESP_OK;
+    mock_net_pktread_return_val  = MQTT_RESP_OK;
+
+    mock_mqtt_pkt_id   = 0x046f; // TODO: randomly give non-zero packet ID
+    mock_rawbytes_suback[2] = mock_mqtt_pkt_id >> 0x8;
+    mock_rawbytes_suback[3] = mock_mqtt_pkt_id & 0xff;
+    mock_rawbytes_suback[5] = subs->topics[0].qos; // reason code: granted QoS fot 1st topic
+    mock_rawbytes_suback[6] = subs->topics[1].qos; // reason code: granted QoS fot 2nd topic
+    mock_nbytes_pktread   =  sizeof(mock_rawbytes_suback);
+    mock_rawbytes_pktread = &mock_rawbytes_suback[0];
+
+    status = mqttSendSubscribe(unittest_mctx, &suback);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PACKET_TYPE_SUBSCRIBE, unittest_mctx->last_send_cmdtype);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PACKET_TYPE_SUBACK   , unittest_mctx->last_recv_cmdtype);
+    TEST_ASSERT_EQUAL_UINT(&unittest_mctx->recv_pkt.suback, suback);
+    TEST_ASSERT_EQUAL_UINT16(mock_mqtt_pkt_id, suback->packet_id);
+
+
+    XMEMFREE(subs->topics[0].filter.data);
+    XMEMFREE(subs->topics[1].filter.data);
+    subs->topics[0].filter.data = NULL;
+    subs->topics[1].filter.data = NULL;
+    XMEMFREE(subs->topics);
+    subs->topics = NULL;
+} // end of TEST(mqttSendSubscribe, topics_sent)
 
 
 
@@ -1644,6 +1942,8 @@ static void RunAllTestGroups(void)
     RUN_TEST_GROUP(mqttSendAuth);
     RUN_TEST_GROUP(mqttSendDisconnect);
     RUN_TEST_GROUP(mqttSendPublish);
+    RUN_TEST_GROUP(mqttSendPubResp);
+    RUN_TEST_GROUP(mqttSendSubscribe);
 } // end of RunAllTestGroups
 
 

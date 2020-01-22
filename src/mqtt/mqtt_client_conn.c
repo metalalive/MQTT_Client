@@ -209,7 +209,7 @@ static mqttRespStatus   mqttSharedSubsChk( byte is_allow_shr_subs, byte *filter_
 
 
 static mqttRespStatus   mqttTopicWildcardChk( byte is_allow_wc, byte *filter_data, word16 filter_len, mqttReasonCode *reason_code )
-{
+{ // TODO: check whether isprint() can be supported in any cross-compile tool
     mqttRespStatus    status = MQTT_RESP_OK;
     byte *mlvl_wildcard = XMEMCHR(filter_data, MQTT_TOPIC_LEVEL_MULTI,  filter_len);
     byte *slvl_wildcard = XMEMCHR(filter_data, MQTT_TOPIC_LEVEL_SINGLE, filter_len);
@@ -227,15 +227,15 @@ static mqttRespStatus   mqttTopicWildcardChk( byte is_allow_wc, byte *filter_dat
             } // '#' must be present only once, at the latest char byte of topic string
             else if((mlvl_wildcard > &filter_data[0]) && (mlvl_wildcard[-1] != MQTT_TOPIC_LEVEL_SEPERATOR)) {
                 status = MQTT_RESP_INVALID_TOPIC;
-            } // '#' must immediately follow the seperator  '/'
+            } // the only '#' must immediately follow seperator character '/', unless '#' is the only char in the topic string
         }
-        if(slvl_wildcard != NULL) { // TODO: recheck whether it's ok to use negative index
+        if(slvl_wildcard != NULL) {
             if((slvl_wildcard[-1] != MQTT_TOPIC_LEVEL_SEPERATOR) && (slvl_wildcard > &filter_data[0])) {
                 status = MQTT_RESP_INVALID_TOPIC;
-            }
+            } // '+' at any level except top level must immediately follow the latest seperator  '/'
             else if((slvl_wildcard[1] != MQTT_TOPIC_LEVEL_SEPERATOR) && (slvl_wildcard < &filter_data[filter_len - 1])) {
                 status = MQTT_RESP_INVALID_TOPIC;
-            }
+            } // '+' at any level MUST NOT be followed by any other character e.g. {A-Z a-z 0-9} except the seperator '/'
         }
     } // end of wildcard check
     return status;
