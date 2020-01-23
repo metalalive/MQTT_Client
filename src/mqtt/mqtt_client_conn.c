@@ -63,8 +63,6 @@ static mqttRespStatus mqttCleanUpRecvpkt( mqttCtx_t *mctx, mqttCtrlPktType next_
 
     switch(last_recv_cmdtype)
     {
-        case MQTT_PACKET_TYPE_RESERVED:
-            break;
         case MQTT_PACKET_TYPE_CONNACK  :
         {
             mqttPktHeadConnack_t *connack = &mctx->recv_pkt.connack ; 
@@ -133,8 +131,8 @@ static mqttRespStatus mqttCleanUpRecvpkt( mqttCtx_t *mctx, mqttCtrlPktType next_
             XMEMSET((void *)auth, 0x00, sizeof(mqttAuth_t));
             break;
         }
+        case MQTT_PACKET_TYPE_RESERVED:
         default:
-            status = MQTT_RESP_ERR_CTRL_PKT_TYPE;
             break;
     } // end of switch-case statement
     return  status;
@@ -386,6 +384,7 @@ mqttRespStatus  mqttClientWaitPkt( mqttCtx_t *mctx, mqttCtrlPktType wait_cmdtype
     void             *p_dst        = NULL;
     void             *p_dst_bak    = NULL; 
 
+    if(mctx == NULL || wait_cmdtype == MQTT_PACKET_TYPE_RESERVED) {return MQTT_RESP_ERRARGS;}
     rx_buf       = mctx->rx_buf;
     rx_buf_len   = mctx->rx_buf_len;
     recv_header  = (mqttPktFxHead_t *)rx_buf;
