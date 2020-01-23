@@ -23,8 +23,15 @@ static byte mock_rawbytes_pubcomp[0x5]  = {0x70, 0x03, 0x00, 0x01, 0x00};
 static byte mock_rawbytes_suback[0x7]   = {0x90, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00};
 static byte mock_rawbytes_unsuback[0x7] = {0xb0, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00};
 static byte mock_rawbytes_pingresp[0x2] = {0xd0, 0x00};
-static byte mock_rawbytes_auth[0xe]     = {0xf0, 0x0c , 0x18,  0x0a,   0x15, 0x00, 0x02, 0x5e, 0xe4,  0x16, 0x00, 0x02, 0xbe, 0xef };
+static byte mock_rawbytes_auth[0xe]     = {0xf0, 0x0c , 0x18,  0x0a, // packet ID & length field of property
+                                           MQTT_PROP_AUTH_METHOD, 0x00, 0x02, 0x5e, 0xe4,   // fake auth method property
+                                           MQTT_PROP_AUTH_DATA  , 0x00, 0x02, 0xbe, 0xef }; // fake auth data property
 static byte mock_rawbytes_invalid_cmd[0x4] = {0x00, 0x02, 0xde, 0xad};
+static byte mock_rawbytes_pub_qos0[0xc] = { 0x30, 0x0a,
+                                            0x00, 0x03, 0x62, 0x63, 0x64, // topic : bcd
+                                            0x00, // no property included
+                                            0x42, 0x31, 0x38, 0x32 // message : B182
+                                          };
 
 // ---------------- mock or dummy functions declaration ------------------
 mqttRespStatus  mqttSysInit( void )
@@ -376,8 +383,9 @@ TEST_GROUP_RUNNER(mqttSendPingReq)
 
 TEST_GROUP_RUNNER(mqttClientWaitPkt)
 {
-    RUN_TEST_CASE(mqttClientWaitPkt, auth_recv);
+    RUN_TEST_CASE(mqttClientWaitPkt, auth_in_recv);
     RUN_TEST_CASE(mqttClientWaitPkt, invalid_cmd);
+    RUN_TEST_CASE(mqttClientWaitPkt, pubmsg_recv);
 }
 
 
@@ -392,86 +400,50 @@ TEST_SETUP(mqttClientInit)
 
 TEST_SETUP(mqttPropertyCreate)
 {
-    int timeout = 100;
-    unittest_mctx = NULL;
-    mqttClientInit(&unittest_mctx, timeout);
 }
 
 TEST_SETUP(mqttPropertyDel)
 {
-    int timeout = 100;
-    unittest_mctx = NULL;
-    mqttClientInit(&unittest_mctx, timeout);
 }
 
 TEST_SETUP(mqttPropErrChk)
 {
-    int timeout = 100;
-    unittest_mctx = NULL;
-    mqttClientInit(&unittest_mctx, timeout);
 }
 
 TEST_SETUP(mqttSendConnect)
 {
-    int timeout = 100;
-    unittest_mctx = NULL;
-    mqttClientInit(&unittest_mctx, timeout);
 }
 
 TEST_SETUP(mqttSendAuth)
 {
-    int timeout = 100;
-    unittest_mctx = NULL;
-    mqttClientInit(&unittest_mctx, timeout);
 }
 
 TEST_SETUP(mqttSendDisconnect)
 {
-    int timeout = 100;
-    unittest_mctx = NULL;
-    mqttClientInit(&unittest_mctx, timeout);
 }
 
 TEST_SETUP(mqttSendPublish)
 {
-    int timeout = 100;
-    unittest_mctx = NULL;
-    mqttClientInit(&unittest_mctx, timeout);
 }
 
 TEST_SETUP(mqttSendPubResp)
 {
-    int timeout = 100;
-    unittest_mctx = NULL;
-    mqttClientInit(&unittest_mctx, timeout);
 }
 
 TEST_SETUP(mqttSendSubscribe)
 {
-    int timeout = 100;
-    unittest_mctx = NULL;
-    mqttClientInit(&unittest_mctx, timeout);
 }
 
 TEST_SETUP(mqttSendUnsubscribe)
 {
-    int timeout = 100;
-    unittest_mctx = NULL;
-    mqttClientInit(&unittest_mctx, timeout);
 }
 
 TEST_SETUP(mqttSendPingReq)
 {
-    int timeout = 100;
-    unittest_mctx = NULL;
-    mqttClientInit(&unittest_mctx, timeout);
 }
 
 TEST_SETUP(mqttClientWaitPkt)
 {
-    int timeout = 100;
-    unittest_mctx = NULL;
-    mqttClientInit(&unittest_mctx, timeout);
 }
 
 
@@ -489,20 +461,15 @@ TEST_TEAR_DOWN(mqttClientInit)
 TEST_TEAR_DOWN(mqttPropertyCreate)
 {
     mqttPropertyDel( unittest_mctx->send_pkt.conn.props );
-    mqttClientDeinit( unittest_mctx );
-    unittest_mctx = NULL;
+    unittest_mctx->send_pkt.conn.props = NULL;
 }
 
 TEST_TEAR_DOWN(mqttPropertyDel)
 {
-    mqttClientDeinit( unittest_mctx );
-    unittest_mctx = NULL;
 }
 
 TEST_TEAR_DOWN(mqttPropErrChk)
 {
-    mqttClientDeinit( unittest_mctx );
-    unittest_mctx = NULL;
 }
 
 TEST_TEAR_DOWN(mqttSendConnect)
@@ -513,8 +480,6 @@ TEST_TEAR_DOWN(mqttSendConnect)
     conn->props = NULL;
     mqttPropertyDel(conn->lwt_msg.props);
     conn->lwt_msg.props = NULL;
-    mqttClientDeinit( unittest_mctx );
-    unittest_mctx = NULL;
 }
 
 
@@ -526,8 +491,6 @@ TEST_TEAR_DOWN(mqttSendAuth)
     auth_send->props = NULL;
     mqttPropertyDel(auth_recv->props);
     auth_recv->props = NULL;
-    mqttClientDeinit( unittest_mctx );
-    unittest_mctx = NULL;
 }
 
 TEST_TEAR_DOWN(mqttSendDisconnect)
@@ -536,8 +499,6 @@ TEST_TEAR_DOWN(mqttSendDisconnect)
     disconn = &unittest_mctx->send_pkt.disconn;
     mqttPropertyDel(disconn->props);
     disconn->props = NULL;
-    mqttClientDeinit( unittest_mctx );
-    unittest_mctx = NULL;
 }
 
 TEST_TEAR_DOWN(mqttSendPublish)
@@ -552,9 +513,6 @@ TEST_TEAR_DOWN(mqttSendPublish)
     resp = &unittest_mctx->recv_pkt.pub_resp;
     mqttPropertyDel(resp->props);
     resp->props = NULL;
-
-    mqttClientDeinit( unittest_mctx );
-    unittest_mctx = NULL;
 }
 
 
@@ -569,33 +527,22 @@ TEST_TEAR_DOWN(mqttSendPubResp)
     resp = &unittest_mctx->send_pkt.pub_resp;
     mqttPropertyDel(resp->props);
     resp->props = NULL;
-
-    mqttClientDeinit( unittest_mctx );
-    unittest_mctx = NULL;
 }
 
 TEST_TEAR_DOWN(mqttSendSubscribe)
 {
-    mqttClientDeinit( unittest_mctx );
-    unittest_mctx = NULL;
 }
 
 TEST_TEAR_DOWN(mqttSendUnsubscribe)
 {
-    mqttClientDeinit( unittest_mctx );
-    unittest_mctx = NULL;
 }
 
 TEST_TEAR_DOWN(mqttSendPingReq)
 {
-    mqttClientDeinit( unittest_mctx );
-    unittest_mctx = NULL;
 }
 
 TEST_TEAR_DOWN(mqttClientWaitPkt)
 {
-    mqttClientDeinit( unittest_mctx );
-    unittest_mctx = NULL;
 }
 
 
@@ -788,6 +735,7 @@ TEST(mqttPropertyDel, take_some_alloc_space)
     mqttPropertyDel(*prop_list);
     TEST_ASSERT_EQUAL_UINT(NULL,           (*prop_list)->next);
     TEST_ASSERT_EQUAL_UINT(MQTT_PROP_NONE, (*prop_list)->type);
+    *prop_list = NULL;
 } // end of TEST(mqttPropertyDel, take_some_alloc_space)
 
 
@@ -834,6 +782,7 @@ TEST(mqttPropErrChk, dup_user_prop)
         TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
     }
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST_CASE(mqttPropErrChk, dup_user_prop)
 
 
@@ -868,6 +817,7 @@ TEST(mqttPropErrChk, dup_sub_id_in_publish)
         TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
     }
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, dup_sub_id_in_publish)
 
 
@@ -910,6 +860,7 @@ TEST(mqttPropErrChk, dup_prop_cannot_repeat)
         TEST_ASSERT_EQUAL_UINT8(ptype, unittest_mctx->err_info.prop_id);
     }
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, dup_prop_cannot_repeat)
 
 
@@ -941,6 +892,7 @@ TEST(mqttPropErrChk, strpair_integrity)
         TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
     }
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, strpair_integrity)
 
 
@@ -968,6 +920,7 @@ TEST(mqttPropErrChk, var_int_limit)
         TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
     }
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, var_int_limit)
 
 
@@ -989,6 +942,7 @@ TEST(mqttPropErrChk, update_keepalive)
         TEST_ASSERT_EQUAL_UINT16(new_prop->body.u16, unittest_mctx->keep_alive_sec);
     }
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, update_keepalive)
 
 
@@ -1015,6 +969,7 @@ TEST(mqttPropErrChk, update_topic_alias_max)
     TEST_ASSERT_EQUAL_UINT16(new_prop->body.u16, unittest_mctx->recv_topic_alias_max);
 
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, update_topic_alias_max)
 
 
@@ -1058,6 +1013,7 @@ TEST(mqttPropErrChk, chk_topic_alias_pubmsg)
         TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
     }
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, chk_topic_alias_pubmsg)
 
 
@@ -1100,6 +1056,8 @@ TEST(mqttPropErrChk, chk_max_pkt_sz)
     }
     mqttPropertyDel(unittest_mctx->send_pkt.conn.props);
     mqttPropertyDel(unittest_mctx->recv_pkt.connack.props);
+    unittest_mctx->send_pkt.conn.props    = NULL;
+    unittest_mctx->recv_pkt.connack.props = NULL;
 } // end of TEST(mqttPropErrChk, chk_max_pkt_sz)
 
 
@@ -1131,6 +1089,7 @@ TEST(mqttPropErrChk, update_retain_avail)
     TEST_ASSERT_EQUAL_UINT8(new_prop->body.u8, unittest_mctx->flgs.retain_avail);
 
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, update_retain_avail)
 
 
@@ -1162,6 +1121,7 @@ TEST(mqttPropErrChk, update_wildcard_subs_avail)
     TEST_ASSERT_EQUAL_UINT8(new_prop->body.u8, unittest_mctx->flgs.wildcard_subs_avail);
 
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, update_wildcard_subs_avail)
 
 
@@ -1188,6 +1148,7 @@ TEST(mqttPropErrChk, update_subs_id_avail)
     TEST_ASSERT_EQUAL_UINT8(new_prop->body.u8, unittest_mctx->flgs.subs_id_avail);
 
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, update_subs_id_avail)
 
 
@@ -1214,6 +1175,7 @@ TEST(mqttPropErrChk, update_shr_subs_avail)
     TEST_ASSERT_EQUAL_UINT8(new_prop->body.u8, unittest_mctx->flgs.shr_subs_avail);
 
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, update_shr_subs_avail)
 
 
@@ -1240,6 +1202,7 @@ TEST(mqttPropErrChk, update_max_qos_server)
     TEST_ASSERT_EQUAL_UINT8(MQTT_QOS_0, unittest_mctx->max_qos_server);
 
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, update_max_qos_server)
 
 
@@ -1266,6 +1229,7 @@ TEST(mqttPropErrChk, update_req_resp_info)
     TEST_ASSERT_EQUAL_UINT8(0, unittest_mctx->flgs.req_resp_info);
 
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, update_req_resp_info)
 
 
@@ -1292,6 +1256,7 @@ TEST(mqttPropErrChk, update_req_probm_info)
     TEST_ASSERT_EQUAL_UINT8(0, unittest_mctx->flgs.req_probm_info);
 
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, update_req_probm_info)
 
 
@@ -1344,6 +1309,7 @@ TEST(mqttPropErrChk, chk_reason_str)
     TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
 
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST_CASE(mqttPropErrChk, chk_reason_str)
 
 
@@ -1394,6 +1360,8 @@ TEST(mqttPropErrChk, chk_subs_id)
 
     mqttPropertyDel(unittest_mctx->send_pkt.pub_msg.props);
     mqttPropertyDel(unittest_mctx->recv_pkt.connack.props);
+    unittest_mctx->send_pkt.pub_msg.props = NULL;
+    unittest_mctx->recv_pkt.connack.props = NULL;
 } // end of TEST(mqttPropErrChk, chk_subs_id)
 
 
@@ -1438,6 +1406,7 @@ TEST(mqttPropErrChk, chk_resp_topic)
     TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_WILDCARD_SUB_NOT_SUP, unittest_mctx->err_info.reason_code);
 
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, chk_resp_topic)
 
 
@@ -1456,6 +1425,7 @@ TEST(mqttPropErrChk, unknown_prop_id)
     TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_MALFORMED_PACKET, unittest_mctx->err_info.reason_code);
 
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, unknown_prop_id)
 
 
@@ -1492,6 +1462,7 @@ TEST(mqttPropErrChk, auth_integrity)
     TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
 
     mqttPropertyDel(*prop_list);
+    *prop_list = NULL;
 } // end of TEST(mqttPropErrChk, auth_integrity)
 
 
@@ -1867,7 +1838,7 @@ TEST(mqttSendPubResp, qos2_pubrel_sent)
     mqttPktPubResp_t *resp_in  = NULL;
     mqttRespStatus  status = MQTT_RESP_OK;
 
-    resp_in = &unittest_mctx->send_pkt.pub_resp;
+    resp_in = &unittest_mctx->send_pkt_qos2.pub_resp;
     resp_in->props = NULL;
 
     mock_get_pktlen_return_val = unittest_mctx->tx_buf_len + 1;
@@ -1877,6 +1848,7 @@ TEST(mqttSendPubResp, qos2_pubrel_sent)
     mock_decode_pkt_return_val   = MQTT_RESP_OK;
 
     mock_mqtt_pkt_id   = 0x023d; // TODO: randomly give non-zero packet ID
+    resp_in->packet_id = mock_mqtt_pkt_id;
     mock_rawbytes_pubcomp[2] = mock_mqtt_pkt_id >> 0x8;
     mock_rawbytes_pubcomp[3] = mock_mqtt_pkt_id & 0xff;
     mock_nbytes_pktread   =  sizeof(mock_rawbytes_pubcomp);
@@ -2100,7 +2072,7 @@ TEST(mqttSendPingReq, ping_sent)
 } // end of TEST(mqttSendPingReq, ping_sent)
 
 
-TEST(mqttClientWaitPkt, auth_recv)
+TEST(mqttClientWaitPkt, auth_in_recv)
 {
     mqttRespStatus status = MQTT_RESP_OK;
 
@@ -2112,7 +2084,8 @@ TEST(mqttClientWaitPkt, auth_recv)
 
     status = mqttClientWaitPkt(unittest_mctx, MQTT_PACKET_TYPE_AUTH, 0x0, NULL);
     TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
-} // end of TEST(mqttClientWaitPkt, auth_recv)
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PACKET_TYPE_AUTH, unittest_mctx->last_recv_cmdtype);
+} // end of TEST(mqttClientWaitPkt, auth_in_recv)
 
 
 TEST(mqttClientWaitPkt, invalid_cmd)
@@ -2130,12 +2103,37 @@ TEST(mqttClientWaitPkt, invalid_cmd)
 } // end of TEST(mqttClientWaitPkt, invalid_cmd)
 
 
+TEST(mqttClientWaitPkt, pubmsg_recv)
+{
+    mqttRespStatus status = MQTT_RESP_OK;
+
+    mock_net_pktwrite_return_val = MQTT_RESP_OK;
+    mock_net_pktread_return_val  = MQTT_RESP_OK;
+    mock_decode_pkt_return_val   = MQTT_RESP_OK;
+    mock_nbytes_pktread   =  sizeof(mock_rawbytes_pub_qos0);
+    mock_rawbytes_pktread = &mock_rawbytes_pub_qos0[0];
+
+    status = mqttClientWaitPkt(unittest_mctx, MQTT_PACKET_TYPE_PUBLISH, 0x0, NULL);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PACKET_TYPE_PUBLISH, unittest_mctx->last_recv_cmdtype);
+
+    mock_nbytes_pktread   =  sizeof(mock_rawbytes_pingresp);
+    mock_rawbytes_pktread = &mock_rawbytes_pingresp[0];
+    // receive PINGRESP, then deallocate space for previously received PUBLISH
+    status = mqttClientWaitPkt(unittest_mctx, MQTT_PACKET_TYPE_PINGRESP, 0x0, NULL);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PACKET_TYPE_PINGRESP, unittest_mctx->last_recv_cmdtype);
+} // end of TEST(mqttClientWaitPkt, pubmsg_recv)
+
 
 
 
 static void RunAllTestGroups(void)
 {
     RUN_TEST_GROUP(mqttClientInit);
+    // no need to re-init new mqtt client when running new test group
+    unittest_mctx = NULL;
+    mqttClientInit(&unittest_mctx, 0x100);
     RUN_TEST_GROUP(mqttPropertyCreate);
     RUN_TEST_GROUP(mqttPropertyDel);
     RUN_TEST_GROUP(mqttPropErrChk);
@@ -2148,6 +2146,8 @@ static void RunAllTestGroups(void)
     RUN_TEST_GROUP(mqttSendUnsubscribe);
     RUN_TEST_GROUP(mqttSendPingReq);
     RUN_TEST_GROUP(mqttClientWaitPkt);
+    mqttClientDeinit( unittest_mctx );
+    unittest_mctx = NULL;
 } // end of RunAllTestGroups
 
 
