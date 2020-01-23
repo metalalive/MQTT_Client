@@ -184,7 +184,6 @@ utest_helper : $(C_ASM_OBJECTS) $(TEST_COMMON_OBJECTS)  $(TEST_ENTRY_OBJECTS)
 utest:
 	@make file_subst -C third_party;
 	@make utest_helper DEBUG=$(DEBUG);
-	$(CCOV) -f build/utest/mqtt_client_conn.o;
 
 $(BUILD_DIR)/%.o: %.c makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
