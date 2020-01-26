@@ -583,7 +583,10 @@ int  mqttEncodePktConnect( byte *tx_buf, word32 tx_buf_len, mqttConn_t *conn )
     byte    *curr_buf_pos ;
 
     if((conn == NULL) || (tx_buf == NULL) || (tx_buf_len == 0)) { 
-        return MQTT_RESP_ERRARGS; 
+        return MQTT_RESP_ERRARGS;
+    }
+    if((conn->flgs.will_enable != 0) && (conn->lwt_msg.topic.data == NULL || conn->lwt_msg.buff == NULL)) {
+        return MQTT_RESP_ERRARGS;
     }
     remain_len = conn->pkt_len_set.remain_len ;
     props_len  = conn->pkt_len_set.props_len  ;
@@ -722,7 +725,7 @@ int  mqttEncodePktPublish( byte *tx_buf, word32 tx_buf_len, struct __mqttMsg  *m
     if((msg == NULL) || (tx_buf == NULL) || (tx_buf_len == 0)) { 
         return  MQTT_RESP_ERRARGS;
     }
-    if((msg->topic.data==NULL) || (msg->topic.len < 1)) {
+    if((msg->topic.data==NULL) || (msg->topic.len < 1) || (msg->buff==NULL)) {
         return  MQTT_RESP_ERRARGS; // topic is a must when publishing message
     }
     // number of bytes taken to encode topic string

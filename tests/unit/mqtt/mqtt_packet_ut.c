@@ -116,7 +116,7 @@ void   mqttPropertyDel( mqttProp_t *head )
 TEST_GROUP(mqttEncodeElement);
 TEST_GROUP(mqttDecodeElement);
 TEST_GROUP(mqttGetPktID);
-TEST_GROUP(mqttCalEncodePktLen);
+TEST_GROUP(mqttCalPktLenThenEncode);
 
 
 TEST_GROUP_RUNNER(mqttEncodeElement)
@@ -142,11 +142,15 @@ TEST_GROUP_RUNNER(mqttGetPktID)
     RUN_TEST_CASE(mqttGetPktID, increment_packet_id);
 }
 
-TEST_GROUP_RUNNER(mqttCalEncodePktLen)
+TEST_GROUP_RUNNER(mqttCalPktLenThenEncode)
 {
-    RUN_TEST_CASE(mqttCalEncodePktLen, mqttGetPktLenConnect);
-    RUN_TEST_CASE(mqttCalEncodePktLen, mqttGetPktLenPublish);
-    RUN_TEST_CASE(mqttCalEncodePktLen, mqttGetPktLenPubResp);
+    RUN_TEST_CASE(mqttCalPktLenThenEncode, connect);
+    RUN_TEST_CASE(mqttCalPktLenThenEncode, publish_message);
+    RUN_TEST_CASE(mqttCalPktLenThenEncode, publish_response);
+    RUN_TEST_CASE(mqttCalPktLenThenEncode, subscribe_unsubscribe);
+    RUN_TEST_CASE(mqttCalPktLenThenEncode, disconnect);
+    RUN_TEST_CASE(mqttCalPktLenThenEncode, enhanced_auth);
+    RUN_TEST_CASE(mqttCalPktLenThenEncode, ping);
 }
 
 
@@ -159,7 +163,7 @@ TEST_SETUP(mqttDecodeElement)
 TEST_SETUP(mqttGetPktID)
 {}
 
-TEST_SETUP(mqttCalEncodePktLen)
+TEST_SETUP(mqttCalPktLenThenEncode)
 {}
 
 TEST_TEAR_DOWN(mqttEncodeElement)
@@ -171,7 +175,7 @@ TEST_TEAR_DOWN(mqttDecodeElement)
 TEST_TEAR_DOWN(mqttGetPktID)
 {}
 
-TEST_TEAR_DOWN(mqttCalEncodePktLen)
+TEST_TEAR_DOWN(mqttCalPktLenThenEncode)
 {}
 
 
@@ -538,12 +542,13 @@ TEST(mqttGetPktID, increment_packet_id)
 } // end of TEST(mqttGetPktID, increment_packet_id)
 
 
-TEST(mqttCalEncodePktLen, mqttGetPktLenConnect)
+TEST(mqttCalPktLenThenEncode, connect)
 {
     mqttProp_t  *tmp_prop = NULL;
     mqttConn_t  *conn     = NULL;
-    int expected_nbytes_decoded = 10; // for first 10 bytes of variable header in CONNECT
-    int actual_nbytes_decoded   = 0;
+    byte        *buf      = NULL;
+    int expected_nbytes_encoded = 10; // for first 10 bytes of variable header in CONNECT
+    int actual_nbytes_encoded   = 0;
     word32   remain_len  = 0;
     word32   props_len   = 0;
 
@@ -555,7 +560,7 @@ TEST(mqttCalEncodePktLen, mqttGetPktLenConnect)
     tmp_prop = mqttPropertyCreate(&conn->props, MQTT_PROP_TOPIC_ALIAS_MAX);
     tmp_prop->body.u16 = 0x14;
     props_len = 1 + 2 + 1 + 2;
-    expected_nbytes_decoded += 1 + props_len; // #bytes of property for CONNECT command
+    expected_nbytes_encoded += 1 + props_len; // #bytes of property for CONNECT command
 
     conn->client_id.data = (byte *)&("test_identifier");
     conn->client_id.len  = 15;
@@ -563,111 +568,429 @@ TEST(mqttCalEncodePktLen, mqttGetPktLenConnect)
     conn->username.len   = 11;
     conn->password.data  = (byte *)&("passwd2user");
     conn->password.len   = 11;
-    expected_nbytes_decoded += MQTT_DSIZE_STR_LEN + conn->client_id.len;
-    expected_nbytes_decoded += MQTT_DSIZE_STR_LEN + conn->username.len;
-    expected_nbytes_decoded += MQTT_DSIZE_STR_LEN + conn->password.len;
+    expected_nbytes_encoded += MQTT_DSIZE_STR_LEN + conn->client_id.len;
+    expected_nbytes_encoded += MQTT_DSIZE_STR_LEN + conn->username.len;
+    expected_nbytes_encoded += MQTT_DSIZE_STR_LEN + conn->password.len;
 
+    conn->protocol_lvl = MQTT_CONN_PROTOCOL_LEVEL;
+    conn->keep_alive_sec = 40;
+    conn->flgs.clean_session = 1;
     conn->flgs.will_enable = 1;
     {
         conn->lwt_msg.props = NULL;
         tmp_prop = mqttPropertyCreate(&conn->lwt_msg.props, MQTT_PROP_WILL_DELAY_INTVL);
         tmp_prop->body.u32 = 0x38600;
-        expected_nbytes_decoded += 1 + 1 + 4;
-        conn->lwt_msg.topic.data   = (byte *)&("here/is/it");
-        conn->lwt_msg.topic.len    = 10;
+        expected_nbytes_encoded += 1 + 1 + 4;
+        conn->lwt_msg.topic.data   = (byte *)&("last/will/topic");
+        conn->lwt_msg.topic.len    = 15;
+        conn->lwt_msg.buff         = NULL;
         conn->lwt_msg.app_data_len = 20;
-        expected_nbytes_decoded += MQTT_DSIZE_STR_LEN + conn->lwt_msg.topic.len;
-        expected_nbytes_decoded += MQTT_DSIZE_STR_LEN + conn->lwt_msg.app_data_len;
+        expected_nbytes_encoded += MQTT_DSIZE_STR_LEN + conn->lwt_msg.topic.len;
+        expected_nbytes_encoded += MQTT_DSIZE_STR_LEN + conn->lwt_msg.app_data_len;
+        conn->lwt_msg.qos = MQTT_QOS_1;
+        conn->lwt_msg.retain = 1;
     }
 
-    actual_nbytes_decoded = mqttGetPktLenConnect(conn, expected_nbytes_decoded);
-    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_EXCEED_PKT_SZ, actual_nbytes_decoded);
+    actual_nbytes_encoded = mqttGetPktLenConnect(conn, expected_nbytes_encoded);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_EXCEED_PKT_SZ, actual_nbytes_encoded);
 
-    remain_len = expected_nbytes_decoded;
-    expected_nbytes_decoded += 1 + 1; // 1-byte header and 1-byte length field of entire CONNECT command
-    actual_nbytes_decoded = mqttGetPktLenConnect(conn, expected_nbytes_decoded);
-    TEST_ASSERT_EQUAL_INT(expected_nbytes_decoded, actual_nbytes_decoded);
+    remain_len = expected_nbytes_encoded;
+    expected_nbytes_encoded += 1 + 1; // 1-byte header and 1-byte length field of entire CONNECT command
+    actual_nbytes_encoded = mqttGetPktLenConnect(conn, expected_nbytes_encoded);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_encoded, actual_nbytes_encoded);
     TEST_ASSERT_EQUAL_UINT32(remain_len, conn->pkt_len_set.remain_len);
     TEST_ASSERT_EQUAL_UINT32(props_len , conn->pkt_len_set.props_len );
+    // start encoding
+    actual_nbytes_encoded = mqttEncodePktConnect(NULL, 0x0, conn);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERRARGS, actual_nbytes_encoded);
+
+    actual_nbytes_encoded = mqttEncodePktConnect(&unittest_mctx->tx_buf[0], expected_nbytes_encoded, conn);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERRARGS, actual_nbytes_encoded); // due to NULL last will message
+
+    conn->lwt_msg.buff    = (byte *)&("my last will message"); // the size must match conn->lwt_msg.app_data_len 
+    actual_nbytes_encoded = mqttEncodePktConnect(&unittest_mctx->tx_buf[0], expected_nbytes_encoded, conn);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_encoded, actual_nbytes_encoded);
+     // directly check the encoded packet at here
+    buf = &unittest_mctx->tx_buf[1];
+    TEST_ASSERT_EQUAL_UINT8(remain_len, *buf++); // in this test, generated CONNECT command is supposed to be less than 0x80 bytes
+    TEST_ASSERT_EQUAL_UINT8(0x00, buf[0]);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_CONN_PROTOCOL_NAME_LEN, buf[1]);
+    TEST_ASSERT_EQUAL_STRING_LEN((byte *)&(MQTT_CONN_PROTOCOL_NAME), &buf[2], MQTT_CONN_PROTOCOL_NAME_LEN);
+    buf += MQTT_DSIZE_STR_LEN + MQTT_CONN_PROTOCOL_NAME_LEN;
+    TEST_ASSERT_EQUAL_UINT8(MQTT_CONN_PROTOCOL_LEVEL, *buf++); // check MQTT protocol version
+    TEST_ASSERT_EQUAL_UINT8(MQTT_CONNECT_FLG_USERNAME, (buf[0] & MQTT_CONNECT_FLG_USERNAME)); // user name flag is set
+    TEST_ASSERT_EQUAL_UINT8(MQTT_CONNECT_FLG_PASSWORD, (buf[0] & MQTT_CONNECT_FLG_PASSWORD)); // password flag is set
+    TEST_ASSERT_EQUAL_UINT8(MQTT_CONNECT_FLG_WILL_RETAIN, (buf[0] & MQTT_CONNECT_FLG_WILL_RETAIN)); // will retain flag is set
+    TEST_ASSERT_EQUAL_UINT8((conn->lwt_msg.qos << MQTT_CONNECT_FLG_WILL_QOS_SHIFT), (buf[0] & MQTT_CONNECT_FLG_WILL_QOS_MASK)); // QoS check
+    TEST_ASSERT_EQUAL_UINT8(MQTT_CONNECT_FLG_WILL_FLAG, (buf[0] & MQTT_CONNECT_FLG_WILL_FLAG)); // wlll flag is set
+    TEST_ASSERT_EQUAL_UINT8(MQTT_CONNECT_FLG_CLEAN_START, (buf[0] & MQTT_CONNECT_FLG_CLEAN_START)); // clean session flag is set
+    buf++;
+    TEST_ASSERT_EQUAL_UINT8(0x00, buf[0]);
+    TEST_ASSERT_EQUAL_UINT8(conn->keep_alive_sec, buf[1]);
+    buf += 2;
+    // checks whether each field in a MQTT command is placed in the correct order.
+    // property
+    TEST_ASSERT_EQUAL_UINT8(conn->pkt_len_set.props_len, buf[0]);
+    buf += 1 + conn->pkt_len_set.props_len;
+    // client ID
+    TEST_ASSERT_EQUAL_UINT8(0x00, buf[0]);
+    TEST_ASSERT_EQUAL_UINT8(conn->client_id.len, buf[1]);
+    TEST_ASSERT_EQUAL_STRING_LEN(conn->client_id.data, &buf[2], conn->client_id.len);
+    buf += MQTT_DSIZE_STR_LEN + conn->client_id.len;
+    
+    if(conn->flgs.will_enable != 0) {
+        // last will peoperty
+        TEST_ASSERT_EQUAL_UINT8(conn->lwt_msg.pkt_len_set.props_len, buf[0]);
+        buf += 1 + conn->lwt_msg.pkt_len_set.props_len;
+        // last will topic
+        TEST_ASSERT_EQUAL_UINT8(0x00, buf[0]);
+        TEST_ASSERT_EQUAL_UINT8(conn->lwt_msg.topic.len, buf[1]);
+        TEST_ASSERT_EQUAL_STRING_LEN(conn->lwt_msg.topic.data, &buf[2], conn->lwt_msg.topic.len);
+        buf += MQTT_DSIZE_STR_LEN + conn->lwt_msg.topic.len;
+        // last will message
+        TEST_ASSERT_EQUAL_UINT8(0x00, buf[0]);
+        TEST_ASSERT_EQUAL_UINT8(conn->lwt_msg.app_data_len, buf[1]);
+        TEST_ASSERT_EQUAL_STRING_LEN(conn->lwt_msg.buff, &buf[2], conn->lwt_msg.app_data_len);
+        buf += MQTT_DSIZE_STR_LEN + conn->lwt_msg.app_data_len;
+    }
+    // user name
+    TEST_ASSERT_EQUAL_UINT8(0x00, buf[0]);
+    TEST_ASSERT_EQUAL_UINT8(conn->username.len, buf[1]);
+    TEST_ASSERT_EQUAL_STRING_LEN(conn->username.data, &buf[2], conn->username.len);
+    buf += MQTT_DSIZE_STR_LEN + conn->username.len;
+    // password
+    TEST_ASSERT_EQUAL_UINT8(0x00, buf[0]);
+    TEST_ASSERT_EQUAL_UINT8(conn->password.len, buf[1]);
+    TEST_ASSERT_EQUAL_STRING_LEN(conn->password.data, &buf[2], conn->password.len);
+    buf += MQTT_DSIZE_STR_LEN + conn->password.len;
 
     mqttPropertyDel(conn->props);
     mqttPropertyDel(conn->lwt_msg.props);
     XMEMSET(conn, 0x00, sizeof(mqttConn_t));
-} // end of TEST(mqttCalEncodePktLen, mqttGetPktLenConnect)
+} // end of TEST(mqttCalPktLenThenEncode, connect)
 
 
-TEST(mqttCalEncodePktLen, mqttGetPktLenPublish)
+TEST(mqttCalPktLenThenEncode, publish_message)
 {
     mqttMsg_t *msg = NULL;
-    int expected_nbytes_decoded = 0;
-    int actual_nbytes_decoded   = 0;
+    byte      *buf = NULL;
+    int expected_nbytes_encoded = 0;
+    int actual_nbytes_encoded   = 0;
     word32   remain_len  = 0;
 
     msg = &unittest_mctx->send_pkt.pub_msg;
 
     msg->props = NULL;
-    expected_nbytes_decoded += 1; // no property in this test
+    expected_nbytes_encoded += 1; // no property in this test
     msg->topic.data = NULL;
     msg->topic.len  = 0;
 
-    actual_nbytes_decoded = mqttGetPktLenPublish(msg, 0x0);
-    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERRARGS, actual_nbytes_decoded);
+    actual_nbytes_encoded = mqttGetPktLenPublish(msg, 0x0);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERRARGS, actual_nbytes_encoded);
 
-    msg->topic.data = (byte *)&("mqttGetPktLenPublish");
-    msg->topic.len  = 20;
+    msg->topic.data = (byte *)&("topic/to/publish");
+    msg->topic.len  = 17;
     msg->qos = MQTT_QOS_2;
     msg->packet_id = 0;
-    expected_nbytes_decoded += 2; // 2-byte packet ID
+    expected_nbytes_encoded += 2; // 2-byte packet ID
 
-    actual_nbytes_decoded = mqttGetPktLenPublish(msg, 0x0);
-    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_CTRL_PKT_ID, actual_nbytes_decoded);
+    actual_nbytes_encoded = mqttGetPktLenPublish(msg, 0x0);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_CTRL_PKT_ID, actual_nbytes_encoded);
 
     msg->packet_id = mqttGetPktID();
-    msg->topic.len = 17;
-    msg->app_data_len = 50;
-    expected_nbytes_decoded += MQTT_DSIZE_STR_LEN + msg->topic.len + msg->app_data_len;
+    msg->buff = NULL;
+    msg->app_data_len = 30;
+    expected_nbytes_encoded += MQTT_DSIZE_STR_LEN + msg->topic.len + msg->app_data_len;
 
-    actual_nbytes_decoded = mqttGetPktLenPublish(msg, expected_nbytes_decoded);
-    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_EXCEED_PKT_SZ, actual_nbytes_decoded);
+    actual_nbytes_encoded = mqttGetPktLenPublish(msg, expected_nbytes_encoded);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_EXCEED_PKT_SZ, actual_nbytes_encoded);
 
-    remain_len = expected_nbytes_decoded;
-    expected_nbytes_decoded += 1 + 1; // 1-byte header and 1-byte length field of entire CONNECT command
+    remain_len = expected_nbytes_encoded;
+    expected_nbytes_encoded += 1 + 1; // 1-byte header and 1-byte length field of entire CONNECT command
 
-    actual_nbytes_decoded = mqttGetPktLenPublish(msg, expected_nbytes_decoded);
-    TEST_ASSERT_EQUAL_INT(expected_nbytes_decoded, actual_nbytes_decoded);
+    actual_nbytes_encoded = mqttGetPktLenPublish(msg, expected_nbytes_encoded);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_encoded, actual_nbytes_encoded);
     TEST_ASSERT_EQUAL_UINT32(remain_len, msg->pkt_len_set.remain_len);
     TEST_ASSERT_EQUAL_UINT32(0x0,        msg->pkt_len_set.props_len);
 
+    actual_nbytes_encoded = mqttEncodePktPublish(unittest_mctx->tx_buf, expected_nbytes_encoded, msg);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERRARGS, actual_nbytes_encoded); // due to empty payload in PUBLISH command
+
+    msg->buff = (byte *)&("put on some message to publish");
+    msg->app_data_len = 30;
+    msg->packet_id = 0;
+    actual_nbytes_encoded = mqttEncodePktPublish(unittest_mctx->tx_buf, expected_nbytes_encoded, msg);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_CTRL_PKT_ID, actual_nbytes_encoded);
+
+    msg->packet_id = mqttGetPktID();
+    actual_nbytes_encoded = mqttEncodePktPublish(unittest_mctx->tx_buf, expected_nbytes_encoded, msg);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_encoded, actual_nbytes_encoded);
+
+    buf = unittest_mctx->tx_buf;
+    TEST_ASSERT_EQUAL_UINT8(msg->qos, ((*buf++ & 0x6) >> 1));
+    TEST_ASSERT_EQUAL_UINT8(msg->pkt_len_set.remain_len, *buf++);
+    // check topic
+    TEST_ASSERT_EQUAL_UINT8(0x00, buf[0]);
+    TEST_ASSERT_EQUAL_UINT8(msg->topic.len, buf[1]);
+    TEST_ASSERT_EQUAL_STRING_LEN(msg->topic.data, &buf[2], msg->topic.len);
+    buf += MQTT_DSIZE_STR_LEN + msg->topic.len;
+    // check packet ID
+    if(msg->qos > MQTT_QOS_0) {
+        TEST_ASSERT_EQUAL_UINT8(msg->packet_id, ((buf[0] << 8) | buf[1]));
+        buf += 2;
+    }
+    // check property
+    TEST_ASSERT_EQUAL_UINT8(msg->pkt_len_set.props_len, buf[0]);
+    buf += 1 + msg->pkt_len_set.props_len;
+    // check PUBLISH payload
+    TEST_ASSERT_EQUAL_STRING_LEN(msg->buff, buf, msg->app_data_len);
+
     XMEMSET(msg, 0x00, sizeof(mqttMsg_t));
-} // end of TEST(mqttCalEncodePktLen, mqttGetPktLenPublish)
+} // end of TEST(mqttCalPktLenThenEncode, publish_message)
 
 
-TEST(mqttCalEncodePktLen, mqttGetPktLenPubResp)
+TEST(mqttCalPktLenThenEncode, publish_response)
 {
     mqttPktPubResp_t *resp = NULL;
-    int expected_nbytes_decoded = 0;
-    int actual_nbytes_decoded   = 0;
+    mqttProp_t  *tmp_prop = NULL;
+    byte        *buf      = NULL;
+    int expected_nbytes_encoded = 0;
+    int actual_nbytes_encoded   = 0;
     word32   remain_len  = 0;
+    word32   props_len   = 0;
 
     resp = &unittest_mctx->send_pkt.pub_resp;
 
     resp->props = NULL;
+    tmp_prop = mqttPropertyCreate(&resp->props, MQTT_PROP_REASON_STR);
+    tmp_prop->body.str.data = (byte *)&("reason_string");
+    tmp_prop->body.str.len  = 13;
+    props_len = 1 + MQTT_DSIZE_STR_LEN + tmp_prop->body.str.len;
+    expected_nbytes_encoded += 1 + props_len;
     resp->reason_code = MQTT_REASON_NO_MATCH_SUBS;
     resp->packet_id   = mqttGetPktID();
-    expected_nbytes_decoded += 1 + 2;
-    actual_nbytes_decoded = mqttGetPktLenPubResp(resp, expected_nbytes_decoded);
-    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_EXCEED_PKT_SZ, actual_nbytes_decoded);
+    expected_nbytes_encoded += 1 + 2;
 
-    remain_len = expected_nbytes_decoded;
-    expected_nbytes_decoded += 1 + 1; // 1-byte header and 1-byte length field of entire CONNECT command
-    actual_nbytes_decoded = mqttGetPktLenPubResp(resp, expected_nbytes_decoded);
-    TEST_ASSERT_EQUAL_INT(expected_nbytes_decoded, actual_nbytes_decoded);
+    actual_nbytes_encoded = mqttGetPktLenPubResp(resp, expected_nbytes_encoded);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_EXCEED_PKT_SZ, actual_nbytes_encoded);
+
+    remain_len = expected_nbytes_encoded;
+    expected_nbytes_encoded += 1 + 1; // 1-byte header and 1-byte length field of entire CONNECT command
+    actual_nbytes_encoded = mqttGetPktLenPubResp(resp, expected_nbytes_encoded);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_encoded, actual_nbytes_encoded);
     TEST_ASSERT_EQUAL_UINT32(remain_len, resp->pkt_len_set.remain_len);
-    TEST_ASSERT_EQUAL_UINT32(0x0,        resp->pkt_len_set.props_len);
+    TEST_ASSERT_EQUAL_UINT32(props_len , resp->pkt_len_set.props_len);
 
+    actual_nbytes_encoded = mqttEncodePktPubResp(NULL, 0, resp, MQTT_PACKET_TYPE_PUBREL);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERRARGS, actual_nbytes_encoded);
+
+    actual_nbytes_encoded = mqttEncodePktPubResp(unittest_mctx->tx_buf, expected_nbytes_encoded, resp, MQTT_PACKET_TYPE_PUBREL);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_encoded, actual_nbytes_encoded);
+
+    buf = &unittest_mctx->tx_buf[2];
+    // packet ID
+    TEST_ASSERT_EQUAL_UINT8(resp->packet_id, ((buf[0] << 8) | buf[1]));
+    buf += 2;
+    // reason code
+    if(resp->reason_code != MQTT_REASON_SUCCESS) {
+        TEST_ASSERT_EQUAL_UINT8(resp->reason_code, *buf++);
+    }
+    // property
+    if(resp->props != NULL) {
+        TEST_ASSERT_EQUAL_UINT8(resp->pkt_len_set.props_len, buf[0]);
+    }
+
+    tmp_prop->body.str.data = NULL;
+    mqttPropertyDel(resp->props);
     XMEMSET(resp, 0x00, sizeof(mqttPktPubResp_t));
-} // end of TEST(mqttCalEncodePktLen, mqttGetPktLenPubResp)
+} // end of TEST(mqttCalPktLenThenEncode, publish_response)
 
+
+TEST(mqttCalPktLenThenEncode, subscribe_unsubscribe)
+{
+    mqttPktSubs_t *subs = NULL;
+    byte   *buf = NULL;
+    int expected_nbytes_encoded = 0;
+    int actual_nbytes_encoded   = 0;
+    word32   remain_len  = 0;
+
+    subs = &unittest_mctx->send_pkt.subs;
+
+    subs->topic_cnt = 1;
+    subs->topics = NULL;
+    subs->props = NULL;
+    expected_nbytes_encoded += 1; // no property in this test
+    subs->packet_id   = mqttGetPktID();
+    expected_nbytes_encoded += 2;
+    actual_nbytes_encoded = mqttGetPktLenSubscribe(subs, expected_nbytes_encoded);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_MALFORMED_DATA, actual_nbytes_encoded);
+
+    subs->topics = XMALLOC(sizeof(mqttTopic_t) * subs->topic_cnt);
+    subs->topics[0].filter.data = (byte *)&("topic_to_subs");
+    subs->topics[0].filter.len  = 13;
+    subs->topics[0].qos         = MQTT_QOS_2;
+    expected_nbytes_encoded += 1 + MQTT_DSIZE_STR_LEN + subs->topics[0].filter.len;
+    actual_nbytes_encoded = mqttGetPktLenSubscribe(subs, expected_nbytes_encoded);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_EXCEED_PKT_SZ, actual_nbytes_encoded);
+
+    remain_len = expected_nbytes_encoded;
+    expected_nbytes_encoded += 1 + 1; // 1-byte header and 1-byte length field of entire CONNECT command
+    actual_nbytes_encoded = mqttGetPktLenSubscribe(subs, expected_nbytes_encoded);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_encoded, actual_nbytes_encoded);
+    TEST_ASSERT_EQUAL_UINT32(remain_len, subs->pkt_len_set.remain_len);
+    TEST_ASSERT_EQUAL_UINT32(0x0       , subs->pkt_len_set.props_len);
+
+    actual_nbytes_encoded = mqttEncodePktSubscribe(unittest_mctx->tx_buf, expected_nbytes_encoded, subs);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_encoded, actual_nbytes_encoded);
+
+    buf = &unittest_mctx->tx_buf[1];
+    TEST_ASSERT_EQUAL_UINT8(subs->pkt_len_set.remain_len, *buf++);
+    // packet ID
+    TEST_ASSERT_EQUAL_UINT8(subs->packet_id, ((buf[0] << 8) | buf[1]));
+    buf += 2;
+    // check property
+    TEST_ASSERT_EQUAL_UINT8(subs->pkt_len_set.props_len, buf[0]);
+    buf += 1 + subs->pkt_len_set.props_len;
+    // check subscribing topic
+    TEST_ASSERT_EQUAL_UINT8(0x00, buf[0]);
+    TEST_ASSERT_EQUAL_UINT8(subs->topics[0].filter.len, buf[1]);
+    TEST_ASSERT_EQUAL_STRING_LEN(subs->topics[0].filter.data, &buf[2], subs->topics[0].filter.len);
+    buf += MQTT_DSIZE_STR_LEN + subs->topics[0].filter.len;
+    TEST_ASSERT_EQUAL_UINT8(subs->topics[0].qos, *buf++);
+
+    // the only difference between mqttGetPktLenUnsubscribe() and mqttGetPktLenSubscribe() :
+    // in SUBSCRIBE command, each topic includes one extra byte representing its QoS, while
+    // UNSUBSCRIBE doesn't include such byte
+    subs->pkt_len_set.remain_len = 0;
+    subs->pkt_len_set.props_len  = 0;
+    expected_nbytes_encoded -= 1 * subs->topic_cnt;
+    remain_len -= 1 * subs->topic_cnt;
+    actual_nbytes_encoded = mqttGetPktLenUnsubscribe((mqttPktUnsubs_t *)subs, expected_nbytes_encoded);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_encoded, actual_nbytes_encoded);
+    TEST_ASSERT_EQUAL_UINT32(remain_len, subs->pkt_len_set.remain_len);
+    TEST_ASSERT_EQUAL_UINT32(0x0       , subs->pkt_len_set.props_len);
+
+    actual_nbytes_encoded = mqttEncodePktUnsubscribe(unittest_mctx->tx_buf, expected_nbytes_encoded, (mqttPktUnsubs_t *)subs);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_encoded, actual_nbytes_encoded);
+
+    buf = &unittest_mctx->tx_buf[2];
+    buf += 2 + 1 + subs->pkt_len_set.props_len; // skip packet ID and peoperty
+    // check unsubscribing topic
+    TEST_ASSERT_EQUAL_UINT8(0x00, buf[0]);
+    TEST_ASSERT_EQUAL_UINT8(subs->topics[0].filter.len, buf[1]);
+    TEST_ASSERT_EQUAL_STRING_LEN(subs->topics[0].filter.data, &buf[2], subs->topics[0].filter.len);
+    buf += MQTT_DSIZE_STR_LEN + subs->topics[0].filter.len;
+
+    XMEMFREE(subs->topics);
+    XMEMSET(subs, 0x00, sizeof(mqttPktSubs_t));
+} // end of TEST(mqttCalPktLenThenEncode, subscribe_unsubscribe)
+
+
+TEST(mqttCalPktLenThenEncode, disconnect)
+{
+    mqttPktDisconn_t *disconn = NULL;
+    mqttProp_t  *tmp_prop = NULL;
+    byte        *buf      = NULL;
+    int expected_nbytes_encoded = 0;
+    int actual_nbytes_encoded   = 0;
+    word32   remain_len  = 0;
+    word32   props_len   = 0;
+
+    disconn = &unittest_mctx->send_pkt.disconn;
+
+    disconn->props = NULL;
+    tmp_prop = mqttPropertyCreate(&disconn->props, MQTT_PROP_REASON_STR);
+    tmp_prop->body.str.data = (byte *)&("disconnect_reason");
+    tmp_prop->body.str.len  = 16;
+    props_len = 1 + MQTT_DSIZE_STR_LEN + tmp_prop->body.str.len;
+    expected_nbytes_encoded += 1 + props_len;
+    disconn->reason_code = MQTT_REASON_DISCONNECT_W_WILL_MSG;
+    expected_nbytes_encoded += 1;
+
+    actual_nbytes_encoded = mqttGetPktLenDisconn(disconn, expected_nbytes_encoded);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_EXCEED_PKT_SZ, actual_nbytes_encoded);
+
+    remain_len = expected_nbytes_encoded;
+    expected_nbytes_encoded += 1 + 1; // 1-byte header and 1-byte length field of entire CONNECT command
+    actual_nbytes_encoded = mqttGetPktLenDisconn(disconn, expected_nbytes_encoded);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_encoded, actual_nbytes_encoded);
+    TEST_ASSERT_EQUAL_UINT32(remain_len, disconn->pkt_len_set.remain_len);
+    TEST_ASSERT_EQUAL_UINT32(props_len , disconn->pkt_len_set.props_len);
+
+    actual_nbytes_encoded = mqttEncodePktDisconn(unittest_mctx->tx_buf, expected_nbytes_encoded, disconn);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_encoded, actual_nbytes_encoded);
+    // checking the encoded packet from here on
+    buf = &unittest_mctx->tx_buf[1];
+    TEST_ASSERT_EQUAL_UINT8(remain_len, *buf++); // in this test, generated CONNECT command is supposed to be less than 0x80 bytes
+    if(disconn->reason_code != MQTT_REASON_NORMAL_DISCONNECTION) {
+        TEST_ASSERT_EQUAL_UINT8(disconn->reason_code, *buf++);
+    }
+    if(disconn->props != NULL) {
+        TEST_ASSERT_EQUAL_UINT8(disconn->pkt_len_set.props_len, buf[0]);
+        buf += 1 + disconn->pkt_len_set.props_len;
+    }
+
+    tmp_prop->body.str.data = NULL;
+    mqttPropertyDel(disconn->props);
+    XMEMSET(disconn, 0x00, sizeof(mqttPktDisconn_t));
+} // end of TEST(mqttCalPktLenThenEncode, disconnect)
+
+
+TEST(mqttCalPktLenThenEncode, enhanced_auth)
+{
+    mqttAuth_t  *auth = NULL;
+    mqttProp_t  *tmp_prop = NULL;
+    int expected_nbytes_encoded = 0;
+    int actual_nbytes_encoded   = 0;
+    const char *auth_mthd_str = (char *)&("design_your_auth_method");
+    const char *auth_data_str = (char *)&("fill_in_your_auth_data");
+    word32   remain_len  = 0;
+    word32   props_len   = 0;
+
+    auth = &unittest_mctx->send_pkt.auth;
+
+    auth->props = NULL;
+    tmp_prop = mqttPropertyCreate(&auth->props, MQTT_PROP_AUTH_METHOD);
+    tmp_prop->body.str.len  = XSTRLEN(auth_mthd_str);
+    tmp_prop->body.str.data = XMALLOC(sizeof(byte) * tmp_prop->body.str.len);
+    XMEMCPY(tmp_prop->body.str.data, auth_mthd_str, tmp_prop->body.str.len);
+    props_len += 1 + MQTT_DSIZE_STR_LEN + tmp_prop->body.str.len;
+
+    tmp_prop = mqttPropertyCreate(&auth->props, MQTT_PROP_AUTH_DATA);
+    tmp_prop->body.str.len  = XSTRLEN(auth_data_str);
+    tmp_prop->body.str.data = XMALLOC(sizeof(byte) * tmp_prop->body.str.len);
+    XMEMCPY(tmp_prop->body.str.data, auth_data_str, tmp_prop->body.str.len);
+    props_len += 1 + MQTT_DSIZE_STR_LEN + tmp_prop->body.str.len;
+    expected_nbytes_encoded += 1 + props_len;
+
+    auth->reason_code = MQTT_REASON_CNTNU_AUTH;
+    expected_nbytes_encoded += 1;
+
+    actual_nbytes_encoded = mqttGetPktLenAuth(auth, expected_nbytes_encoded);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_EXCEED_PKT_SZ, actual_nbytes_encoded);
+
+    remain_len = expected_nbytes_encoded;
+    expected_nbytes_encoded += 1 + 1; // 1-byte header and 1-byte length field of entire CONNECT command
+    actual_nbytes_encoded = mqttGetPktLenAuth(auth, expected_nbytes_encoded);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_encoded, actual_nbytes_encoded);
+    TEST_ASSERT_EQUAL_UINT32(remain_len, auth->pkt_len_set.remain_len);
+    TEST_ASSERT_EQUAL_UINT32(props_len , auth->pkt_len_set.props_len);
+
+    actual_nbytes_encoded = mqttEncodePktAuth(unittest_mctx->tx_buf, expected_nbytes_encoded, auth);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_encoded, actual_nbytes_encoded);
+
+    mqttPropertyDel(auth->props);
+    XMEMSET(auth, 0x00, sizeof(mqttAuth_t));
+} // end of TEST(mqttCalPktLenThenEncode, enhanced_auth)
+
+
+TEST(mqttCalPktLenThenEncode, ping)
+{
+    int expected_nbytes_encoded = 0x2;
+    int actual_nbytes_encoded   = 0;
+    actual_nbytes_encoded = mqttEncodePktPing(unittest_mctx->tx_buf, expected_nbytes_encoded);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_encoded, actual_nbytes_encoded);
+} // end of TEST(mqttCalPktLenThenEncode, ping)
 
 
 
@@ -675,15 +998,16 @@ TEST(mqttCalEncodePktLen, mqttGetPktLenPubResp)
 static void RunAllTestGroups(void)
 {
     unittest_mctx = XMALLOC(sizeof(mqttCtx_t));
-    unittest_mctx->tx_buf     = XMALLOC(sizeof(byte) * 0x40);
+    // be aware of encoding / decoding message may require more buffer space
+    unittest_mctx->tx_buf     = XMALLOC(sizeof(byte) * 0x100);
     unittest_mctx->tx_buf_len = 0x40;
-    unittest_mctx->rx_buf     = XMALLOC(sizeof(byte) * 0x40);
+    unittest_mctx->rx_buf     = XMALLOC(sizeof(byte) * 0x100);
     unittest_mctx->rx_buf_len = 0x40;
 
     RUN_TEST_GROUP(mqttEncodeElement);
     RUN_TEST_GROUP(mqttDecodeElement);
     RUN_TEST_GROUP(mqttGetPktID);
-    RUN_TEST_GROUP(mqttCalEncodePktLen);
+    RUN_TEST_GROUP(mqttCalPktLenThenEncode);
 
     XMEMFREE(unittest_mctx->tx_buf);
     XMEMFREE(unittest_mctx->rx_buf);
