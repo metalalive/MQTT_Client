@@ -199,6 +199,9 @@ int mqttDecodeProps( byte *buf, mqttProp_t **props , word32  props_len )
     while(props_len > 0)
     {   // first byte of each property must represent the type
         len           = mqttDecodeVarBytes((const byte *)buf, &ptype);
+        if((len > MQTT_PKT_MAX_BYTES_REMAIN_LEN) || (ptype > MQTT_PROP_MAX_ID)) {
+            return MQTT_RESP_MALFORMED_DATA;
+        }
         props_len    -= len;
         copied_len   += len;
         buf          += len;
@@ -673,10 +676,14 @@ int  mqttDecodePktConnack( byte *rx_buf, word32 rx_buf_len,  mqttPktHeadConnack_
     if(end_of_buf > curr_buf_pos) {
         // copy all properties from buffer
         curr_buf_pos += mqttDecodeVarBytes( (const byte *)curr_buf_pos, &props_len );
+        if((curr_buf_pos + props_len) > end_of_buf) {
+            return MQTT_RESP_MALFORMED_DATA;
+        } // report error because property length is greater than remaining length of this command
         int autual_copied_len  = mqttDecodeProps( curr_buf_pos, &connack->props, props_len );
         if(autual_copied_len < 0){ return autual_copied_len; }
         curr_buf_pos  += autual_copied_len ;
     }
+    if(curr_buf_pos != end_of_buf) { return MQTT_RESP_MALFORMED_DATA; }
     return  (fx_head_len + remain_len);
 } // end of mqttDecodePktConnack
 
@@ -762,7 +769,6 @@ int  mqttEncodePktPublish( byte *tx_buf, word32 tx_buf_len, struct __mqttMsg  *m
 
 
 
-
 int  mqttDecodePktPublish( byte *rx_buf, word32 rx_buf_len, struct __mqttMsg *msg )
 {
     if((msg == NULL) || (rx_buf == NULL) || (rx_buf_len == 0)) { 
@@ -776,15 +782,17 @@ int  mqttDecodePktPublish( byte *rx_buf, word32 rx_buf_len, struct __mqttMsg *ms
     int      curr_cp_len  = 0;
     word16   tmp = 0;
     byte    *curr_buf_pos ;
+    byte    *end_of_buf ;
 
     fx_head_len = mqttDecodeFxHeader( rx_buf, rx_buf_len, &payload_len, MQTT_PACKET_TYPE_PUBLISH,
                                       &msg->retain,  (byte *)&msg->qos, &msg->duplicate );
     if(fx_head_len == 0) { return MQTT_RESP_ERR_CTRL_PKT_TYPE; }
-    curr_buf_pos  = &rx_buf[fx_head_len]; 
+    curr_buf_pos = &rx_buf[fx_head_len];
+    end_of_buf   =  curr_buf_pos + payload_len;
     // variable header : topic filter, there must be string of topic, check its length
     tmp = 0;
     mqttDecodeStr( curr_buf_pos, NULL, &tmp );
-    if(tmp == 0){ return MQTT_RESP_MALFORMED_DATA; }
+    if(tmp == 0){ return MQTT_RESP_INVALID_TOPIC; }
     msg->topic.len  = tmp;
     msg->topic.data = (byte *)XMALLOC(sizeof(byte) * tmp);
     var_head_len  = mqttDecodeStr( curr_buf_pos, msg->topic.data, &tmp );
@@ -797,6 +805,9 @@ int  mqttDecodePktPublish( byte *rx_buf, word32 rx_buf_len, struct __mqttMsg *ms
     }
     // variable header : optional properties
     tmp = mqttDecodeVarBytes( (const byte *)curr_buf_pos, &props_len );
+    if((curr_buf_pos + props_len) > end_of_buf) {
+        return MQTT_RESP_MALFORMED_DATA;
+    } // report error because of incorrect property length
     var_head_len  += tmp;
     curr_buf_pos  += tmp;
     var_head_len  += props_len;
@@ -812,6 +823,8 @@ int  mqttDecodePktPublish( byte *rx_buf, word32 rx_buf_len, struct __mqttMsg *ms
     msg->app_data_len = payload_len; 
     curr_cp_len = XMIN( payload_len, rx_buf_len - fx_head_len - var_head_len);
     XMEMCPY( &msg->buff[0], curr_buf_pos, curr_cp_len );
+    curr_buf_pos += curr_cp_len;
+    if(curr_buf_pos != end_of_buf) { return MQTT_RESP_MALFORMED_DATA; }
     return (fx_head_len + var_head_len + curr_cp_len);
 } // end of mqttDecodePktPublish
 
@@ -986,11 +999,15 @@ int  mqttDecodePktPubResp( byte *rx_buf, word32 rx_buf_len, mqttPktPubResp_t *re
     if(end_of_buf > curr_buf_pos) {
         // copy all properties from buffer
         curr_buf_pos += mqttDecodeVarBytes( (const byte *)curr_buf_pos, &props_len );
+        if((curr_buf_pos + props_len) > end_of_buf) {
+            return MQTT_RESP_MALFORMED_DATA;
+        } // report error because of incorrect property length
         int autual_copied_len = mqttDecodeProps( curr_buf_pos, &resp->props, props_len );
         if(autual_copied_len < 0){ return autual_copied_len; }
         if(autual_copied_len != props_len) { return MQTT_RESP_ERR_PROP; }
         curr_buf_pos  += autual_copied_len ; // at here , autual_copied_len must be equal to props_len
     }
+    if(curr_buf_pos != end_of_buf) { return MQTT_RESP_MALFORMED_DATA; }
     return  (fx_head_len + remain_len);
 } // end of mqttDecodePktPubResp
 
@@ -1015,6 +1032,9 @@ int  mqttDecodePktSuback( byte *rx_buf, word32 rx_buf_len, mqttPktSuback_t *suba
     end_of_buf    = curr_buf_pos + remain_len;
     curr_buf_pos += mqttDecodeWord16( curr_buf_pos, &suback->packet_id );
     curr_buf_pos += mqttDecodeVarBytes( (const byte *)curr_buf_pos, &props_len );
+    if((curr_buf_pos + props_len) > end_of_buf) {
+        return MQTT_RESP_MALFORMED_DATA;
+    } // report error because of incorrect property length
 
     int autual_copied_len = mqttDecodeProps( curr_buf_pos, &suback->props, props_len );
     if(autual_copied_len < 0){ return autual_copied_len; }
@@ -1027,6 +1047,8 @@ int  mqttDecodePktSuback( byte *rx_buf, word32 rx_buf_len, mqttPktSuback_t *suba
     suback->return_codes = (byte *) XMALLOC(sizeof(byte) * reason_codes_len); // TODO: find better way to allocate / free the space
     if(suback->return_codes == NULL) { return MQTT_RESP_ERRMEM; }
     XMEMCPY( suback->return_codes, curr_buf_pos, reason_codes_len);
+    curr_buf_pos += reason_codes_len;
+    if(curr_buf_pos != end_of_buf) { return MQTT_RESP_MALFORMED_DATA; }
     return  (fx_head_len + remain_len);
 } // end of mqttDecodePktSuback
 
@@ -1051,6 +1073,9 @@ int  mqttDecodePktUnsuback( byte *rx_buf, word32 rx_buf_len, mqttPktUnsuback_t *
     end_of_buf    = curr_buf_pos + remain_len;
     curr_buf_pos += mqttDecodeWord16( curr_buf_pos, &unsuback->packet_id );
     curr_buf_pos += mqttDecodeVarBytes( (const byte *)curr_buf_pos, &props_len );
+    if((curr_buf_pos + props_len) > end_of_buf) {
+        return MQTT_RESP_MALFORMED_DATA;
+    } // report error because of incorrect property length
 
     int autual_copied_len = mqttDecodeProps( curr_buf_pos, &unsuback->props, props_len );
     if(autual_copied_len < 0){ return autual_copied_len; }
@@ -1063,6 +1088,8 @@ int  mqttDecodePktUnsuback( byte *rx_buf, word32 rx_buf_len, mqttPktUnsuback_t *
     unsuback->return_codes = (byte *) XMALLOC(sizeof(byte) * reason_codes_len); // TODO: find better way to allocate / free the space
     if(unsuback->return_codes == NULL) { return MQTT_RESP_ERRMEM; }
     XMEMCPY(unsuback->return_codes, curr_buf_pos, reason_codes_len);
+    curr_buf_pos += reason_codes_len;
+    if(curr_buf_pos != end_of_buf) { return MQTT_RESP_MALFORMED_DATA; }
     return  (fx_head_len + remain_len);
 } // end of mqttDecodePktUnsuback
 
@@ -1088,6 +1115,9 @@ int  mqttDecodePktAuth( byte *rx_buf, word32 rx_buf_len, mqttAuth_t *auth )
 
     if(end_of_buf > curr_buf_pos) { // there might not be property sections in the AUTH packet
         curr_buf_pos += mqttDecodeVarBytes( (const byte *)curr_buf_pos, &props_len );
+        if((curr_buf_pos + props_len) > end_of_buf) {
+            return MQTT_RESP_MALFORMED_DATA;
+        } // report error because of incorrect property length
         int autual_copied_len = mqttDecodeProps( curr_buf_pos, &auth->props, props_len );
         if(autual_copied_len < 0){ return autual_copied_len; }
         if(autual_copied_len != props_len) { return MQTT_RESP_ERR_PROP; }
@@ -1122,6 +1152,9 @@ int  mqttDecodePktDisconn( byte *rx_buf,  word32 rx_buf_len, mqttPktDisconn_t *d
     // there might not be property sections in the AUTH packet
     if(end_of_buf > curr_buf_pos) {
         curr_buf_pos += mqttDecodeVarBytes( (const byte *)curr_buf_pos, &props_len );
+        if((curr_buf_pos + props_len) > end_of_buf) {
+            return MQTT_RESP_MALFORMED_DATA;
+        } // report error because of incorrect property length
         int autual_copied_len = mqttDecodeProps( curr_buf_pos, &disconn->props, props_len );
         if(autual_copied_len < 0){ return autual_copied_len; }
         if(autual_copied_len != props_len) { return MQTT_RESP_ERR_PROP; }

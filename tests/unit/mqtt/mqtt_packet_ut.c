@@ -117,6 +117,7 @@ TEST_GROUP(mqttEncodeElement);
 TEST_GROUP(mqttDecodeElement);
 TEST_GROUP(mqttGetPktID);
 TEST_GROUP(mqttCalPktLenThenEncode);
+TEST_GROUP(mqttDecodeSingleCommand);
 
 
 TEST_GROUP_RUNNER(mqttEncodeElement)
@@ -153,6 +154,13 @@ TEST_GROUP_RUNNER(mqttCalPktLenThenEncode)
     RUN_TEST_CASE(mqttCalPktLenThenEncode, ping);
 }
 
+TEST_GROUP_RUNNER(mqttDecodeSingleCommand)
+{
+    RUN_TEST_CASE(mqttDecodeSingleCommand, connack);
+    RUN_TEST_CASE(mqttDecodeSingleCommand, publish_message);
+    RUN_TEST_CASE(mqttDecodeSingleCommand, publish_response);
+}
+
 
 TEST_SETUP(mqttEncodeElement)
 {}
@@ -166,6 +174,9 @@ TEST_SETUP(mqttGetPktID)
 TEST_SETUP(mqttCalPktLenThenEncode)
 {}
 
+TEST_SETUP(mqttDecodeSingleCommand)
+{}
+
 TEST_TEAR_DOWN(mqttEncodeElement)
 {}
 
@@ -176,6 +187,9 @@ TEST_TEAR_DOWN(mqttGetPktID)
 {}
 
 TEST_TEAR_DOWN(mqttCalPktLenThenEncode)
+{}
+
+TEST_TEAR_DOWN(mqttDecodeSingleCommand)
 {}
 
 
@@ -993,6 +1007,175 @@ TEST(mqttCalPktLenThenEncode, ping)
 } // end of TEST(mqttCalPktLenThenEncode, ping)
 
 
+TEST(mqttDecodeSingleCommand, connack)
+{
+    mqttPktHeadConnack_t *connack = NULL;
+    int expected_nbytes_decoded = 0;
+    int actual_nbytes_decoded   = 0;
+    byte *buf = NULL;
+    mqttReasonCode  expected_reason_code = MQTT_REASON_SUCCESS;
+
+    buf = unittest_mctx->rx_buf;
+    connack = &unittest_mctx->recv_pkt.connack;
+    XMEMSET(connack, 0x00, sizeof(mqttPktHeadConnack_t));
+
+    buf[0] = 0;
+    buf[1] = 0;
+    expected_nbytes_decoded = 2;
+    actual_nbytes_decoded = mqttDecodePktConnack(unittest_mctx->rx_buf, expected_nbytes_decoded, connack);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_CTRL_PKT_TYPE, actual_nbytes_decoded);
+
+    *buf++ = MQTT_PACKET_TYPE_CONNACK << 4; // command type
+    buf++; // update remaining length later
+    *buf++ = 0x0; // no flag is set in this case
+    *buf++ = expected_reason_code; // reason code
+    *buf++ = 0x06; // length of property in CONNACK test.  Give incorrect length for the property
+    *buf++ = 0xfe; // give non-existent property type
+    *buf++ = 0xdc;
+    *buf++ = 0xba;
+    *buf++ = 0x98;
+    *buf++ = 0x76;
+    expected_nbytes_decoded  = (byte)(buf - &unittest_mctx->rx_buf[2]);
+    unittest_mctx->rx_buf[1] = expected_nbytes_decoded;
+    expected_nbytes_decoded += 1 + 1;
+    actual_nbytes_decoded = mqttDecodePktConnack(unittest_mctx->rx_buf, expected_nbytes_decoded, connack);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_MALFORMED_DATA, actual_nbytes_decoded);
+
+    buf[-6] = 0x05; // give correct length of property in CONNACK test
+    actual_nbytes_decoded = mqttDecodePktConnack(unittest_mctx->rx_buf, expected_nbytes_decoded, connack);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_MALFORMED_DATA, actual_nbytes_decoded);
+    TEST_ASSERT_EQUAL_UINT(NULL, connack->props);
+
+    buf[-5] = MQTT_PROP_SESSION_EXPIRY_INTVL; // give correct type : session expire interval
+    actual_nbytes_decoded = mqttDecodePktConnack(unittest_mctx->rx_buf, expected_nbytes_decoded, connack);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_decoded, actual_nbytes_decoded);
+    TEST_ASSERT_NOT_EQUAL(NULL, connack->props);
+    TEST_ASSERT_EQUAL_UINT(NULL, connack->props->next);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PROP_SESSION_EXPIRY_INTVL, connack->props->type);
+    TEST_ASSERT_EQUAL_UINT32(0xdcba9876 , connack->props->body.u32);
+
+    mqttPropertyDel(connack->props);
+    XMEMSET(connack, 0x00, sizeof(mqttPktHeadConnack_t));
+} // end of TEST(mqttDecodeSingleCommand, connack)
+
+
+TEST(mqttDecodeSingleCommand, publish_message)
+{
+    mqttMsg_t *msg = NULL;
+    byte      *buf = NULL;
+    int expected_nbytes_decoded = 0;
+    int actual_nbytes_decoded   = 0;
+
+    buf = unittest_mctx->rx_buf;
+    msg = &unittest_mctx->recv_pkt.pub_msg;
+    XMEMSET(msg, 0x00, sizeof(mqttMsg_t));
+
+    buf[0] = 0;
+    buf[1] = 0;
+    expected_nbytes_decoded = 2;
+    actual_nbytes_decoded = mqttDecodePktPublish(unittest_mctx->rx_buf, expected_nbytes_decoded, msg);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_CTRL_PKT_TYPE, actual_nbytes_decoded);
+
+    buf[0] = MQTT_PACKET_TYPE_PUBLISH << 4;
+    buf[1] = 0x2; // remain length = 2 means PUBLISH without any topic, which is incorrect usage context.
+    buf[2] = 0x0;
+    buf[3] = 0x0;
+    expected_nbytes_decoded = 4;
+    actual_nbytes_decoded = mqttDecodePktPublish(unittest_mctx->rx_buf, expected_nbytes_decoded, msg);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_INVALID_TOPIC, actual_nbytes_decoded);
+
+    *buf++ = (MQTT_PACKET_TYPE_PUBLISH << 4) | 0xb; // retain & duplicate flag is set, QoS = 1
+    buf++; // update remaining length later
+    *buf++ = 0x0;
+    *buf++ = 0x3; // topic string
+    *buf++ = 'z';
+    *buf++ = 'Z';
+    *buf++ = 'o';
+    *buf++ = 0x0; // packet ID
+    *buf++ = mqttGetPktID();
+    *buf++ = 0xfe; // give wrong property length
+    *buf++ = 'm';
+    *buf++ = 's';
+    *buf++ = 'g';
+    expected_nbytes_decoded  = (byte)(buf - &unittest_mctx->rx_buf[2]);
+    unittest_mctx->rx_buf[1] = expected_nbytes_decoded;
+    expected_nbytes_decoded += 1 + 1;
+    actual_nbytes_decoded = mqttDecodePktPublish(unittest_mctx->rx_buf, expected_nbytes_decoded, msg);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_MALFORMED_DATA, actual_nbytes_decoded);
+    TEST_ASSERT_EQUAL_UINT8(0x1, msg->retain);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_QOS_1, msg->qos);
+    TEST_ASSERT_EQUAL_UINT8(0x1, msg->duplicate);
+    TEST_ASSERT_EQUAL_UINT16(0x3, msg->topic.len);
+    TEST_ASSERT_EQUAL_STRING_LEN((byte *)&("zZo"), msg->topic.data, msg->topic.len);
+    XMEMFREE(msg->topic.data);
+    msg->topic.data = NULL;
+
+    buf[-4] = 0x2; // modify property length, but property type is still wrong
+    buf[-3] = MQTT_PROP_MAX_ID + 1;
+    actual_nbytes_decoded = mqttDecodePktPublish(unittest_mctx->rx_buf, expected_nbytes_decoded, msg);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_MALFORMED_DATA, actual_nbytes_decoded);
+    XMEMFREE(msg->topic.data);
+    msg->topic.data = NULL;
+
+    buf[-4] = 0x0; // no property
+    buf[-3] = 'm'; // supposed to be the start of PUBLISH payload
+    actual_nbytes_decoded = mqttDecodePktPublish(unittest_mctx->rx_buf, expected_nbytes_decoded, msg);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_decoded, actual_nbytes_decoded);
+    TEST_ASSERT_EQUAL_UINT32(0x3, msg->app_data_len);
+    TEST_ASSERT_EQUAL_STRING_LEN((byte *)&("msg"), msg->buff, msg->app_data_len);
+
+    XMEMFREE(msg->buff);
+    msg->buff = NULL;
+    XMEMFREE(msg->topic.data);
+    msg->topic.data = NULL;
+    XMEMSET(msg, 0x00, sizeof(mqttMsg_t));
+} // end of TEST(mqttDecodeSingleCommand, publish_message)
+
+
+TEST(mqttDecodeSingleCommand, publish_response)
+{
+    mqttPktPubResp_t *resp = NULL;
+    byte  *buf = NULL;
+    int expected_nbytes_decoded = 0;
+    int actual_nbytes_decoded   = 0;
+    word16 expected_pkt_id = mqttGetPktID();
+
+    buf  =  unittest_mctx->rx_buf;
+    resp = &unittest_mctx->recv_pkt.pub_resp;
+    XMEMSET(resp, 0x00, sizeof(mqttPktPubResp_t));
+
+    buf[0] = 0;
+    buf[1] = 0;
+    expected_nbytes_decoded = 2;
+    actual_nbytes_decoded = mqttDecodePktPubResp(unittest_mctx->rx_buf, expected_nbytes_decoded, resp, MQTT_PACKET_TYPE_PUBACK);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_CTRL_PKT_TYPE, actual_nbytes_decoded);
+
+    *buf++ = MQTT_PACKET_TYPE_PUBACK << 4;
+    buf++; // update remaining length later
+    *buf++ = 0x0; // packet ID
+    *buf++ = expected_pkt_id;
+    *buf++ = MQTT_REASON_NO_MATCH_SUBS;
+    *buf++ = 0xf8; // wrong property length
+    expected_nbytes_decoded  = (byte)(buf - &unittest_mctx->rx_buf[2]);
+    unittest_mctx->rx_buf[1] = expected_nbytes_decoded;
+    expected_nbytes_decoded += 1 + 1;
+    actual_nbytes_decoded = mqttDecodePktPubResp(unittest_mctx->rx_buf, expected_nbytes_decoded, resp, MQTT_PACKET_TYPE_PUBACK);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_MALFORMED_DATA, actual_nbytes_decoded);
+
+    buf[-1] = 0; // zero property length
+    actual_nbytes_decoded = mqttDecodePktPubResp(unittest_mctx->rx_buf, expected_nbytes_decoded, resp, MQTT_PACKET_TYPE_PUBACK);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_decoded, actual_nbytes_decoded);
+    TEST_ASSERT_EQUAL_UINT16(expected_pkt_id, resp->packet_id);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_NO_MATCH_SUBS, resp->reason_code);
+
+    XMEMSET(resp, 0x00, sizeof(mqttPktPubResp_t));
+} // end of TEST(mqttDecodeSingleCommand, publish_response)
+
+
+
+
+
+
 
 
 static void RunAllTestGroups(void)
@@ -1008,6 +1191,7 @@ static void RunAllTestGroups(void)
     RUN_TEST_GROUP(mqttDecodeElement);
     RUN_TEST_GROUP(mqttGetPktID);
     RUN_TEST_GROUP(mqttCalPktLenThenEncode);
+    RUN_TEST_GROUP(mqttDecodeSingleCommand);
 
     XMEMFREE(unittest_mctx->tx_buf);
     XMEMFREE(unittest_mctx->rx_buf);
