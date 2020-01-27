@@ -1123,6 +1123,7 @@ int  mqttDecodePktAuth( byte *rx_buf, word32 rx_buf_len, mqttAuth_t *auth )
         if(autual_copied_len != props_len) { return MQTT_RESP_ERR_PROP; }
         curr_buf_pos  += autual_copied_len ; // at here , autual_copied_len must be equal to props_len
     }
+    if(curr_buf_pos != end_of_buf) { return MQTT_RESP_MALFORMED_DATA; }
     return  (fx_head_len + remain_len);
 } // end of mqttDecodePktAuth
 

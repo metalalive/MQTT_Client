@@ -3,6 +3,7 @@
 #include "unity_fixture.h"
 
 static mqttCtx_t *unittest_mctx;
+static mqttRespStatus  mock_net_pktwrite_return_val;
 
 // ------------------- global variables that are accessed by implementation files -------------------
 // find appropriate data type for each property defined in MQTT protocol
@@ -111,6 +112,16 @@ void   mqttPropertyDel( mqttProp_t *head )
 } // end of mqttPropertyDel
 
 
+#ifdef  MQTT_CFG_USE_TLS
+int  mqttSecurePktSend(mqttCtx_t *mctx, byte *buf, word32 buf_len)
+#else
+int  mqttSysPktWrite( void **extsysobjs, byte *buf, word32 buf_len )
+#endif // end of MQTT_CFG_USE_TLS
+{
+    return mock_net_pktwrite_return_val;
+}
+
+
 // --------------------------------------------------------------------------------------
 
 TEST_GROUP(mqttEncodeElement);
@@ -118,6 +129,7 @@ TEST_GROUP(mqttDecodeElement);
 TEST_GROUP(mqttGetPktID);
 TEST_GROUP(mqttCalPktLenThenEncode);
 TEST_GROUP(mqttDecodeSingleCommand);
+TEST_GROUP(mqttPacketIO);
 
 
 TEST_GROUP_RUNNER(mqttEncodeElement)
@@ -159,6 +171,15 @@ TEST_GROUP_RUNNER(mqttDecodeSingleCommand)
     RUN_TEST_CASE(mqttDecodeSingleCommand, connack);
     RUN_TEST_CASE(mqttDecodeSingleCommand, publish_message);
     RUN_TEST_CASE(mqttDecodeSingleCommand, publish_response);
+    RUN_TEST_CASE(mqttDecodeSingleCommand, subscribe_ack);
+    RUN_TEST_CASE(mqttDecodeSingleCommand, unsubscribe_ack);
+    RUN_TEST_CASE(mqttDecodeSingleCommand, enhanced_auth);
+    RUN_TEST_CASE(mqttDecodeSingleCommand, disconnect);
+}
+
+TEST_GROUP_RUNNER(mqttPacketIO)
+{
+    RUN_TEST_CASE(mqttPacketIO, send_once);
 }
 
 
@@ -177,6 +198,9 @@ TEST_SETUP(mqttCalPktLenThenEncode)
 TEST_SETUP(mqttDecodeSingleCommand)
 {}
 
+TEST_SETUP(mqttPacketIO)
+{}
+
 TEST_TEAR_DOWN(mqttEncodeElement)
 {}
 
@@ -190,6 +214,9 @@ TEST_TEAR_DOWN(mqttCalPktLenThenEncode)
 {}
 
 TEST_TEAR_DOWN(mqttDecodeSingleCommand)
+{}
+
+TEST_TEAR_DOWN(mqttPacketIO)
 {}
 
 
@@ -1172,8 +1199,179 @@ TEST(mqttDecodeSingleCommand, publish_response)
 } // end of TEST(mqttDecodeSingleCommand, publish_response)
 
 
+TEST(mqttDecodeSingleCommand, subscribe_ack)
+{
+    mqttPktSuback_t *suback = NULL;
+    byte  *buf = NULL;
+    int expected_nbytes_decoded = 0;
+    int actual_nbytes_decoded   = 0;
+    word16 expected_pkt_id = mqttGetPktID();
+
+    buf = unittest_mctx->rx_buf;
+    suback = &unittest_mctx->recv_pkt.suback;
+    XMEMSET(suback, 0x00, sizeof(mqttPktSuback_t));
+
+    *buf++ = MQTT_PACKET_TYPE_SUBACK << 4;
+    buf++; // update remaining length later
+    *buf++ = 0x0; // packet ID
+    *buf++ = expected_pkt_id;
+    *buf++ = 0x00; // zero property length
+    *buf++ = MQTT_REASON_GRANTED_QOS_2;
+    *buf++ = MQTT_REASON_GRANTED_QOS_1;
+    *buf++ = MQTT_REASON_GRANTED_QOS_0;
+    *buf++ = MQTT_REASON_GRANTED_QOS_1;
+    *buf++ = MQTT_REASON_GRANTED_QOS_2;
+    expected_nbytes_decoded  = (byte)(buf - &unittest_mctx->rx_buf[2]);
+    unittest_mctx->rx_buf[1] = expected_nbytes_decoded;
+    expected_nbytes_decoded += 1 + 1;
+    actual_nbytes_decoded = mqttDecodePktSuback(unittest_mctx->rx_buf, expected_nbytes_decoded, suback);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_decoded, actual_nbytes_decoded);
+    TEST_ASSERT_EQUAL_UINT16(expected_pkt_id, suback->packet_id);
+    TEST_ASSERT_EQUAL_UINT(NULL, suback->props);
+    TEST_ASSERT_NOT_EQUAL(NULL, suback->return_codes);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_GRANTED_QOS_2, suback->return_codes[0]);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_GRANTED_QOS_1, suback->return_codes[1]);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_GRANTED_QOS_0, suback->return_codes[2]);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_GRANTED_QOS_1, suback->return_codes[3]);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_GRANTED_QOS_2, suback->return_codes[4]);
+
+    XMEMFREE(suback->return_codes);
+    XMEMSET(suback, 0x00, sizeof(mqttPktSuback_t));
+} // end of TEST(mqttDecodeSingleCommand, subscribe_ack)
 
 
+TEST(mqttDecodeSingleCommand, unsubscribe_ack)
+{
+    mqttPktUnsuback_t *unsuback = NULL;
+    byte  *buf = NULL;
+    int expected_nbytes_decoded = 0;
+    int actual_nbytes_decoded   = 0;
+    word16 expected_pkt_id = mqttGetPktID();
+
+    buf = unittest_mctx->rx_buf;
+    unsuback = &unittest_mctx->recv_pkt.unsuback;
+    XMEMSET(unsuback, 0x00, sizeof(mqttPktUnsuback_t));
+
+    *buf++ = MQTT_PACKET_TYPE_UNSUBACK << 4;
+    buf++; // update remaining length later
+    *buf++ = 0x0; // packet ID
+    *buf++ = expected_pkt_id;
+    *buf++ = 0x00; // zero property length
+    *buf++ = MQTT_REASON_SUCCESS;
+    *buf++ = MQTT_REASON_NO_SUB_EXIST;
+    *buf++ = MQTT_REASON_TOPIC_FILTER_INVALID;
+    expected_nbytes_decoded  = (byte)(buf - &unittest_mctx->rx_buf[2]);
+    unittest_mctx->rx_buf[1] = expected_nbytes_decoded;
+    expected_nbytes_decoded += 1 + 1;
+    actual_nbytes_decoded = mqttDecodePktUnsuback(unittest_mctx->rx_buf, expected_nbytes_decoded, unsuback);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_decoded, actual_nbytes_decoded);
+    TEST_ASSERT_EQUAL_UINT16(expected_pkt_id, unsuback->packet_id);
+    TEST_ASSERT_EQUAL_UINT(NULL, unsuback->props);
+    TEST_ASSERT_NOT_EQUAL(NULL, unsuback->return_codes);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_SUCCESS, unsuback->return_codes[0]);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_NO_SUB_EXIST, unsuback->return_codes[1]);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_TOPIC_FILTER_INVALID, unsuback->return_codes[2]);
+
+    XMEMFREE(unsuback->return_codes);
+    XMEMSET(unsuback, 0x00, sizeof(mqttPktUnsuback_t));
+} // end of TEST(mqttDecodeSingleCommand, unsubscribe_ack)
+
+
+TEST(mqttDecodeSingleCommand, enhanced_auth)
+{
+    mqttAuth_t *auth = NULL;
+    byte  *buf = NULL;
+    int expected_nbytes_decoded = 0;
+    int actual_nbytes_decoded   = 0;
+
+    buf = unittest_mctx->rx_buf;
+    auth = &unittest_mctx->recv_pkt.auth;
+    XMEMSET(auth, 0x00, sizeof(mqttAuth_t));
+
+    *buf++ = MQTT_PACKET_TYPE_AUTH << 4;
+    buf++; // update remaining length later
+    *buf++ = MQTT_REASON_REAUTH;
+    *buf++ = 0x8; // property length
+    *buf++ = MQTT_PROP_AUTH_METHOD; // property type : auth method
+    *buf++ = 0;
+    *buf++ = 1;
+    *buf++ = 'c';
+    *buf++ = MQTT_PROP_AUTH_DATA; // property type : auth data
+    *buf++ = 0;
+    *buf++ = 1;
+    *buf++ = 'b';
+    expected_nbytes_decoded  = (byte)(buf - &unittest_mctx->rx_buf[2]);
+    unittest_mctx->rx_buf[1] = expected_nbytes_decoded;
+    expected_nbytes_decoded += 1 + 1;
+    actual_nbytes_decoded = mqttDecodePktAuth(unittest_mctx->rx_buf, expected_nbytes_decoded, auth);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_decoded, actual_nbytes_decoded);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_REAUTH, auth->reason_code);
+    TEST_ASSERT_NOT_EQUAL(NULL, auth->props);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PROP_AUTH_METHOD, auth->props->type);
+    TEST_ASSERT_EQUAL_UINT16(0x1, auth->props->body.str.len);
+    TEST_ASSERT_NOT_EQUAL(NULL, auth->props->next);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PROP_AUTH_DATA, auth->props->next->type);
+    TEST_ASSERT_EQUAL_UINT16(0x1, auth->props->next->body.str.len);
+
+    mqttPropertyDel(auth->props);
+    XMEMSET(auth, 0x00, sizeof(mqttAuth_t));
+} // end of TEST(mqttDecodeSingleCommand, enhanced_auth)
+
+
+TEST(mqttDecodeSingleCommand, disconnect)
+{
+    mqttPktDisconn_t *disconn = NULL;
+    byte  *buf = NULL;
+    int expected_nbytes_decoded = 0;
+    int actual_nbytes_decoded   = 0;
+
+    buf = unittest_mctx->rx_buf;
+    disconn = &unittest_mctx->recv_pkt.disconn;
+    XMEMSET(disconn, 0x00, sizeof(mqttPktDisconn_t));
+
+    buf[0] = (MQTT_PACKET_TYPE_DISCONNECT << 4) | 0x1;
+    buf[1] = 0;
+    expected_nbytes_decoded = 2;
+    actual_nbytes_decoded = mqttDecodePktDisconn(unittest_mctx->rx_buf, expected_nbytes_decoded, disconn);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_MALFORMED_DATA, actual_nbytes_decoded);
+
+    *buf++ = MQTT_PACKET_TYPE_DISCONNECT << 4;
+    buf++;
+    *buf++ = MQTT_REASON_PROTOCOL_ERR;
+    *buf++ = 0x6; // property length
+    *buf++ = MQTT_PROP_REASON_STR;
+    *buf++ = 0x0;
+    *buf++ = 0x3;
+    *buf++ = 'A';
+    *buf++ = 'B';
+    *buf++ = 'C';
+    expected_nbytes_decoded  = (byte)(buf - &unittest_mctx->rx_buf[2]);
+    unittest_mctx->rx_buf[1] = expected_nbytes_decoded;
+    expected_nbytes_decoded += 1 + 1;
+    actual_nbytes_decoded = mqttDecodePktDisconn(unittest_mctx->rx_buf, expected_nbytes_decoded, disconn);
+    TEST_ASSERT_EQUAL_INT(expected_nbytes_decoded, actual_nbytes_decoded);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_REASON_PROTOCOL_ERR, disconn->reason_code);
+    TEST_ASSERT_NOT_EQUAL(NULL, disconn->props);
+    TEST_ASSERT_EQUAL_UINT8(MQTT_PROP_REASON_STR, disconn->props->type);
+    TEST_ASSERT_EQUAL_UINT16(0x3, disconn->props->body.str.len);
+    TEST_ASSERT_EQUAL_STRING_LEN((byte *)&("ABC"), disconn->props->body.str.data, disconn->props->body.str.len);
+
+    mqttPropertyDel(disconn->props);
+    XMEMSET(disconn, 0x00, sizeof(mqttPktDisconn_t));
+} // end of TEST(mqttDecodeSingleCommand, disconnect)
+
+
+TEST(mqttPacketIO, send_once)
+{
+    mqttRespStatus status = MQTT_RESP_OK;
+    mock_net_pktwrite_return_val = (mqttRespStatus) MQTT_RESP_ERR_TRANSMIT;
+    status = mqttPktWrite(unittest_mctx, unittest_mctx->tx_buf, unittest_mctx->tx_buf_len);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR_TRANSMIT, status);
+
+    mock_net_pktwrite_return_val = 0x30;
+    status = mqttPktWrite(unittest_mctx, unittest_mctx->tx_buf, unittest_mctx->tx_buf_len);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+} // end of TEST(mqttPacketIO, send_once)
 
 
 
@@ -1192,6 +1390,7 @@ static void RunAllTestGroups(void)
     RUN_TEST_GROUP(mqttGetPktID);
     RUN_TEST_GROUP(mqttCalPktLenThenEncode);
     RUN_TEST_GROUP(mqttDecodeSingleCommand);
+    RUN_TEST_GROUP(mqttPacketIO);
 
     XMEMFREE(unittest_mctx->tx_buf);
     XMEMFREE(unittest_mctx->rx_buf);
