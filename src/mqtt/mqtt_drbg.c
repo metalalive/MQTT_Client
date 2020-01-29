@@ -27,22 +27,21 @@ static mqttRespStatus  mqttDRBGhashDerivation(mqttDrbgHash_t *hash, mqttStr_t *o
     while( nbits_return > 0 )
     {
         hash_status = hash->mthd.init(&hash->md);
-        if(hash_status != 0) { goto end_of_hash; }
+        if(hash_status != 0) { break; }
         // Step 4.1: temp = temp || Hash(counter || no_of_bits_to_return)
         hash_status = hash->mthd.update(&hash->md, &tmp[0], tmp_sz);
-        if(hash_status != 0) { goto end_of_hash; }
+        if(hash_status != 0) { break; }
         // Step 4.1: temp = temp || Hash(input_string)
         hash_status = hash->mthd.update(&hash->md, in->data, in->len);
-        if(hash_status != 0) { goto end_of_hash; }
+        if(hash_status != 0) { break; }
         if((in2 != NULL) && (in2->data != NULL)) {
             hash_status = hash->mthd.update(&hash->md, in2->data, in2->len);
-            if(hash_status != 0) { goto end_of_hash; }
+            if(hash_status != 0) { break; }
         }
         if((in3 != NULL) && (in3->data != NULL)) {
             hash_status = hash->mthd.update(&hash->md, in3->data, in3->len);
-            if(hash_status != 0) { goto end_of_hash; }
+            if(hash_status != 0) { break; }
         }
-end_of_hash:
         hash_status = hash->mthd.done(&hash->md, outdata);
         if(hash_status != 0) { break; }
         outdata      += nbytes_hashed_len;
