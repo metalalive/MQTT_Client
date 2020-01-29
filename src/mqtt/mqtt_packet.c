@@ -1252,7 +1252,7 @@ mqttRespStatus  mqttPktRead( struct __mqttCtx *mctx, byte *buf, word32 buf_max_l
 mqttRespStatus  mqttDecodePkt( struct __mqttCtx *mctx, byte *buf, word32 buf_len,  mqttCtrlPktType  cmdtype, void **p_decode, word16 *recv_pkt_id )
 {
     mqttRespStatus  status = MQTT_RESP_OK;
-    if((mctx==NULL) || (buf==NULL) || (buf_len==0) || (p_decode==NULL)) {
+    if((mctx==NULL) || (buf==NULL) || (buf_len==0) || (p_decode==NULL) || (recv_pkt_id == NULL)) {
         return MQTT_RESP_ERRARGS;
     }
     mctx->flgs.recv_mode = 1;
@@ -1267,9 +1267,9 @@ mqttRespStatus  mqttDecodePkt( struct __mqttCtx *mctx, byte *buf, word32 buf_len
         {
             status = mqttDecodePktPublish( buf, buf_len, *(mqttMsg_t **)p_decode );
             *recv_pkt_id = (*(mqttMsg_t **)p_decode)->packet_id;
-            if(status >= MQTT_RESP_OK) {
-                status = mqttPropErrChk( mctx, cmdtype, (*(mqttMsg_t **)p_decode)->props );
-            }
+            if(status < 0) { break; }
+            status = mqttPropErrChk( mctx, cmdtype, (*(mqttMsg_t **)p_decode)->props );
+            if(status < 0) { break; }
             mqttQoS qos =  (*(mqttMsg_t **)p_decode)->qos;
             if(qos > MQTT_QOS_0) {
                 cmdtype = ( qos == MQTT_QOS_1 ? MQTT_PACKET_TYPE_PUBACK: MQTT_PACKET_TYPE_PUBRECV );
@@ -1288,12 +1288,13 @@ mqttRespStatus  mqttDecodePkt( struct __mqttCtx *mctx, byte *buf, word32 buf_len
         {
             status = mqttDecodePktPubResp( buf, buf_len, *(mqttPktPubResp_t **)p_decode, cmdtype );
             *recv_pkt_id = (*(mqttPktPubResp_t **)p_decode)->packet_id ;
-            if(status >= MQTT_RESP_OK) {
-                status = mqttPropErrChk( mctx, cmdtype, (*(mqttPktPubResp_t **)p_decode)->props );
-            } // TODO: test publish response packet when QoS = 2
+            if(status < 0) { break; }
+            status = mqttPropErrChk( mctx, cmdtype, (*(mqttPktPubResp_t **)p_decode)->props );
+            if(status < 0) { break; }
             if((cmdtype==MQTT_PACKET_TYPE_PUBRECV) || (cmdtype==MQTT_PACKET_TYPE_PUBREL)) {
                 // if error is found in reason code & QoS = 2, then we abort subsequent packet transmission (TODO: recheck this logic)
                 status = mqttChkReasonCode((mqttReasonCode)(*(mqttPktPubResp_t **)p_decode)->reason_code);
+                if(status < 0) { break; }
                 // send next publish response packet.
                 mqttPktPubResp_t *pub_resp = &mctx->send_pkt_qos2.pub_resp ;
                 pub_resp->props       = NULL; // don't send extra properties in response packet for simplicity
