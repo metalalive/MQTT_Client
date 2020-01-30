@@ -23,14 +23,7 @@ mqttRespStatus mqttChkReasonCode( mqttReasonCode reason_code )
 
 word32  mqttGetInterval(word32 now, word32 then)
 {
-    word32 out = 0;
-    if(now < then) {
-        out = 0xffffffff - then + now;
-    }
-    else{
-        out = now - then;
-    }
-    return out;
+    return (now - then);
 } // end of mqttGetInterval
 
 
@@ -84,6 +77,7 @@ word32  mqttUtilPRNG(mqttDRBG_t *drbg, word32 range)
     }
     drbg->cache_rd_ptr = rd_ptr;
     // treat the random bytes (buf) as 32-bit integer, perform modulo operation to get return value
+    if(range == ((word32)-1)) { range--; }
     out = (*(word32 *)&buf[0]) % (range + 1);
     return  out;
 } // end of mqttUtilPRNG

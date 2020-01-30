@@ -168,21 +168,24 @@ TEST(mqttDRBGops, gen_drbg)
     mqttStr_t  extra_in = {0, NULL};
     mqttStr_t  out = {0, NULL};
     mqttRespStatus status = MQTT_RESP_OK;
-    byte *last_value = NULL;
 
     extra_in.data = (byte *)&("add_extra_salt");
     extra_in.len  = 14;
-    out.len  = 0x28;
-    out.data = XMALLOC(sizeof(byte) * (out.len << 1));
-    last_value = &out.data[out.len];
-    XMEMSET(out.data, 0x00, out.len);
+    out.len  = 0x27;
+    out.data = XMALLOC(sizeof(byte) * out.len);
 
     status = mqttDRBGgen(unittest_mctx->drbg, &out, &extra_in);
     TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT8(2, unittest_mctx->drbg->reseed_cnt);
 
-    //// XMEMCPY(last_value, out.data, out.len);
     status = mqttDRBGgen(unittest_mctx->drbg, &out, &extra_in);
     TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT8(3, unittest_mctx->drbg->reseed_cnt);
+
+    unittest_mctx->drbg->reseed_cnt = 1 + unittest_mctx->drbg->reseed_intvl;
+    status = mqttDRBGgen(unittest_mctx->drbg, &out, &extra_in);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT8(2, unittest_mctx->drbg->reseed_cnt);
 
     XMEMFREE(out.data);
 } // end of TEST(mqttDRBGops, gen_drbg)
