@@ -28,10 +28,8 @@ tlsRespStatus  tlsClientInit(mqttCtx_t *mctx)
         status = TLS_RESP_ERRMEM; goto fail;
     }
     tls_CA_priv_key = NULL;
-    tlsRSAgetPrivKey(priv_key_raw_data, priv_key_raw_len, &tls_CA_priv_key);
-    if(tls_CA_priv_key == NULL) {
-        status = TLS_RESP_ERR_KEYGEN; goto fail;
-    }
+    status = tlsRSAgetPrivKey(priv_key_raw_data, priv_key_raw_len, &tls_CA_priv_key);
+    if((status < 0) || (tls_CA_priv_key == NULL)) { goto fail; }
     // load essential elements from CA certificate.
     tls_CA_cert = (tlsCert_t *) XMALLOC(sizeof(tlsCert_t));
     XMEMSET(tls_CA_cert, 0x0, sizeof(tlsCert_t));
@@ -154,9 +152,7 @@ static tlsRespStatus    tlsClientSessionDelete(tlsSession_t *session)
 // this integrated function provides entry point to communite between application-lever MQTT message and TLS
 mqttRespStatus   mqttSecureNetconnStart(mqttCtx_t *mctx)
 {
-    if(mctx == NULL || mctx->drbg==NULL) {
-        return MQTT_RESP_ERRARGS;
-    }
+    if(mctx == NULL) { return MQTT_RESP_ERRARGS; }
     mqttRespStatus  status     = MQTT_RESP_OK;
     tlsRespStatus   tls_status = TLS_RESP_OK;
     tlsSession_t   *session    = NULL;

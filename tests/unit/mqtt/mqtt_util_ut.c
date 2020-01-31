@@ -2,8 +2,8 @@
 #include "unity.h"
 #include "unity_fixture.h"
 
-static int mock_mp_add_return_val;
-static size_t mock_mp_ubin_sz_val;
+extern  int mock_mp_add_return_val;
+extern  size_t mock_mp_ubin_sz_val;
 
 mqttRespStatus  mqttDRBGgen(mqttDRBG_t *drbg, mqttStr_t *out, mqttStr_t *extra_in)
 { // produce sequence number as fake random number only for the unit test
@@ -15,47 +15,6 @@ mqttRespStatus  mqttDRBGgen(mqttDRBG_t *drbg, mqttStr_t *out, mqttStr_t *extra_i
     }
     return MQTT_RESP_OK;
 }
-
-
-int sha256_init(mqttHash_t *md)
-{ return 0; }
-
-int sha384_init(mqttHash_t *md)
-{ return 0; }
-
-int sha256_process(mqttHash_t *md, const byte *in, unsigned long inlen)
-{ return 0; }
-
-int sha512_process(mqttHash_t *md, const byte *in, unsigned long inlen)
-{ return 0; }
-
-int sha256_done(mqttHash_t *md, byte *out)
-{ return 0; }
-
-int sha384_done(mqttHash_t *md, byte *out)
-{ return 0; }
-
-int mp_init(multiBint_t *a)
-{ return 0; }
-
-int mp_from_ubin(multiBint_t *out, const byte *buf, size_t size)
-{ return 0; }
-
-int mp_add(const multiBint_t *a, const multiBint_t *b, multiBint_t *c)
-{ return mock_mp_add_return_val; }
-
-// mp_digit
-int mp_add_d(const multiBint_t *a, uint64_t b, multiBint_t *c)
-{ return mock_mp_add_return_val; }
-
-size_t mp_ubin_size(const multiBint_t *a)
-{ return mock_mp_ubin_sz_val; }
-
-int  mp_to_ubin(const multiBint_t *a, byte *buf, size_t maxlen, size_t *written)
-{ return 0; }
-
-void mp_clear(multiBint_t *a)
-{ return; }
 
 
 // -------------------------------------------------------------------------
