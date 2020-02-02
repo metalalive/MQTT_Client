@@ -169,8 +169,7 @@ static tlsRespStatus  tlsActivateHSsecrets(tlsSession_t *session)
     word16         hash_sz      = mqttHashGetOutlenBytes(hash_algo_id);
     tlsOpaque8b_t  early_secret = {0, NULL};
     if(hash_sz == 0) {
-        status = TLS_RESP_ERR;
-        goto done;
+        status = TLS_RESP_ERR_NOT_SUPPORT;  goto done;
     }
     early_secret.len  = hash_sz;
     early_secret.data = XMALLOC(sizeof(byte) * early_secret.len);
