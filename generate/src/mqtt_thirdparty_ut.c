@@ -70,5 +70,9 @@ int rijndael_enc_keysize(int *keysize)
 { return 0; }
 
 
+int hmac_memory(int hash, const unsigned char *key,  unsigned long keylen,
+                const unsigned char *in,   unsigned long inlen,
+                      unsigned char *out,  unsigned long *outlen)
+{ return 0; }
 
 
