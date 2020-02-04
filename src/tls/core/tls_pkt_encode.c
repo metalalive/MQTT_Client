@@ -6,7 +6,7 @@ tlsRespStatus  tlsGenFinishedVerifyData(tlsSecurityElements_t *sec, tlsOpaque8b_
 {
     tlsRespStatus  status      = TLS_RESP_OK;
     if(sec == NULL || sec->chosen_ciphersuite == NULL || base_key == NULL || base_key->data == NULL || out == NULL || out->data == NULL) {
-        status = TLS_RESP_ERRARGS; goto done;
+        return TLS_RESP_ERRARGS;
     }
     byte   *trHash_hs_msg = NULL;
     tlsOpaque8b_t  keylabel    = {8, (byte *)&("finished") };
@@ -200,6 +200,8 @@ static tlsRespStatus  tlsEncodeHScertificateVerify(tlsSession_t *session)
     word16         copied_sz  = 0;
 
     if(tlsChkFragStateOutMsg(session) == TLS_RESP_REQ_REINIT) {
+        // currently this implementation only supports rsa_pss_rsae_sha256 for signing & verifying
+        // signature on Certificate & CertificateVerify. (RFC 8446, section 9.1)
         rsapssSig.hash_id = TLS_HASH_ALGO_SHA256;
         rsapssSig.salt_len = mqttHashGetOutlenBytes(rsapssSig.hash_id);
         // generate TLS v1.3 ditial signature (plain text)
@@ -320,6 +322,9 @@ static tlsRespStatus  tlsEncodeHandshake(tlsSession_t *session)
     tlsRespStatus  frag_status = tlsChkFragStateOutMsg(session);
 
     if(frag_status == TLS_RESP_REQ_REINIT) {
+        if(session->outlen_encoded > (session->outbuf.len - TLS_HANDSHAKE_HEADER_NBYTES)) {
+            return TLS_RESP_ERRMEM;
+        } // report memory error because no sufficient space for placing 4-byte handshake header
         session->outlen_encoded  += TLS_HANDSHAKE_HEADER_NBYTES;
     }
     switch(tlsGetHSexpectedState(session)) {
@@ -440,6 +445,9 @@ tlsRespStatus  tlsEncodeRecordLayer(tlsSession_t *session)
     tlsRespStatus  frag_status = tlsChkFragStateOutMsg(session);
     // keep first 5 bytes for header of each record message
     if(frag_status == TLS_RESP_REQ_REINIT) { // runs only for the first fragment
+        if(session->outlen_encoded > (session->outbuf.len - TLS_RECORD_LAYER_HEADER_NBYTES)) {
+            return TLS_RESP_ERRMEM;
+        } // report memory error because no sufficient space in outbuf for placing 5-byte record header
         session->curr_outmsg_start = session->outlen_encoded;
         session->outlen_encoded   += TLS_RECORD_LAYER_HEADER_NBYTES;
     } else { // if this encoding message split to several fragments (and the first fragment was already sent)

@@ -143,7 +143,7 @@ word16  mqttHashGetOutlenBytes(mqttHashLenType type)
     }
     out = out >> 3;
     return out;
-} // end of mqttHashGetOutlenBits
+} // end of mqttHashGetOutlenBytes
 
 
 tlsHashAlgoID  TLScipherSuiteGetHashID( const tlsCipherSpec_t *cs_in )
@@ -357,12 +357,22 @@ tlsRespStatus  tlsEncodeExtensions(tlsSession_t *session)
     return status;
 } // end of tlsEncodeExtensions
 
+tlsRespStatus  tlsCertVerifyGenDigitalSig(tlsSecurityElements_t *sec, const tlsRSApss_t *rsapss_attri, tlsOpaque16b_t *out, const byte is_server)
+{
+    const byte clientlabel[] = "TLS 1.3, client CertificateVerify";
+    word16         hash_len = 0;
+    tlsHashAlgoID  hash_algo_id = TLS_HASH_ALGO_UNKNOWN;
+
+    hash_algo_id = TLScipherSuiteGetHashID(sec->chosen_ciphersuite);
+    hash_len     = mqttHashGetOutlenBytes(hash_algo_id);
+    out->len  = 64 + sizeof(clientlabel) - 1 + 1 + hash_len;
+    out->data = XMALLOC(sizeof(byte) * out->len);
+    return TLS_RESP_OK;
+} // end of tlsCertVerifyGenDigitalSig
+
 
 mqttRespStatus  mqttUtilRandByteSeq(mqttDRBG_t *drbg, byte *out, word16 outlen)
 { return MQTT_RESP_OK; }
-
-tlsRespStatus  tlsCertVerifyGenDigitalSig(tlsSecurityElements_t *sec, const tlsRSApss_t *rsapss_attri, tlsOpaque16b_t *out, const byte is_server)
-{ return TLS_RESP_OK; }
 
 tlsRespStatus tlsSignCertSignature(void *privkey,  mqttDRBG_t *drbg, tlsOpaque16b_t *in, tlsOpaque16b_t *out,
                                     tlsAlgoOID sign_algo, tlsRSApss_t *rsapssextra)
@@ -389,6 +399,11 @@ TEST_GROUP_RUNNER(tlsEncodeRecordLayer)
     RUN_TEST_CASE(tlsEncodeRecordLayer, clienthello);
     RUN_TEST_CASE(tlsEncodeRecordLayer, clienthello_fragments);
     RUN_TEST_CASE(tlsEncodeRecordLayer, certificate_fragments);
+    RUN_TEST_CASE(tlsEncodeRecordLayer, cert_verify_fragments);
+    RUN_TEST_CASE(tlsEncodeRecordLayer, finished_fragments);
+    RUN_TEST_CASE(tlsEncodeRecordLayer, app_data_fragments);
+    RUN_TEST_CASE(tlsEncodeRecordLayer, change_cipher_spec);
+    //// RUN_TEST_CASE(tlsEncodeRecordLayer, err_chk);
 }
 
 TEST_SETUP(tlsEncodeRecordLayer)
@@ -605,6 +620,150 @@ TEST(tlsEncodeRecordLayer, certificate_fragments)
 } // end of TEST(tlsEncodeRecordLayer, certificate_fragments)
 
 
+TEST(tlsEncodeRecordLayer, cert_verify_fragments)
+{
+    tlsRespStatus status = TLS_RESP_OK;
+    word16  gened_sig_sz = 0;
+    word16  encoded_idx  = 0;
+    word16  expect_value = 0;
+    word16  actual_value = 0;
+
+    gened_sig_sz = mqttHashGetOutlenBytes(MQTT_HASH_SHA256) << 3;
+    tls_session->flgs.hs_tx_encrypt = 1;
+    tls_session->flgs.omit_client_cert_chk = 0;
+    tls_session->flgs.omit_server_cert_chk = 0;
+    tls_session->hs_state = TLS_HS_TYPE_CERTIFICATE_VERIFY;
+    tls_session->sec.chosen_ciphersuite = &tls_supported_cipher_suites[0];
+    tls_session->client_signed_sig.data = NULL;
+
+    // encoding first fragment of CertificateVerify
+    tls_session->outlen_encoded = tls_session->outbuf.len - (gened_sig_sz >> 1);
+    status = tlsEncodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_REQ_MOREDATA, status);
+    TEST_ASSERT_NOT_EQUAL(0, tls_session->nbytes.remaining_to_send);
+    TEST_ASSERT_LESS_THAN_UINT32(tls_session->outbuf.len, tls_session->nbytes.remaining_to_send);
+
+    encoded_idx  = (tls_session->curr_outmsg_start + TLS_RECORD_LAYER_HEADER_NBYTES + TLS_HANDSHAKE_HEADER_NBYTES);
+    expect_value = (word16) TLS_SIGNATURE_RSA_PSS_RSAE_SHA256;
+    encoded_idx += tlsDecodeWord16(&tls_session->outbuf.data[encoded_idx], (word16 *)&actual_value);
+    TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
+    expect_value = gened_sig_sz;
+    encoded_idx += tlsDecodeWord16(&tls_session->outbuf.data[encoded_idx], (word16 *)&actual_value);
+    TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
+
+    // encoding second fragment of CertificateVerify
+    encoded_idx = tls_session->nbytes.remaining_to_send + 1 + tls_session->sec.chosen_ciphersuite->tagSize;
+    tls_session->outlen_encoded = 0;
+    tls_session->remain_frags_out = 1;
+    tls_session->num_frags_out    = 1;
+    status = tlsEncodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    expect_value = encoded_idx;
+    actual_value = tls_session->outlen_encoded;
+    TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
+} // end of TEST(tlsEncodeRecordLayer, cert_verify_fragments)
+
+
+TEST(tlsEncodeRecordLayer, finished_fragments)
+{
+    tlsRespStatus status = TLS_RESP_OK;
+    tlsHashAlgoID  hash_id  = TLS_HASH_ALGO_UNKNOWN;
+    word16  finish_verify_data_sz = 0;
+    word16  encoded_idx  = 0;
+    word16  expect_value = 0;
+    word16  actual_value = 0;
+
+    tls_session->sec.chosen_ciphersuite = &tls_supported_cipher_suites[0];
+    hash_id = TLScipherSuiteGetHashID(tls_session->sec.chosen_ciphersuite);
+    finish_verify_data_sz = mqttHashGetOutlenBytes(hash_id);
+    tls_session->sec.secret.hs.client.len  = finish_verify_data_sz;
+    tls_session->sec.secret.hs.client.data = XMALLOC(sizeof(byte) * finish_verify_data_sz);
+
+    tls_session->flgs.hs_tx_encrypt = 1;
+    tls_session->hs_state = TLS_HS_TYPE_FINISHED;
+    // encoding first fragment of Finished
+    tls_session->outlen_encoded = tls_session->outbuf.len - (finish_verify_data_sz >> 1);
+    status = tlsEncodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_REQ_MOREDATA, status);
+    TEST_ASSERT_NOT_EQUAL(0, tls_session->nbytes.remaining_to_send);
+    TEST_ASSERT_LESS_THAN_UINT32(tls_session->outbuf.len, tls_session->nbytes.remaining_to_send);
+    // encoding second fragment of Finished
+    encoded_idx = tls_session->nbytes.remaining_to_send + 1 + tls_session->sec.chosen_ciphersuite->tagSize;
+    tls_session->outlen_encoded = 0;
+    tls_session->remain_frags_out = 1;
+    tls_session->num_frags_out    = 1;
+    status = tlsEncodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    expect_value = encoded_idx;
+    actual_value = tls_session->outlen_encoded;
+    TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
+
+    XMEMFREE(tls_session->sec.secret.hs.client.data);
+    tls_session->sec.secret.hs.client.data = NULL;
+} // end of TEST(tlsEncodeRecordLayer, finished_fragments)
+
+
+TEST(tlsEncodeRecordLayer, app_data_fragments)
+{
+    tlsRespStatus status = TLS_RESP_OK;
+    word16  encoded_idx  = 0;
+    word16  idx  = 0;
+    word16  expect_value = 0;
+    word16  actual_value = 0;
+
+    tls_session->app_pt.len  = tls_session->outbuf.len;
+    tls_session->app_pt.data = XMALLOC(sizeof(byte) * tls_session->app_pt.len);
+    for(idx=0; idx<tls_session->app_pt.len; idx++) {
+        tls_session->app_pt.data[idx] = idx % 0xff;
+    } // end of for loop
+
+    tls_session->flgs.hs_tx_encrypt = 1;
+    tls_session->hs_state = TLS_HS_TYPE_FINISHED;
+    tls_session->record_type = TLS_CONTENT_TYPE_APP_DATA;
+    // encoding first fragment of application data
+    tls_session->outlen_encoded = tls_session->outbuf.len >> 3;
+    status = tlsEncodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_REQ_MOREDATA, status);
+    TEST_ASSERT_NOT_EQUAL(0, tls_session->nbytes.remaining_to_send);
+    TEST_ASSERT_LESS_THAN_UINT32(tls_session->app_pt.len, tls_session->nbytes.remaining_to_send);
+    encoded_idx  = tls_session->curr_outmsg_start + TLS_RECORD_LAYER_HEADER_NBYTES;
+    for(idx=0; idx<(tls_session->app_pt.len - tls_session->nbytes.remaining_to_send); idx++) {
+        expect_value = tls_session->app_pt.data[idx];
+        actual_value = tls_session->outbuf.data[encoded_idx + idx];
+        TEST_ASSERT_EQUAL_UINT8(expect_value, actual_value);
+    } // end of for loop
+    // encoding second fragment of application data
+    tls_session->outlen_encoded = 0;
+    tls_session->remain_frags_out = 1;
+    tls_session->num_frags_out    = 1;
+    status = tlsEncodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    encoded_idx  = tls_session->app_pt.len - idx; // remaining bytes not copied yet
+    for(idx=0; idx<encoded_idx; idx++) {
+        expect_value = tls_session->app_pt.data[tls_session->app_pt.len - encoded_idx + idx];
+        actual_value = tls_session->outbuf.data[idx];
+        TEST_ASSERT_EQUAL_UINT8(expect_value, actual_value);
+    } // end of for loop
+    encoded_idx += 1 + tls_session->sec.chosen_ciphersuite->tagSize;
+    expect_value = encoded_idx;
+    actual_value = tls_session->outlen_encoded;
+    TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
+
+    XMEMFREE(tls_session->app_pt.data);
+    tls_session->app_pt.data = NULL;
+} // end of TEST(tlsEncodeRecordLayer, app_data_fragments)
+
+
+TEST(tlsEncodeRecordLayer, change_cipher_spec)
+{
+    tlsRespStatus status = TLS_RESP_OK;
+    tls_session->record_type = TLS_CONTENT_TYPE_CHANGE_CIPHER_SPEC;
+    tls_session->outlen_encoded = 0;
+    tls_session->flgs.hs_tx_encrypt = 0;
+    status = tlsEncodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT16(0x6, tls_session->outlen_encoded);
+} // end of TEST(tlsEncodeRecordLayer, change_cipher_spec)
 
 
 
