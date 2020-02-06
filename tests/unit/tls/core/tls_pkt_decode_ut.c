@@ -5,6 +5,9 @@
 #define MAX_RAWBYTE_BUF_SZ 0x100 // internal parameter for read buffer, DO NOT modify this value
 
 static tlsSession_t *tls_session;
+static byte   mock_finish_verify_data[8];
+static word32 mock_sys_get_time_ms;
+
 
 static tlsRespStatus  mock_tlsAESGCMinit (tlsSecurityElements_t *sec, byte isDecrypt)
 { return TLS_RESP_OK; }
@@ -463,7 +466,44 @@ tlsRespStatus  tlsDecodeCerts(tlsCert_t *cert, byte final_item_rdy)
 }
 
 tlsRespStatus  tlsCertVerifyGenDigitalSig(tlsSecurityElements_t *sec, const tlsRSApss_t *rsapss_attri, tlsOpaque16b_t *out, const byte is_server)
-{ return TLS_RESP_OK; }
+{
+    if(out != NULL && out->data == NULL) {
+        out->len = rsapss_attri->salt_len;
+        out->data = XMALLOC(out->len);
+    }
+    return TLS_RESP_OK;
+}
+
+tlsRespStatus  tlsGenFinishedVerifyData(tlsSecurityElements_t *sec, tlsOpaque8b_t *base_key, tlsOpaque8b_t *out)
+{
+    if(out != NULL && out->data != NULL) {
+        XMEMSET(out->data, 0x00, out->len);
+        XMEMCPY(&out->data[0],            &mock_finish_verify_data[0], 4);
+        XMEMCPY(&out->data[out->len - 4], &mock_finish_verify_data[4], 4);
+    }
+    return TLS_RESP_OK;
+}
+
+void   tlsHSstateTransition(tlsSession_t *session)
+{
+    switch(session->hs_state) {
+        case TLS_HS_TYPE_CERTIFICATE_REQUEST:
+            if((session->flgs.omit_client_cert_chk == 1) && (session->flgs.omit_server_cert_chk == 1)) {
+                session->hs_state = TLS_HS_TYPE_FINISHED;
+            }
+            else {
+                session->hs_state = TLS_HS_TYPE_CERTIFICATE;
+            }
+            break;
+        case TLS_HS_TYPE_FINISHED :
+            if(session->flgs.new_session_tkt != 0) { session->hs_state = TLS_HS_TYPE_NEW_SESSION_TICKET; }
+            break;
+        case TLS_HS_TYPE_NEW_SESSION_TICKET:
+            break;
+        default:
+            break;
+    } // end of switch-case statement
+} // end of tlsHSstateTransition
 
 tlsRespStatus tlsVerifyCertSignature(void *pubkey, tlsOpaque16b_t *sig, tlsAlgoOID sign_algo, tlsOpaque16b_t *ref, tlsRSApss_t *rsapssextra)
 { return TLS_RESP_OK; }
@@ -471,18 +511,12 @@ tlsRespStatus tlsVerifyCertSignature(void *pubkey, tlsOpaque16b_t *sig, tlsAlgoO
 tlsRespStatus  tlsVerifyCertChain(tlsCert_t  *issuer_cert, tlsCert_t  *subject_cert)
 { return TLS_RESP_OK; }
 
-tlsRespStatus  tlsGenFinishedVerifyData(tlsSecurityElements_t *sec, tlsOpaque8b_t *base_key, tlsOpaque8b_t *out)
-{ return TLS_RESP_OK; }
-
 tlsRespStatus  tlsHKDFexpandLabel(tlsHashAlgoID hash_id, tlsOpaque8b_t *in_secret, tlsOpaque8b_t *label, 
                                  tlsOpaque8b_t *context, tlsOpaque8b_t *out_secret)
 { return TLS_RESP_OK; }
 
 word32  mqttSysGetTimeMs(void)
-{ return 0; }
-
-void   tlsHSstateTransition(tlsSession_t *session)
-{ return; }
+{ return mock_sys_get_time_ms; }
 
 
 // -----------------------------------------------------------------------------------
@@ -503,6 +537,14 @@ TEST_GROUP_RUNNER(tlsDecodeRecordLayer)
     RUN_TEST_CASE(tlsDecodeRecordLayer, certrequest);
     RUN_TEST_CASE(tlsDecodeRecordLayer, certchain);
     RUN_TEST_CASE(tlsDecodeRecordLayer, certchain_fragments);
+    RUN_TEST_CASE(tlsDecodeRecordLayer, certchain_overflow);
+    RUN_TEST_CASE(tlsDecodeRecordLayer, certverify);
+    RUN_TEST_CASE(tlsDecodeRecordLayer, finished);
+    RUN_TEST_CASE(tlsDecodeRecordLayer, new_session_ticket_fragments);
+    RUN_TEST_CASE(tlsDecodeRecordLayer, new_session_ticket_list_limit);
+    RUN_TEST_CASE(tlsDecodeRecordLayer, app_data_fragments);
+    //// RUN_TEST_CASE(tlsDecodeRecordLayer, change_cipher_spec);
+    //// RUN_TEST_CASE(tlsDecodeRecordLayer, alert);
 }
 
 TEST_SETUP(tlsPktDecodeMisc)
@@ -515,6 +557,11 @@ TEST_SETUP(tlsDecodeRecordLayer)
     tls_session->remain_frags_in = 1;
     tls_session->sec.flgs.ct_first_frag = 1;
     tls_session->sec.flgs.ct_final_frag = 1;
+    tls_session->flgs.omit_client_cert_chk = 0;
+    tls_session->flgs.omit_server_cert_chk = 0;
+    tls_session->flgs.hs_server_finish = 0;
+    tls_session->flgs.hs_client_finish = 0;
+    tls_session->flgs.new_session_tkt = 0;
 }
 
 TEST_TEAR_DOWN(tlsPktDecodeMisc)
@@ -758,13 +805,17 @@ TEST(tlsDecodeRecordLayer, certchain)
     tls_session->inlen_decrypted = (word16) (buf - &tls_session->inbuf.data[0]);
     tlsEncodeWord16(&tls_session->inbuf.data[3], (tls_session->inlen_decrypted - TLS_RECORD_LAYER_HEADER_NBYTES));
     tlsEncodeWord24(&tls_session->inbuf.data[6], (tls_session->inlen_decrypted - TLS_RECORD_LAYER_HEADER_NBYTES - TLS_HANDSHAKE_HEADER_NBYTES));
-    tls_session->hs_state = TLS_HS_TYPE_CERTIFICATE;
+    // test weather decode function can adjust handshake state properly
+    tls_session->hs_state = TLS_HS_TYPE_CERTIFICATE_REQUEST;
     tls_session->inlen_decoded = 0;
     tls_session->peer_certs = NULL;
 
     status = tlsDecodeRecordLayer(tls_session);
     TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
     TEST_ASSERT_NOT_EQUAL(NULL, tls_session->peer_certs);
+    TEST_ASSERT_EQUAL_UINT8(TLS_HS_TYPE_CERTIFICATE, tls_session->hs_state);
+    TEST_ASSERT_EQUAL_UINT8(1, tls_session->flgs.omit_client_cert_chk);
+    TEST_ASSERT_EQUAL_UINT8(0, tls_session->flgs.omit_server_cert_chk);
     idx = 0;
     for(curr_cert = tls_session->peer_certs; curr_cert != NULL; curr_cert = curr_cert->next) {
         TEST_ASSERT_EQUAL_UINT(NULL, curr_cert->exts);
@@ -791,7 +842,7 @@ TEST(tlsDecodeRecordLayer, certchain_fragments)
             {0x35, 0x36, 0x37, 0x38, 0x39, 0x40, 0x41, 0x42,}, };
     word16  cert_sz[TEST_NUM_OF_PEER_CERTS] = {0x83, 0x5b, 0xe7, 0xa1, 0x3d};
     byte *buf = NULL;
-    mqttStr_t  cert_handshake_msg = {0, NULL};
+    mqttStr_t  entire_handshake_msg = {0, NULL};
     tlsCert_t *curr_cert = NULL;
     word32 total_sz_cert_entry = 0;
     word16  nbytes_cert_copied = 0;
@@ -802,15 +853,15 @@ TEST(tlsDecodeRecordLayer, certchain_fragments)
     for(idx=0; idx<TEST_NUM_OF_PEER_CERTS; idx++) {
         total_sz_cert_entry += 3 + cert_sz[idx] + 2;
     }
-    cert_handshake_msg.len  = TLS_RECORD_LAYER_HEADER_NBYTES + TLS_HANDSHAKE_HEADER_NBYTES;
-    cert_handshake_msg.len += 1 + 3 + total_sz_cert_entry;
-    cert_handshake_msg.len += 1 + tls_session->sec.chosen_ciphersuite->tagSize;
-    cert_handshake_msg.data = XMALLOC(cert_handshake_msg.len);
-    XMEMSET(cert_handshake_msg.data, 0x00, cert_handshake_msg.len);
-    buf = &cert_handshake_msg.data[0];
+    entire_handshake_msg.len  = TLS_RECORD_LAYER_HEADER_NBYTES + TLS_HANDSHAKE_HEADER_NBYTES;
+    entire_handshake_msg.len += 1 + 3 + total_sz_cert_entry;
+    entire_handshake_msg.len += 1 + tls_session->sec.chosen_ciphersuite->tagSize;
+    entire_handshake_msg.data = XMALLOC(entire_handshake_msg.len);
+    XMEMSET(entire_handshake_msg.data, 0x00, entire_handshake_msg.len);
+    buf = &entire_handshake_msg.data[0];
     *buf++ = TLS_CONTENT_TYPE_HANDSHAKE;
     buf += tlsEncodeWord16(&buf[0], TLS_VERSION_ENCODE_1_2);
-    buf += tlsEncodeWord16(buf, (cert_handshake_msg.len - TLS_RECORD_LAYER_HEADER_NBYTES));
+    buf += tlsEncodeWord16(buf, (entire_handshake_msg.len - TLS_RECORD_LAYER_HEADER_NBYTES));
     *buf++ = TLS_HS_TYPE_CERTIFICATE;
     buf += tlsEncodeWord24(buf, (1 + 3 + total_sz_cert_entry));
     *buf++ = 0; // certificate_request_context from server's Certificate is usually empty.
@@ -825,13 +876,14 @@ TEST(tlsDecodeRecordLayer, certchain_fragments)
     } // end of for loop
     *buf++ = TLS_CONTENT_TYPE_HANDSHAKE; // TLSInnerPlainText.contentType
     buf += tls_session->sec.chosen_ciphersuite->tagSize; // preserve space for authentication tag
-    TEST_ASSERT_EQUAL_UINT(&cert_handshake_msg.data[cert_handshake_msg.len] , buf);
+    TEST_ASSERT_EQUAL_UINT(&entire_handshake_msg.data[entire_handshake_msg.len] , buf);
 
+    tls_session->flgs.hs_rx_encrypt = 1;
     tls_session->hs_state = TLS_HS_TYPE_CERTIFICATE;
     tls_session->peer_certs = NULL;
     // ------------- decode the first fragment of Certificate message -------------
-    tls_session->inlen_decrypted  = XMIN(tls_session->inbuf.len, (cert_handshake_msg.len - nbytes_cert_copied));
-    XMEMCPY(&tls_session->inbuf.data[0], &cert_handshake_msg.data[nbytes_cert_copied], tls_session->inlen_decrypted);
+    tls_session->inlen_decrypted  = XMIN(tls_session->inbuf.len, (entire_handshake_msg.len - nbytes_cert_copied));
+    XMEMCPY(&tls_session->inbuf.data[0], &entire_handshake_msg.data[nbytes_cert_copied], tls_session->inlen_decrypted);
     nbytes_cert_copied += tls_session->inlen_decrypted;
     tls_session->inlen_decoded = 0;
     tls_session->num_frags_in    = 2;
@@ -852,8 +904,8 @@ TEST(tlsDecodeRecordLayer, certchain_fragments)
     TEST_ASSERT_LESS_THAN_UINT32((3 + cert_sz[2]), tls_session->last_cpy_cert_len);
 
     // ------------- decode the second fragment of Certificate message -------------
-    tls_session->inlen_decrypted  = XMIN(tls_session->inbuf.len, (cert_handshake_msg.len - nbytes_cert_copied));
-    XMEMCPY(&tls_session->inbuf.data[0], &cert_handshake_msg.data[nbytes_cert_copied], tls_session->inlen_decrypted);
+    tls_session->inlen_decrypted  = XMIN(tls_session->inbuf.len, (entire_handshake_msg.len - nbytes_cert_copied));
+    XMEMCPY(&tls_session->inbuf.data[0], &entire_handshake_msg.data[nbytes_cert_copied], tls_session->inlen_decrypted);
     nbytes_cert_copied += tls_session->inlen_decrypted;
     tls_session->inlen_decoded = 0;
     tls_session->num_frags_in    = 3;
@@ -873,8 +925,8 @@ TEST(tlsDecodeRecordLayer, certchain_fragments)
     TEST_ASSERT_LESS_THAN_UINT32((3 + cert_sz[3]), tls_session->last_cpy_cert_len);
 
     // ------------- decode the third  fragment of Certificate message -------------
-    tls_session->inlen_decrypted  = XMIN(tls_session->inbuf.len, (cert_handshake_msg.len - nbytes_cert_copied));
-    XMEMCPY(&tls_session->inbuf.data[0], &cert_handshake_msg.data[nbytes_cert_copied], tls_session->inlen_decrypted);
+    tls_session->inlen_decrypted  = XMIN(tls_session->inbuf.len, (entire_handshake_msg.len - nbytes_cert_copied));
+    XMEMCPY(&tls_session->inbuf.data[0], &entire_handshake_msg.data[nbytes_cert_copied], tls_session->inlen_decrypted);
     nbytes_cert_copied += tls_session->inlen_decrypted;
     tls_session->inlen_decoded = 0;
     tls_session->num_frags_in    = 3;
@@ -891,14 +943,435 @@ TEST(tlsDecodeRecordLayer, certchain_fragments)
     }
     TEST_ASSERT_EQUAL_UINT8(TEST_NUM_OF_PEER_CERTS, idx);
     TEST_ASSERT_EQUAL_UINT32(0, tls_session->last_cpy_cert_len);
+    TEST_ASSERT_EQUAL_UINT16(tls_session->inlen_decrypted, (tls_session->inlen_decoded + 1 + tls_session->sec.chosen_ciphersuite->tagSize));
 
     tlsFreeCertChain(tls_session->peer_certs, TLS_FREE_CERT_ENTRY_ALL);
     tls_session->peer_certs = NULL;
-    XMEMFREE(cert_handshake_msg.data);
+    XMEMFREE(entire_handshake_msg.data);
 } // end of TEST(tlsDecodeRecordLayer, certchain_fragments)
 #undef TEST_NUM_OF_PEER_CERTS
 
 
+TEST(tlsDecodeRecordLayer, certchain_overflow)
+{
+    byte *buf = NULL;
+    tlsRespStatus status = TLS_RESP_OK;
+
+    buf = &tls_session->inbuf.data[0];
+    *buf++ = TLS_CONTENT_TYPE_HANDSHAKE;
+    buf += tlsEncodeWord16(buf, TLS_VERSION_ENCODE_1_2);
+    buf += tlsEncodeWord16(buf, (TLS_DEFAULT_BYTES_RECORD_LAYER_PKT - TLS_RECORD_LAYER_HEADER_NBYTES));
+    *buf++ = TLS_HS_TYPE_CERTIFICATE;
+    buf += tlsEncodeWord24(buf, (TLS_MAX_BYTES_HANDSHAKE_MSG - TLS_HANDSHAKE_HEADER_NBYTES));
+    *buf++ = 0; // certificate_request_context from server's Certificate is usually empty.
+    buf += tlsEncodeWord24(buf, (TLS_MAX_BYTES_CERT_CHAIN + 1));
+    buf += tlsEncodeWord24(buf, (TLS_MAX_BYTES_CERT_CHAIN + 1 - 3 - 2));
+
+    tls_session->inlen_decrypted  = tls_session->inbuf.len - 7;
+    tls_session->num_frags_in    = 2;
+    tls_session->remain_frags_in = 2;
+    tls_session->sec.flgs.ct_first_frag = 1;
+    tls_session->sec.flgs.ct_final_frag = 0;
+    tls_session->peer_certs = NULL;
+
+    tls_session->flgs.hs_rx_encrypt = 1;
+    tls_session->inlen_decoded = 0;
+    tls_session->hs_state = TLS_HS_TYPE_CERTIFICATE_REQUEST;
+    status = tlsDecodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_ERR_CERT_OVFL, status);
+    TEST_ASSERT_EQUAL_UINT(NULL, tls_session->peer_certs);
+    TEST_ASSERT_EQUAL_UINT8(TLS_HS_TYPE_CERTIFICATE, tls_session->hs_state);
+
+    tlsEncodeWord24(&buf[-6],  TLS_MAX_BYTES_CERT_CHAIN);
+    tlsEncodeWord24(&buf[-3], (TLS_MAX_BYTES_CERT_CHAIN - 3 - 2));
+    tls_session->inlen_decoded = 0;
+    tls_session->hs_state = TLS_HS_TYPE_CERTIFICATE_REQUEST;
+    status = tlsDecodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    TEST_ASSERT_NOT_EQUAL( NULL, tls_session->peer_certs);
+    TEST_ASSERT_NOT_EQUAL( NULL, tls_session->peer_certs->rawbytes.data);
+    TEST_ASSERT_EQUAL_UINT(NULL, tls_session->peer_certs->hashed_holder_info.data);
+    TEST_ASSERT_EQUAL_UINT(NULL, tls_session->peer_certs->next);
+    TEST_ASSERT_GREATER_THAN_UINT32(0, tls_session->last_cpy_cert_len);
+    TEST_ASSERT_LESS_THAN_UINT32((3 + TLS_MAX_BYTES_CERT_CHAIN - 3 - 2), tls_session->last_cpy_cert_len);
+    TEST_ASSERT_EQUAL_UINT8(TLS_HS_TYPE_CERTIFICATE, tls_session->hs_state);
+
+    tlsFreeCertChain(tls_session->peer_certs, TLS_FREE_CERT_ENTRY_ALL);
+    tls_session->peer_certs = NULL;
+} // end of TEST(tlsDecodeRecordLayer, certchain_overflow)
+
+
+TEST(tlsDecodeRecordLayer, certverify)
+{
+    byte    *buf = NULL;
+    word16   expect_verify_data_sz = 0;
+    tlsRespStatus status = TLS_RESP_OK;
+
+    tls_session->peer_certs = XMALLOC(sizeof(tlsCert_t));
+    tls_session->sec.chosen_ciphersuite = &tls_supported_cipher_suites[1];
+    expect_verify_data_sz  = tls_session->inbuf.len;
+    expect_verify_data_sz -= (TLS_RECORD_LAYER_HEADER_NBYTES + TLS_HANDSHAKE_HEADER_NBYTES);
+    expect_verify_data_sz -= (4 + 1 + tls_session->sec.chosen_ciphersuite->tagSize);
+
+    buf = &tls_session->inbuf.data[0];
+    *buf++ = TLS_CONTENT_TYPE_HANDSHAKE;
+    buf += tlsEncodeWord16(buf, TLS_VERSION_ENCODE_1_2);
+    buf += tlsEncodeWord16(buf, (tls_session->inbuf.len - TLS_RECORD_LAYER_HEADER_NBYTES));
+    *buf++ = TLS_HS_TYPE_CERTIFICATE_VERIFY;
+    buf += tlsEncodeWord24(buf, (2 + 2 + expect_verify_data_sz));
+    // give unsupported signature algorithm ID, the decode function should report error
+    buf += tlsEncodeWord16(buf, TLS_SIGNATURE_ED448);
+    buf += tlsEncodeWord16(buf, expect_verify_data_sz);
+    buf += expect_verify_data_sz;
+    *buf++ = TLS_CONTENT_TYPE_HANDSHAKE; 
+    buf += tls_session->sec.chosen_ciphersuite->tagSize; // preserve space for authentication tag
+    TEST_ASSERT_EQUAL_UINT(&tls_session->inbuf.data[tls_session->inbuf.len], buf);
+
+    tls_session->flgs.hs_rx_encrypt = 1;
+    tls_session->hs_state = TLS_HS_TYPE_CERTIFICATE_VERIFY;
+    tls_session->inlen_decrypted  = tls_session->inbuf.len;
+    tls_session->inlen_decoded = 0;
+    status = tlsDecodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_ERR_NOT_SUPPORT, status);
+
+    tlsEncodeWord16(&tls_session->inbuf.data[TLS_RECORD_LAYER_HEADER_NBYTES + TLS_HANDSHAKE_HEADER_NBYTES], TLS_SIGNATURE_RSA_PSS_PSS_SHA256);
+    tls_session->inlen_decoded = 0;
+    status = tlsDecodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT16(tls_session->inlen_decrypted, (tls_session->inlen_decoded + 1 + tls_session->sec.chosen_ciphersuite->tagSize));
+
+    tlsEncodeWord16(&tls_session->inbuf.data[TLS_RECORD_LAYER_HEADER_NBYTES + TLS_HANDSHAKE_HEADER_NBYTES], TLS_SIGNATURE_RSA_PSS_PSS_SHA384);
+    tls_session->inlen_decoded = 0;
+    status = tlsDecodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT16(tls_session->inlen_decrypted, (tls_session->inlen_decoded + 1 + tls_session->sec.chosen_ciphersuite->tagSize));
+
+    XMEMFREE(tls_session->peer_certs);
+    tls_session->peer_certs = NULL;
+} // end of TEST(tlsDecodeRecordLayer, certverify)
+
+
+TEST(tlsDecodeRecordLayer, finished)
+{
+    byte    *buf = NULL;
+    const byte  expect_verify_bytes[8] = {0x1d, 0x1e, 0x1f, 0x2a, 0x21, 0x22, 0x23, 0x24,};
+    word16   expect_verify_data_sz = 0;
+    tlsRespStatus status = TLS_RESP_OK;
+
+    tls_session->sec.chosen_ciphersuite = &tls_supported_cipher_suites[0];
+    expect_verify_data_sz = mqttHashGetOutlenBytes(TLScipherSuiteGetHashID(tls_session->sec.chosen_ciphersuite));
+
+    buf = &tls_session->inbuf.data[0];
+    *buf++ = TLS_CONTENT_TYPE_HANDSHAKE;
+    buf += tlsEncodeWord16(buf, TLS_VERSION_ENCODE_1_2);
+    buf += tlsEncodeWord16(buf, (expect_verify_data_sz + TLS_HANDSHAKE_HEADER_NBYTES + 1 + tls_session->sec.chosen_ciphersuite->tagSize));
+    *buf++ = TLS_HS_TYPE_FINISHED;
+    buf += tlsEncodeWord24(buf, expect_verify_data_sz);
+    XMEMCPY(buf, &expect_verify_bytes[0], 0x4);
+    buf += (expect_verify_data_sz - 4);
+    XMEMCPY(buf, &expect_verify_bytes[4], 0x4);
+    buf += 4;
+    *buf++ = TLS_CONTENT_TYPE_HANDSHAKE; 
+    buf += tls_session->sec.chosen_ciphersuite->tagSize; // preserve space for authentication tag
+
+    tls_session->flgs.hs_rx_encrypt = 1;
+    tls_session->hs_state = TLS_HS_TYPE_CERTIFICATE_REQUEST; // test transition from CertificateRequest to Finished
+    tls_session->inlen_decrypted  = (word16)(buf - &tls_session->inbuf.data[0]);
+
+    tls_session->inlen_decoded = 0;
+    XMEMSET(&mock_finish_verify_data[0], 0x00, 8);
+    status = tlsDecodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_HS_AUTH_FAIL, status);
+    TEST_ASSERT_EQUAL_UINT8(TLS_HS_TYPE_FINISHED, tls_session->hs_state);
+    TEST_ASSERT_EQUAL_UINT8(1, tls_session->flgs.omit_client_cert_chk);
+    TEST_ASSERT_EQUAL_UINT8(1, tls_session->flgs.omit_server_cert_chk);
+
+    tls_session->inlen_decoded = 0;
+    XMEMCPY(&mock_finish_verify_data[0] , &expect_verify_bytes[0], 8);
+    status = tlsDecodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT16(tls_session->inlen_decrypted, (tls_session->inlen_decoded + 1 + tls_session->sec.chosen_ciphersuite->tagSize));
+} // end of TEST(tlsDecodeRecordLayer, finished)
+
+
+#define  TEST_NBYTES_NST_NONCE  9
+TEST(tlsDecodeRecordLayer, new_session_ticket_fragments)
+{
+    const word32 expect_lifetime = 0x11c02;
+    const word32 expect_age_add  = 0x505bee8d;
+    const byte   expect_nonce[TEST_NBYTES_NST_NONCE] = {0x20, 2, 3, 4, 5, 6, 7, 0xe8, 0xf1};
+    const byte   expect_ticket_boundbytes[8] = {0xfd, 0xfb, 0xfa, 0xf9, 0xf6, 0xf5, 0xf4, 0xf3};
+    mqttStr_t  entire_handshake_msg = {0, NULL};
+    tlsPSK_t  *mock_psk_list = NULL;
+    byte    *buf = NULL;
+    word16   total_nst_hs_msg_sz = 0;
+    word16   ticket_id_sz = 0;
+    word16   nbytes_hs_msg_copied = 0;
+    tlsRespStatus status = TLS_RESP_OK;
+
+    tls_session->flgs.hs_rx_encrypt = 1;
+    tls_session->flgs.hs_server_finish = 1;
+    tls_session->flgs.hs_client_finish = 1;
+    tls_session->sec.psk_list = &mock_psk_list;
+
+    ticket_id_sz = tls_session->inbuf.len + 7;
+    total_nst_hs_msg_sz = 4 + 4 + 1 + TEST_NBYTES_NST_NONCE + 2 + ticket_id_sz + 2;
+    tls_session->sec.chosen_ciphersuite = &tls_supported_cipher_suites[0];
+
+    entire_handshake_msg.len  = TLS_RECORD_LAYER_HEADER_NBYTES + TLS_HANDSHAKE_HEADER_NBYTES;
+    entire_handshake_msg.len += total_nst_hs_msg_sz + 1 + tls_session->sec.chosen_ciphersuite->tagSize;
+    entire_handshake_msg.data = XMALLOC(entire_handshake_msg.len);
+    XMEMSET(entire_handshake_msg.data, 0x00, entire_handshake_msg.len);
+
+    buf = &entire_handshake_msg.data[0];
+    *buf++ = TLS_CONTENT_TYPE_HANDSHAKE;
+    buf += tlsEncodeWord16(buf, TLS_VERSION_ENCODE_1_2);
+    buf += tlsEncodeWord16(buf, (entire_handshake_msg.len - TLS_RECORD_LAYER_HEADER_NBYTES));
+    *buf++ = TLS_HS_TYPE_NEW_SESSION_TICKET;
+    buf += tlsEncodeWord24(buf, (word32)total_nst_hs_msg_sz);
+    buf += tlsEncodeWord32(buf, expect_lifetime);
+    buf += tlsEncodeWord32(buf, expect_age_add);
+    *buf++ = TEST_NBYTES_NST_NONCE;
+    XMEMCPY(buf, &expect_nonce[0], TEST_NBYTES_NST_NONCE);
+    buf += TEST_NBYTES_NST_NONCE;
+    buf += tlsEncodeWord16(buf, ticket_id_sz);
+    XMEMCPY(buf, &expect_ticket_boundbytes[0], 4);
+    buf += (ticket_id_sz - 4);
+    XMEMCPY(buf, &expect_ticket_boundbytes[4], 4);
+    buf += 4;
+    buf += tlsEncodeWord16(buf, 0); // no extension entry at here
+    *buf++ = TLS_CONTENT_TYPE_HANDSHAKE; 
+    buf += tls_session->sec.chosen_ciphersuite->tagSize; // preserve space for authentication tag
+    TEST_ASSERT_EQUAL_UINT(&entire_handshake_msg.data[entire_handshake_msg.len], buf);
+    TEST_ASSERT_EQUAL_UINT(NULL, *tls_session->sec.psk_list);
+
+    mock_sys_get_time_ms  = 0x123;
+    tls_session->hs_state = TLS_HS_TYPE_FINISHED;
+    // decode the first fragment of NewSessionTicket
+    tls_session->inlen_decrypted  = tls_session->inbuf.len;
+    tls_session->inlen_decoded = 0;
+    XMEMCPY(&tls_session->inbuf.data[0], &entire_handshake_msg.data[nbytes_hs_msg_copied], tls_session->inlen_decrypted);
+    nbytes_hs_msg_copied += tls_session->inlen_decrypted;
+    tls_session->num_frags_in    = 2;
+    tls_session->remain_frags_in = 2;
+    tls_session->sec.flgs.ct_first_frag = 1;
+    tls_session->sec.flgs.ct_final_frag = 0;
+    status = tlsDecodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT8(TLS_HS_TYPE_NEW_SESSION_TICKET, tls_session->hs_state);
+    TEST_ASSERT_EQUAL_UINT8(1, tls_session->flgs.new_session_tkt);
+    TEST_ASSERT_NOT_EQUAL(NULL, *tls_session->sec.psk_list);
+    TEST_ASSERT_EQUAL_UINT(expect_lifetime, mock_psk_list->time_param.ticket_lifetime);
+    TEST_ASSERT_EQUAL_UINT(expect_age_add,  mock_psk_list->time_param.ticket_age_add);
+    TEST_ASSERT_EQUAL_UINT(mock_sys_get_time_ms,  mock_psk_list->time_param.timestamp_ms);
+    TEST_ASSERT_EQUAL_UINT16(ticket_id_sz, mock_psk_list->id.len);
+    TEST_ASSERT_GREATER_THAN_UINT32(0,         tls_session->nbytes.remaining_to_recv);
+    TEST_ASSERT_LESS_THAN_UINT32(ticket_id_sz, tls_session->nbytes.remaining_to_recv);
+    // decode the second fragment of NewSessionTicket
+    tls_session->inlen_decrypted = entire_handshake_msg.len - nbytes_hs_msg_copied;
+    tls_session->inlen_decoded = 0;
+    XMEMCPY(&tls_session->inbuf.data[0], &entire_handshake_msg.data[nbytes_hs_msg_copied], tls_session->inlen_decrypted);
+    nbytes_hs_msg_copied += tls_session->inlen_decrypted;
+    tls_session->num_frags_in    = 2;
+    tls_session->remain_frags_in = 1;
+    tls_session->sec.flgs.ct_first_frag = 0;
+    tls_session->sec.flgs.ct_final_frag = 1;
+    status = tlsDecodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT8(TLS_HS_TYPE_NEW_SESSION_TICKET, tls_session->hs_state);
+    TEST_ASSERT_EQUAL_UINT8(0, tls_session->flgs.new_session_tkt);
+    TEST_ASSERT_EQUAL_UINT32(0, tls_session->nbytes.remaining_to_recv);
+    TEST_ASSERT_NOT_EQUAL(NULL, *tls_session->sec.psk_list);
+    TEST_ASSERT_EQUAL_UINT16(ticket_id_sz, mock_psk_list->id.len);
+    TEST_ASSERT_EQUAL_STRING_LEN(&mock_psk_list->id.data[0], &expect_ticket_boundbytes[0], 4);
+    TEST_ASSERT_EQUAL_STRING_LEN(&mock_psk_list->id.data[ticket_id_sz - 4], &expect_ticket_boundbytes[4], 4);
+    TEST_ASSERT_EQUAL_UINT32(entire_handshake_msg.len, nbytes_hs_msg_copied);
+    TEST_ASSERT_EQUAL_UINT16(tls_session->inlen_decrypted, (tls_session->inlen_decoded + 1 + tls_session->sec.chosen_ciphersuite->tagSize));
+
+    tlsFreePSKentry(*tls_session->sec.psk_list);
+    *tls_session->sec.psk_list = NULL;
+    tls_session->sec.psk_list  = NULL;
+    XMEMFREE(entire_handshake_msg.data);
+} // end of TEST(tlsDecodeRecordLayer, new_session_ticket_fragments)
+
+
+TEST(tlsDecodeRecordLayer, new_session_ticket_list_limit)
+{
+    const word32 expect_lifetime = 0x5435;
+    const word32 expect_age_add  = 0xe5a013d5;
+    const byte   expect_nonce[TEST_NBYTES_NST_NONCE] = {0x7a, 0xc2, 3, 4, 5, 6, 7, 0xe8, 0x1};
+    word32    *expect_sys_get_time_ms = NULL;
+    tlsPSK_t  *mock_psk_list = NULL;
+    tlsPSK_t  *tmp_psk       = NULL;
+    byte    *buf = NULL;
+    word16   total_nst_rec_msg_sz = 0;
+    word16   total_nst_hs_msg_sz = 0;
+    word16   ticket_id_sz = 0x10;
+    tlsRespStatus status = TLS_RESP_OK;
+    word16 idx, jdx = 0;
+
+    expect_sys_get_time_ms = XMALLOC(sizeof(word32) * (TLS_MAX_NUM_PSK_LISTITEM + 5));
+    for(idx = 0; idx < (TLS_MAX_NUM_PSK_LISTITEM + 5); idx++) {
+        expect_sys_get_time_ms[idx] = 0x1ff + idx;
+    }
+    tls_session->flgs.hs_rx_encrypt = 1;
+    tls_session->flgs.hs_server_finish = 1;
+    tls_session->flgs.hs_client_finish = 1;
+    tls_session->sec.psk_list = &mock_psk_list;
+    tls_session->hs_state = TLS_HS_TYPE_NEW_SESSION_TICKET;
+
+    total_nst_hs_msg_sz  = 4 + 4 + 1 + TEST_NBYTES_NST_NONCE + 2 + ticket_id_sz + 2;
+    total_nst_rec_msg_sz = total_nst_hs_msg_sz + TLS_HANDSHAKE_HEADER_NBYTES + 1 + tls_session->sec.chosen_ciphersuite->tagSize;
+    tls_session->sec.chosen_ciphersuite = &tls_supported_cipher_suites[0];
+
+    buf  = &tls_session->inbuf.data[0];
+    *buf++ = TLS_CONTENT_TYPE_HANDSHAKE;
+    buf += tlsEncodeWord16(buf, TLS_VERSION_ENCODE_1_2);
+    buf += tlsEncodeWord16(buf, total_nst_rec_msg_sz);
+    *buf++ = TLS_HS_TYPE_NEW_SESSION_TICKET;
+    buf += tlsEncodeWord24(buf, (word32)total_nst_hs_msg_sz);
+    buf += tlsEncodeWord32(buf, expect_lifetime);
+    buf += tlsEncodeWord32(buf, expect_age_add);
+    *buf++ = TEST_NBYTES_NST_NONCE;
+    XMEMCPY(buf, &expect_nonce[0], TEST_NBYTES_NST_NONCE);
+    buf += TEST_NBYTES_NST_NONCE;
+    buf += tlsEncodeWord16(buf, ticket_id_sz);
+    buf += ticket_id_sz;
+    buf += tlsEncodeWord16(buf, 0); // no extension entry at here
+    *buf++ = TLS_CONTENT_TYPE_HANDSHAKE; 
+    buf += tls_session->sec.chosen_ciphersuite->tagSize; // preserve space for authentication tag
+
+    tls_session->inlen_decrypted  = (word16)(buf - &tls_session->inbuf.data[0]);
+
+    // decode the first NewSessionTicket
+    for(idx = 0; idx < (TLS_MAX_NUM_PSK_LISTITEM + 5); idx++) {
+        mock_sys_get_time_ms  = expect_sys_get_time_ms[idx];
+        tls_session->inlen_decoded = 0;
+        status = tlsDecodeRecordLayer(tls_session);
+        TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+        TEST_ASSERT_EQUAL_UINT8(TLS_HS_TYPE_NEW_SESSION_TICKET, tls_session->hs_state);
+        TEST_ASSERT_EQUAL_UINT8(0, tls_session->flgs.new_session_tkt);
+        TEST_ASSERT_EQUAL_UINT16(tls_session->inlen_decrypted, (tls_session->inlen_decoded + 1 + tls_session->sec.chosen_ciphersuite->tagSize));
+        TEST_ASSERT_NOT_EQUAL(NULL, *tls_session->sec.psk_list);
+        tmp_psk = *tls_session->sec.psk_list;
+        for(jdx = 0; tmp_psk != NULL; jdx++) {
+            TEST_ASSERT_EQUAL_UINT(expect_lifetime,  tmp_psk->time_param.ticket_lifetime);
+            TEST_ASSERT_EQUAL_UINT(expect_age_add,   tmp_psk->time_param.ticket_age_add);
+            TEST_ASSERT_EQUAL_UINT(expect_sys_get_time_ms[idx - jdx], tmp_psk->time_param.timestamp_ms);
+            tmp_psk = tmp_psk->next;
+        } // end of for-loop jdx
+    } // end of for-loop idx
+
+    while(mock_psk_list != NULL) {
+        tmp_psk = mock_psk_list;
+        tlsRemoveItemFromList((tlsListItem_t **)&mock_psk_list, (tlsListItem_t *)tmp_psk);
+        tlsFreePSKentry(tmp_psk);
+    }
+    mock_psk_list = NULL;
+    tls_session->sec.psk_list  = NULL;
+    XMEMFREE(expect_sys_get_time_ms);
+} // end of TEST(tlsDecodeRecordLayer, new_session_ticket_list_limit)
+#undef TEST_NBYTES_NST_NONCE
+
+
+#define  TEST_APP_DATA_BYTE_MARK  0x78
+#define  TEST_APP_MSG_AUTH_TAG    0xe4
+TEST(tlsDecodeRecordLayer, app_data_fragments)
+{
+    mqttStr_t  expect_app_msg = {0, NULL};
+    mqttStr_t  actual_app_msg = {0, NULL};
+    word16     app_data_sz = 0;
+    word16     nbytes_copied = 0;
+    byte      *buf = NULL;
+    byte      *expect_app_start = NULL;
+    tlsRespStatus status = TLS_RESP_OK;
+    word16 idx = 0;
+
+    tls_session->flgs.hs_rx_encrypt = 1;
+    tls_session->flgs.hs_server_finish = 1;
+    tls_session->flgs.hs_client_finish = 1;
+    tls_session->sec.chosen_ciphersuite = &tls_supported_cipher_suites[0];
+
+    app_data_sz = tls_session->inbuf.len << 1;
+    expect_app_msg.len   = TLS_RECORD_LAYER_HEADER_NBYTES + app_data_sz + 1 + tls_session->sec.chosen_ciphersuite->tagSize;
+    expect_app_msg.data  = XMALLOC(sizeof(byte) * expect_app_msg.len);
+    actual_app_msg.len   = app_data_sz;
+    actual_app_msg.data  = XMALLOC(sizeof(byte) * actual_app_msg.len);
+    buf = &expect_app_msg.data[0];
+    *buf++ = TLS_CONTENT_TYPE_APP_DATA ;
+    buf += tlsEncodeWord16(buf, TLS_VERSION_ENCODE_1_2);
+    buf += tlsEncodeWord16(buf, (expect_app_msg.len - TLS_RECORD_LAYER_HEADER_NBYTES));
+    XMEMSET(buf, TEST_APP_DATA_BYTE_MARK, app_data_sz);
+    expect_app_start = buf;
+    buf += app_data_sz;
+    *buf++ = TLS_CONTENT_TYPE_APP_DATA ;
+    XMEMSET(buf, TEST_APP_MSG_AUTH_TAG, tls_session->sec.chosen_ciphersuite->tagSize);
+    buf += tls_session->sec.chosen_ciphersuite->tagSize;
+
+    tls_session->app_pt.data = actual_app_msg.data;
+    // decode first fragment of application message
+    tls_session->num_frags_in    = 2;
+    tls_session->remain_frags_in = 2;
+    tls_session->sec.flgs.ct_first_frag = 1;
+    tls_session->sec.flgs.ct_final_frag = 0;
+    tls_session->inlen_decrypted = tls_session->inbuf.len;
+    tls_session->inlen_decoded   = 0;
+    XMEMCPY(&tls_session->inbuf.data[0], &expect_app_msg.data[nbytes_copied], tls_session->inlen_decrypted);
+    nbytes_copied += tls_session->inlen_decrypted;
+    for(idx = 1; tls_session->inlen_decrypted > tls_session->inlen_decoded; idx++) {
+        tls_session->app_pt.len  = idx;
+        status = tlsDecodeRecordLayer(tls_session);
+        TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    }
+    TEST_ASSERT_GREATER_THAN_UINT32(0, tls_session->app_pt.len);
+    TEST_ASSERT_LESS_THAN_UINT32(idx,  tls_session->app_pt.len);
+    TEST_ASSERT_EQUAL_UINT16(tls_session->inlen_decrypted, tls_session->inlen_decoded);
+    // decode second fragment of application message
+    tls_session->num_frags_in    = 3;
+    tls_session->remain_frags_in = 2;
+    tls_session->sec.flgs.ct_first_frag = 0;
+    tls_session->sec.flgs.ct_final_frag = 0;
+    tls_session->inlen_decrypted = tls_session->inbuf.len;
+    tls_session->inlen_decoded   = 0;
+    XMEMCPY(&tls_session->inbuf.data[0], &expect_app_msg.data[nbytes_copied], tls_session->inlen_decrypted);
+    nbytes_copied += tls_session->inlen_decrypted;
+    for(idx = 5; tls_session->inlen_decrypted > tls_session->inlen_decoded; idx++) {
+        tls_session->app_pt.len  = idx;
+        status = tlsDecodeRecordLayer(tls_session);
+    }
+    TEST_ASSERT_GREATER_THAN_UINT32(0, tls_session->app_pt.len);
+    TEST_ASSERT_LESS_THAN_UINT32(idx,  tls_session->app_pt.len);
+    TEST_ASSERT_EQUAL_UINT16(tls_session->inlen_decrypted, tls_session->inlen_decoded);
+    // decode third fragment of application message
+    tls_session->num_frags_in    = 3;
+    tls_session->remain_frags_in = 1;
+    tls_session->sec.flgs.ct_first_frag = 0;
+    tls_session->sec.flgs.ct_final_frag = 1;
+    tls_session->inlen_decrypted = expect_app_msg.len - nbytes_copied;
+    tls_session->inlen_decoded   = 0;
+    XMEMCPY(&tls_session->inbuf.data[0], &expect_app_msg.data[nbytes_copied], tls_session->inlen_decrypted);
+    nbytes_copied += tls_session->inlen_decrypted;
+    for(idx = 2;; idx++) {
+        tls_session->app_pt.len  = idx;
+        status = tlsDecodeRecordLayer(tls_session);
+        if(tls_session->app_pt.len > 0) { break; }
+    }
+    TEST_ASSERT_EQUAL_UINT16(tls_session->inlen_decrypted, (tls_session->inlen_decoded + 1 + tls_session->sec.chosen_ciphersuite->tagSize));
+    TEST_ASSERT_EQUAL_UINT16(actual_app_msg.len, (tls_session->app_pt.data - actual_app_msg.data));
+    TEST_ASSERT_EQUAL_STRING_LEN(expect_app_start, &actual_app_msg.data[0], actual_app_msg.len);
+    XMEMFREE(expect_app_msg.data);
+    XMEMFREE(actual_app_msg.data);
+} // end of TEST(tlsDecodeRecordLayer, app_data_fragments)
+#undef  TEST_APP_DATA_BYTE_MARK
+#undef  TEST_APP_MSG_AUTH_TAG
+
+
+
+
+//// TEST(tlsDecodeRecordLayer, change_cipher_spec)
+//// {} // end of TEST(tlsDecodeRecordLayer, change_cipher_spec)
+//// TEST(tlsDecodeRecordLayer, alert)
+//// {} // end of TEST(tlsDecodeRecordLayer, alert)
 
 
 
