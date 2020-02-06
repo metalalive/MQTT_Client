@@ -195,6 +195,7 @@ static tlsRespStatus  tlsDecodeHScertificateVerify(tlsSession_t *session)
     tlsOpaque16b_t  digiSig   = {0 , NULL};
     tlsRSApss_t     rsapssSig = {0 , 0};
 
+    if(session->peer_certs == NULL) { status = TLS_RESP_ERRARGS; goto done; }
     inlen_decoded += tlsDecodeWord16( &inbuf[inlen_decoded] , &tmp);
     sig_scheme_id = (tlsSignScheme)tmp;
     // check whether the chosen signature algorithm is supported.
@@ -215,7 +216,7 @@ static tlsRespStatus  tlsDecodeHScertificateVerify(tlsSession_t *session)
     inlen_decoded += tlsDecodeWord16(&inbuf[inlen_decoded] , &tmp);
     recvSig.len  =  tmp;
     recvSig.data = &inbuf[inlen_decoded];
-
+    inlen_decoded += recvSig.len;
     status =  tlsCertVerifyGenDigitalSig(&session->sec, (const tlsRSApss_t *)&rsapssSig, &digiSig, (const byte) 0x1);
     if(status < 0){ goto done; }
 

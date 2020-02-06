@@ -291,6 +291,7 @@ tlsRespStatus  tlsCertVerifyGenDigitalSig(tlsSecurityElements_t *sec, const tlsR
     out->len  = 64 + sizeof(clientlabel) - 1 + 1 + hash_len;
     out->data = XMALLOC(sizeof(byte) * out->len);
     buf       = out->data;
+    // repeat 0x20 64 times in the beginning of the digital signature (RFC 8446, section 4.4.3)
     XMEMSET(buf, 0x20, sizeof(byte) * 64);
     buf += 64;
     if(is_server != 0x0) {
