@@ -543,8 +543,8 @@ TEST_GROUP_RUNNER(tlsDecodeRecordLayer)
     RUN_TEST_CASE(tlsDecodeRecordLayer, new_session_ticket_fragments);
     RUN_TEST_CASE(tlsDecodeRecordLayer, new_session_ticket_list_limit);
     RUN_TEST_CASE(tlsDecodeRecordLayer, app_data_fragments);
-    //// RUN_TEST_CASE(tlsDecodeRecordLayer, change_cipher_spec);
-    //// RUN_TEST_CASE(tlsDecodeRecordLayer, alert);
+    RUN_TEST_CASE(tlsDecodeRecordLayer, change_cipher_spec);
+    RUN_TEST_CASE(tlsDecodeRecordLayer, alert);
 }
 
 TEST_SETUP(tlsPktDecodeMisc)
@@ -1366,14 +1366,54 @@ TEST(tlsDecodeRecordLayer, app_data_fragments)
 #undef  TEST_APP_MSG_AUTH_TAG
 
 
+TEST(tlsDecodeRecordLayer, change_cipher_spec)
+{
+    byte    *buf = NULL;
+    tlsRespStatus status = TLS_RESP_OK;
+
+    buf  = &tls_session->inbuf.data[0];
+    *buf++ = TLS_CONTENT_TYPE_CHANGE_CIPHER_SPEC;
+    buf += tlsEncodeWord16(buf, TLS_VERSION_ENCODE_1_2);
+    buf += tlsEncodeWord16(buf, 0x1);
+    *buf++ = 0x1;
+
+    tls_session->inlen_decrypted = 6;
+    tls_session->inlen_decoded   = 0;
+    tls_session->flgs.hs_rx_encrypt = 0;
+    status = tlsDecodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT(1, tls_session->flgs.hs_rx_encrypt);
+    TEST_ASSERT_EQUAL_UINT16(tls_session->inlen_decrypted, tls_session->inlen_decoded);
+} // end of TEST(tlsDecodeRecordLayer, change_cipher_spec)
 
 
-//// TEST(tlsDecodeRecordLayer, change_cipher_spec)
-//// {} // end of TEST(tlsDecodeRecordLayer, change_cipher_spec)
-//// TEST(tlsDecodeRecordLayer, alert)
-//// {} // end of TEST(tlsDecodeRecordLayer, alert)
+TEST(tlsDecodeRecordLayer, alert)
+{
+    byte    *buf = NULL;
+    tlsRespStatus status = TLS_RESP_OK;
+    tlsAlertType  mock_tls_alert_description = TLS_ALERT_TYPE_CLOSE_NOTIFY;
 
+    tls_session->sec.chosen_ciphersuite = &tls_supported_cipher_suites[0];
 
+    buf  = &tls_session->inbuf.data[0];
+    *buf++ = TLS_CONTENT_TYPE_ALERT;
+    buf += tlsEncodeWord16(buf, TLS_VERSION_ENCODE_1_2);
+    buf += tlsEncodeWord16(buf, (2 + 1 + tls_session->sec.chosen_ciphersuite->tagSize));
+    *buf++ = TLS_ALERT_LVL_WARNING;
+    *buf++ = mock_tls_alert_description;
+    *buf++ = TLS_CONTENT_TYPE_ALERT;
+    buf += tls_session->sec.chosen_ciphersuite->tagSize;
+
+    tls_session->inlen_decrypted  = (word16)(buf - &tls_session->inbuf.data[0]);
+    tls_session->inlen_decoded   = 0;
+    tls_session->flgs.hs_rx_encrypt = 1;
+
+    status = tlsDecodeRecordLayer(tls_session);
+    TEST_ASSERT_EQUAL_UINT8(tlsAlertTypeCvtToTlsResp(mock_tls_alert_description), status);
+    TEST_ASSERT_EQUAL_UINT8(TLS_ALERT_LVL_WARNING, tls_session->log.alert.level);
+    TEST_ASSERT_EQUAL_UINT8(mock_tls_alert_description, tls_session->log.alert.description);
+    TEST_ASSERT_EQUAL_UINT16(tls_session->inlen_decrypted, (tls_session->inlen_decoded + 1 + tls_session->sec.chosen_ciphersuite->tagSize));
+} // end of TEST(tlsDecodeRecordLayer, alert)
 
 
 static void RunAllTestGroups(void)
