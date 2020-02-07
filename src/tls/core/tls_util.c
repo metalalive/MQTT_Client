@@ -225,6 +225,7 @@ tlsRespStatus  tlsAlertTypeCvtToTlsResp(tlsAlertType in)
 {
     tlsRespStatus  out = TLS_RESP_OK;
     switch(in) {
+        // TODO: need seperate response code, the peer will send TLS_ALERT_TYPE_CLOSE_NOTIFY even the TLS connection is normally closed
         case TLS_ALERT_TYPE_CLOSE_NOTIFY :
         case TLS_ALERT_TYPE_USER_CANCELED:
             out = TLS_RESP_PEER_CONN_FAIL; break;

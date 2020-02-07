@@ -452,6 +452,7 @@ static tlsRespStatus  tlsDecodeChangeCipherSpec(tlsSession_t *session)
     if(session->flgs.hs_rx_encrypt == 0) {
         session->flgs.hs_rx_encrypt = 1;
     }
+    session->inlen_decoded += 1;
     return status;
 } // end of tlsDecodeChangeCipherSpec
 
