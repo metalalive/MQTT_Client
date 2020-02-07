@@ -210,7 +210,7 @@ static tlsExtEntry_t*  tlsGenExtsPSKexMode(void)
 //         case server_hello: uint16 selected_identity;
 //     };
 // } PreSharedKeyExtension;
-static tlsExtEntry_t*  tlsGenExtsPSK(tlsSecurityElements_t *sec, tlsPSK_t *psklist)
+static tlsExtEntry_t*  tlsGenExtsPSK(tlsSecurityElements_t *sec, tlsPSK_t **psklist)
 {
     tlsPSK_t       *pskitem    = NULL;
     tlsExtEntry_t  *out        = NULL;
@@ -218,22 +218,25 @@ static tlsExtEntry_t*  tlsGenExtsPSK(tlsSecurityElements_t *sec, tlsPSK_t *pskli
     byte           *bindbuf    = NULL;
     word32          nowtime_ms = 0;
     word32          tkt_age_ms = 0;
+    word32     tkt_lifetime_ms = 0;
     word16   total_pskid_len   = 0;
     word16   total_binder_len  = 0;
     tlsHashAlgoID  hash_algo_id = 0;
     // ----- calculate number of bytes required to encode -----
-    pskitem = psklist;
+    pskitem = *psklist;
     nowtime_ms = mqttSysGetTimeMs();
     while(pskitem != NULL) {
         hash_algo_id = tlsGetHashAlgoIDBySize( (word16)pskitem->key.len );
         // (RFC 8446, section 4.2.11.1)
         // "the age of the ticket" in client's view is the time since the receipt of NewTicketMessage.
         tkt_age_ms = mqttGetInterval(nowtime_ms, pskitem->time_param.timestamp_ms);
+        tkt_lifetime_ms = 1000 * pskitem->time_param.ticket_lifetime;
         // If age of a ticket (of a PSK item) is greater than ticket_lifetime attribute, or unknown hash method is used,
         // then remove that PSK item because it's no longer available
-        if(((tkt_age_ms / 1000) >= pskitem->time_param.ticket_lifetime) || (hash_algo_id == TLS_HASH_ALGO_UNKNOWN)) {
+        if((tkt_age_ms >= tkt_lifetime_ms) || (hash_algo_id == TLS_HASH_ALGO_UNKNOWN)) {
             tlsPSK_t  *rdy2deleteitem = pskitem;
-            tlsRemoveItemFromList((tlsListItem_t **)&pskitem, (tlsListItem_t *)rdy2deleteitem);
+            tlsRemoveItemFromList((tlsListItem_t **)psklist, (tlsListItem_t *)rdy2deleteitem);
+            pskitem = pskitem->next;
             tlsFreePSKentry(rdy2deleteitem);
         } else {
             // first 2 bytes for storing size of identity of each PSK, then variable bytes of identity of each
@@ -259,7 +262,7 @@ static tlsExtEntry_t*  tlsGenExtsPSK(tlsSecurityElements_t *sec, tlsPSK_t *pskli
     // ----- encoding PSK identifies -----
     idbuf    =  out->content.data;
     idbuf   +=  tlsEncodeWord16(idbuf, (total_pskid_len - 2));
-    pskitem  =  psklist;
+    pskitem  = *psklist;
     nowtime_ms = mqttSysGetTimeMs();
     while(pskitem != NULL) {
         // (RFC 8446, section 4.2.11) An obfuscated version of the age of the key is computed in milliseconds by :
@@ -281,7 +284,7 @@ static tlsExtEntry_t*  tlsGenExtsPSK(tlsSecurityElements_t *sec, tlsPSK_t *pskli
     sec->psk_binder_ptr.len = total_binder_len;
 
     bindbuf +=  tlsEncodeWord16(bindbuf, (total_binder_len - 2));
-    pskitem = psklist;
+    pskitem = *psklist;
     while(pskitem != NULL) {
         *bindbuf++ = pskitem->key.len;
         // update binder of each PSK later, currently just preserve space for the binders
@@ -454,7 +457,7 @@ static tlsExtEntry_t*  tlsGenExtsClientHello( tlsSession_t *session )
         curr->next = tlsGenExtsPSKexMode();
         curr = curr->next;
         // PSK must be the latest extension entry in ClientHello
-        curr->next = tlsGenExtsPSK(&session->sec, *session->sec.psk_list);
+        curr->next = tlsGenExtsPSK(&session->sec, session->sec.psk_list);
     } // NOTE: pre-shared key extension MUST be the last entry of the entire extension list
     return out;
 failure_gen_ext_list:
