@@ -2,12 +2,23 @@
 #include "unity.h"
 #include "unity_fixture.h"
 
-#define MAX_RAWBYTE_BUF_SZ 0x100 // internal parameter for read buffer, DO NOT modify this value
+// internal parameter for read buffer, DO NOT modify these values
+#define  MAX_RAWBYTE_BUF_SZ         0x100
+#define  TEST_NUM_EXTENSION_ITEMS   0x3
 
 static tlsSession_t *tls_session;
 static word32 mock_sys_get_time_ms;
 static byte   mock_keyshare_public_bytes[TLS_MAX_KEYSHR_ENTRIES_PER_CLIENTHELLO][0x80];
 static tlsRespStatus  mock_keyshare_export_pubval_return_val;
+
+static const tlsExtType  mock_extension_types[TEST_NUM_EXTENSION_ITEMS]   = {
+      TLS_EXT_TYPE_SIGNED_CERTIFICATE_TIMESTAMP,
+      TLS_EXT_TYPE_SERVER_CERTIFICATE_TYPE,
+      TLS_EXT_TYPE_SIGNATURE_ALGORITHMS_CERT
+};
+
+static const word16  mock_extension_content_len[TEST_NUM_EXTENSION_ITEMS] = {0x13, 0x3f, 0x10};
+
 
 const tlsVersionCode  tls_supported_versions[] = {
     TLS_VERSION_ENCODE_1_0, // only for testing purpose, this implemetation doesn't support previous version of TLS
@@ -403,8 +414,8 @@ TEST_GROUP_RUNNER(tlsGenExtensions)
 TEST_GROUP_RUNNER(tlsEncodeExtensions)
 {
     RUN_TEST_CASE(tlsEncodeExtensions, fit_into_one_fragment);
-    //// RUN_TEST_CASE(tlsEncodeExtensions, split_two_fragments_case1);
-    //// RUN_TEST_CASE(tlsEncodeExtensions, split_two_fragments_case2);
+    RUN_TEST_CASE(tlsEncodeExtensions, split_two_fragments_case1);
+    RUN_TEST_CASE(tlsEncodeExtensions, split_two_fragments_case2);
     //// RUN_TEST_CASE(tlsEncodeExtensions, split_two_fragments_case3);
     //// RUN_TEST_CASE(tlsEncodeExtensions, split_two_fragments_case4);
     //// RUN_TEST_CASE(tlsEncodeExtensions, with_psk_binder_one_frag);
@@ -416,16 +427,33 @@ TEST_SETUP(tlsGenExtensions)
 
 TEST_SETUP(tlsEncodeExtensions)
 {
+    tlsExtEntry_t  *extitem  = NULL;
+    byte idx = 0;
     tls_session->remain_frags_out = 0;
     tls_session->num_frags_out = 0;
     tls_session->last_ext_entry_enc_len = 0x1 << 15; // reset this value every time before we encode a new extension lists
+
+    tls_session->exts = mock_createEmptyExtensionItem(mock_extension_types[0], mock_extension_content_len[0]);
+    extitem = tls_session->exts;
+    for(idx = 1; idx < TEST_NUM_EXTENSION_ITEMS; idx++) {
+        extitem->next = mock_createEmptyExtensionItem(mock_extension_types[idx], mock_extension_content_len[idx]);
+        XMEMSET(extitem->content.data, (idx+1), extitem->content.len);
+        extitem = extitem->next;
+    } // end of for loop
+    XMEMSET(extitem->content.data, (idx+1), extitem->content.len);
+    tls_session->ext_enc_total_len = tlsGetExtListSize(tls_session->exts);
 }
 
 TEST_TEAR_DOWN(tlsGenExtensions)
 {}
 
 TEST_TEAR_DOWN(tlsEncodeExtensions)
-{}
+{
+    if(tls_session->exts != NULL) {
+        tlsDeleteAllExtensions(tls_session->exts);
+        tls_session->exts = NULL;
+    }
+}
 
 
 TEST(tlsGenExtensions, clienthello_ext_ok)
@@ -580,29 +608,14 @@ TEST(tlsGenExtensions, clienthello_gen_keyshare_fail)
 } // end of TEST(tlsGenExtensions, clienthello_gen_keyshare_fail)
 
 
-#define  NUM_EXTENSION_ITEMS   0x3
 TEST(tlsEncodeExtensions, fit_into_one_fragment)
 {
-    const tlsExtType  ext_type_list[NUM_EXTENSION_ITEMS]   = {
-                         TLS_EXT_TYPE_SIGNED_CERTIFICATE_TIMESTAMP,
-                         TLS_EXT_TYPE_SERVER_CERTIFICATE_TYPE,
-                         TLS_EXT_TYPE_SIGNATURE_ALGORITHMS_CERT };
-    const word16      ext_content_len[NUM_EXTENSION_ITEMS] = {0x13, 0x3f, 0x10};
-    tlsExtEntry_t  *extitem  = NULL;
     byte *encoded_ext_start  = NULL;
     word32  expect_value = 0;
     word32  actual_value = 0;
     tlsRespStatus  status = TLS_RESP_OK;
     byte idx = 0;
 
-    tls_session->exts = mock_createEmptyExtensionItem(ext_type_list[0], ext_content_len[0]);
-    extitem = tls_session->exts;
-    for(idx = 1; idx < NUM_EXTENSION_ITEMS; idx++) {
-        extitem->next = mock_createEmptyExtensionItem(ext_type_list[idx], ext_content_len[idx]);
-        extitem = extitem->next;
-    } // end of for loop
-
-    tls_session->ext_enc_total_len = tlsGetExtListSize(tls_session->exts);
     tls_session->outlen_encoded  = tls_session->outbuf.len - 2 - tls_session->ext_enc_total_len;
     tls_session->curr_outmsg_start = 0x1a;
     tls_session->curr_outmsg_len  = tls_session->outlen_encoded - tls_session->curr_outmsg_start;
@@ -615,27 +628,127 @@ TEST(tlsEncodeExtensions, fit_into_one_fragment)
 
     encoded_ext_start += tlsDecodeWord16(encoded_ext_start, (word16 *)&actual_value);
     expect_value = 0;
-    for(idx = 0; idx < NUM_EXTENSION_ITEMS; idx++) {
-        expect_value += 2 + 2 + ext_content_len[idx];
+    for(idx = 0; idx < TEST_NUM_EXTENSION_ITEMS; idx++) {
+        expect_value += 2 + 2 + mock_extension_content_len[idx];
     } // end of for loop
     TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
-    for(idx = 0; idx < NUM_EXTENSION_ITEMS; idx++) {
-        expect_value = ext_type_list[idx];
+    // loop through all extension entries, which are in the same fragment.
+    for(idx = 0; idx < TEST_NUM_EXTENSION_ITEMS; idx++) {
+        expect_value = mock_extension_types[idx];
         encoded_ext_start += tlsDecodeWord16(encoded_ext_start, (word16 *)&actual_value);
         TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
-        expect_value = ext_content_len[idx];
+        expect_value = mock_extension_content_len[idx];
         encoded_ext_start += tlsDecodeWord16(encoded_ext_start, (word16 *)&actual_value);
         TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
-        encoded_ext_start += ext_content_len[idx];
+        encoded_ext_start += mock_extension_content_len[idx];
     } // end of for loop
 
-    if(tls_session->exts != NULL) {
-        tlsDeleteAllExtensions(tls_session->exts);
-        tls_session->exts = NULL;
-        TEST_ASSERT(0);
-    }
+    TEST_ASSERT_EQUAL_UINT(NULL, tls_session->exts);
 } // end of TEST(tlsEncodeExtensions, fit_into_one_fragment)
-#undef   NUM_EXTENSION_ITEMS
+
+
+TEST(tlsEncodeExtensions, split_two_fragments_case1)
+{
+    byte *encoded_ext_start  = NULL;
+    word32  expect_value = 0;
+    word32  actual_value = 0;
+    tlsRespStatus  status = TLS_RESP_OK;
+    byte idx = 0;
+    // assume to encode 1st fragment
+    tls_session->outlen_encoded  = tls_session->outbuf.len - 1;
+    tls_session->curr_outmsg_start = tls_session->outbuf.len >> 1;
+    tls_session->curr_outmsg_len  = tls_session->outlen_encoded - tls_session->curr_outmsg_start;
+    tls_session->curr_outmsg_len += 2 + tls_session->ext_enc_total_len;
+    status = tlsEncodeExtensions(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_REQ_MOREDATA, status);
+    TEST_ASSERT_EQUAL_UINT16(tls_session->outbuf.len, tls_session->outlen_encoded);
+    TEST_ASSERT_NOT_EQUAL(NULL, tls_session->exts); // none of extension entries is encoded
+    TEST_ASSERT_EQUAL_UINT16(mock_extension_types[0], tls_session->exts->type);
+    expect_value = 0x1 | (0x1 << 15);
+    actual_value = tls_session->last_ext_entry_enc_len;
+    TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
+    // assume to encode 2nd fragment
+    tls_session->outlen_encoded  = 0;
+    status = tlsEncodeExtensions(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT(0x0, tls_session->last_ext_entry_enc_len);
+    actual_value = (tls_session->outbuf.data[tls_session->outbuf.len - 1] << 8) | tls_session->outbuf.data[0];
+    expect_value = 0;
+    for(idx = 0; idx < TEST_NUM_EXTENSION_ITEMS; idx++) {
+        expect_value += 2 + 2 + mock_extension_content_len[idx];
+    } // end of for loop
+    TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
+    encoded_ext_start = &tls_session->outbuf.data[1];
+    // loop through all extension entries, which are in the same fragment.
+    for(idx = 0; idx < TEST_NUM_EXTENSION_ITEMS; idx++) {
+        expect_value = mock_extension_types[idx];
+        encoded_ext_start += tlsDecodeWord16(encoded_ext_start, (word16 *)&actual_value);
+        TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
+        expect_value = mock_extension_content_len[idx];
+        encoded_ext_start += tlsDecodeWord16(encoded_ext_start, (word16 *)&actual_value);
+        TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
+        encoded_ext_start += mock_extension_content_len[idx];
+    } // end of for loop
+
+    expect_value = (word16)(encoded_ext_start - &tls_session->outbuf.data[0]);
+    actual_value = tls_session->outlen_encoded;
+    TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
+    TEST_ASSERT_LESS_THAN_UINT(tls_session->outbuf.len, tls_session->outlen_encoded);
+
+    TEST_ASSERT_EQUAL_UINT(NULL, tls_session->exts);
+} // end of TEST(tlsEncodeExtensions, split_two_fragments_case1)
+
+
+TEST(tlsEncodeExtensions, split_two_fragments_case2)
+{
+    byte *encoded_ext_start  = NULL;
+    word32  expect_value = 0;
+    word32  actual_value = 0;
+    tlsRespStatus  status = TLS_RESP_OK;
+    byte idx = 0;
+    // assume to encode 1st fragment
+    tls_session->outlen_encoded  = tls_session->outbuf.len - 2;
+    tls_session->curr_outmsg_start = tls_session->outbuf.len - 0x20;
+    tls_session->curr_outmsg_len  = tls_session->outlen_encoded - tls_session->curr_outmsg_start;
+    tls_session->curr_outmsg_len += 2 + tls_session->ext_enc_total_len;
+    status = tlsEncodeExtensions(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_REQ_MOREDATA, status);
+    TEST_ASSERT_EQUAL_UINT16(tls_session->outbuf.len, tls_session->outlen_encoded);
+    TEST_ASSERT_NOT_EQUAL(NULL, tls_session->exts); // none of extension entries is encoded
+    TEST_ASSERT_EQUAL_UINT16(mock_extension_types[0], tls_session->exts->type);
+    TEST_ASSERT_EQUAL_UINT16(0, tls_session->last_ext_entry_enc_len);
+    tlsDecodeWord16(&tls_session->outbuf.data[tls_session->outbuf.len - 2] , (word16 *)&actual_value);
+    expect_value = 0;
+    for(idx = 0; idx < TEST_NUM_EXTENSION_ITEMS; idx++) {
+        expect_value += 2 + 2 + mock_extension_content_len[idx];
+    } // end of for loop
+    TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
+    // assume to encode 2nd fragment
+    tls_session->outlen_encoded  = 0;
+    status = tlsEncodeExtensions(tls_session);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    TEST_ASSERT_EQUAL_UINT(0x0, tls_session->last_ext_entry_enc_len);
+    encoded_ext_start = &tls_session->outbuf.data[0];
+    // loop through all extension entries, which are in the same fragment.
+    for(idx = 0; idx < TEST_NUM_EXTENSION_ITEMS; idx++) {
+        expect_value = mock_extension_types[idx];
+        encoded_ext_start += tlsDecodeWord16(encoded_ext_start, (word16 *)&actual_value);
+        TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
+        expect_value = mock_extension_content_len[idx];
+        encoded_ext_start += tlsDecodeWord16(encoded_ext_start, (word16 *)&actual_value);
+        TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
+        encoded_ext_start += mock_extension_content_len[idx];
+    } // end of for loop
+
+    expect_value = (word16)(encoded_ext_start - &tls_session->outbuf.data[0]);
+    actual_value = tls_session->outlen_encoded;
+    TEST_ASSERT_EQUAL_UINT16(expect_value, actual_value);
+    TEST_ASSERT_LESS_THAN_UINT(tls_session->outbuf.len, tls_session->outlen_encoded);
+
+    TEST_ASSERT_EQUAL_UINT(NULL, tls_session->exts);
+} // end of TEST(tlsEncodeExtensions, split_two_fragments_case2)
+
+
 
 
 
