@@ -1170,6 +1170,10 @@ TEST(tlsEncodeExtensions, with_psk_binder_multi_frags)
     byte    idx = 0;
     const word16  mock_psk_ID_len[2] = {0xc, 0xf};
     const byte    mock_psk_binder_len[2] = {0x30, 0x20};
+    tlsHash_t mock_hash_obj[2] = {0};
+
+    tls_session->sec.hashed_hs_msg.objsha256 = &mock_hash_obj[0];
+    tls_session->sec.hashed_hs_msg.objsha384 = &mock_hash_obj[1];
 
     // assume 2 pre-shared keys will be encoded.
     tls_session->sec.psk_list = &mock_psk_list;
@@ -1238,6 +1242,8 @@ TEST(tlsEncodeExtensions, with_psk_binder_multi_frags)
     tlsFreePSKentry(mock_psk_list->next);
     tlsFreePSKentry(mock_psk_list);
     tls_session->sec.psk_list = NULL;
+    tls_session->sec.hashed_hs_msg.objsha256 = NULL;
+    tls_session->sec.hashed_hs_msg.objsha384 = NULL;
     TEST_ASSERT_EQUAL_UINT(NULL, tls_session->exts);
 } // end of TEST(tlsEncodeExtensions, with_psk_binder_multi_frags)
 

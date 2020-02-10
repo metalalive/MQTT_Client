@@ -615,6 +615,7 @@ tlsRespStatus  tlsEncodeExtensions(tlsSession_t *session)
                 status = tlsUpdateExtPSKbinders(session, curr_ext, &rdy_cpy_len);
                 outlen_encoded   = session->outlen_encoded;
                 entry_copied_len = session->last_ext_entry_enc_len;
+                if(status < 0) { break; }
             XMEMCPY( &outbuf[outlen_encoded], &curr_ext->content.data[entry_copied_len - 4], rdy_cpy_len );
             outlen_encoded   += rdy_cpy_len;
             entry_copied_len += rdy_cpy_len;
@@ -635,10 +636,11 @@ tlsRespStatus  tlsEncodeExtensions(tlsSession_t *session)
     session->outlen_encoded         = outlen_encoded;
     session->last_ext_entry_enc_len = entry_copied_len;
     // more buffer space is required for current handshake message
-    if (session->outbuf.len >= outlen_encoded) {
-        status = (session->exts != NULL) ? TLS_RESP_REQ_MOREDATA : TLS_RESP_OK ;
+    if(status == TLS_RESP_OK) {
+        if (session->outbuf.len >= outlen_encoded) {
+            status = (session->exts != NULL) ? TLS_RESP_REQ_MOREDATA : TLS_RESP_OK ;
+        } else { XASSERT(NULL); }
     }
-    else { XASSERT(NULL); }
     return status;
 } // end of tlsEncodeExtensions
 
