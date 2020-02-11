@@ -64,15 +64,12 @@ static tlsRespStatus  tlsDecodeExtsKeyShare(tlsSession_t *session, tlsExtEntry_t
                 keyexp->chosen_grp_idx = idx;
             } // which means it's the first time to modify chosen_grp_idx
             else if(keyexp->chosen_grp_idx != idx) {
+                keyexp->grp_nego_state[keyexp->chosen_grp_idx] = TLS_KEYEX_STATE_NOT_APPLY;
                 keyexp->chosen_grp_idx = XGET_BITMASK(8);
             } // which means it's the second time to modify chosen_grp_idx, the previous value should NOT be changed again.
         }
-        else { // if srv_chosen_grp was NOT added within initial ClientHello
+        else { // if srv_chosen_grp doesn't match supported named groups
             if(keyexp->grp_nego_state[idx] == TLS_KEYEX_STATE_NEGOTIATING) {
-                //// if(keyexp->keylist[idx] != NULL) {
-                ////     tlsFreeEphemeralKeyPairByGrp( keyexp->keylist[idx], tls_supported_named_groups[idx] );
-                ////     keyexp->keylist[idx] = NULL;
-                //// }
                 keyexp->grp_nego_state[idx] = TLS_KEYEX_STATE_NOT_APPLY;
             } // clean up generated ephemeral keys that are NOT applied to this session
         }
@@ -107,7 +104,7 @@ static tlsRespStatus  tlsDecodeExtsKeyShare(tlsSession_t *session, tlsExtEntry_t
 // } PreSharedKeyExtension;
 static tlsRespStatus  tlsDecodeExtsPSK(tlsSession_t *session, tlsExtEntry_t *ext_in)
 {
-    if((session == NULL) || (*session->sec.psk_list == NULL) || (ext_in == NULL)) {
+    if((session == NULL) || (session->sec.psk_list == NULL) || (*session->sec.psk_list == NULL) || (ext_in == NULL)) {
         return TLS_RESP_ERRARGS;
     }
     tlsRespStatus status = TLS_RESP_OK;
