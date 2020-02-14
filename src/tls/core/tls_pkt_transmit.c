@@ -26,8 +26,11 @@ tlsRespStatus tlsPktSendToPeer(tlsSession_t *session, byte flush_flg)
         tlsInitFragNumOutMsg(session);
     }
     if (session->log.last_encode_result == TLS_RESP_REQ_MOREDATA) {
+        // implicit meaning : (1) not the final fragment
+        // (2) current fragment must be sent out in order to make more space avaiable in session->outbuf
         tlsIncrementFragNumOutMsg(session);
-    } // implicit meaning : not the final fragment
+        flush_flg = 1;
+    }
     // flush the encrypted data to system-level send function if flush_flg is set
     buf_len = session->outbuf.len - rdy_nbytes;
     wr_len  = TLS_RECORD_LAYER_HEADER_NBYTES + TLS_HANDSHAKE_HEADER_NBYTES + 17; // used as temp variable
