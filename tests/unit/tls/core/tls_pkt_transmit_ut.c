@@ -8,6 +8,7 @@ static tlsSession_t  *tls_session;
 static byte    mock_sys_pkt_write_content[MAX_RAWBYTE_BUF_SZ];
 static byte    mock_sys_pkt_read_content[MAX_RAWBYTE_BUF_SZ];
 static word16  mock_sys_pkt_read_ptr;
+static mqttRespStatus  mock_sys_pkt_write_return_val;
 static mqttRespStatus  mock_sys_pkt_read_return_val;
 
 const tlsCipherSpec_t  tls_supported_cipher_suites[] = {
@@ -104,12 +105,14 @@ word32 mqttDecodeWord16( byte *buf , word16 *value )
 
 int  mqttSysPktWrite( void **extsysobjs, byte *buf, word32 buf_len )
 {
-    tlsRespStatus status = TLS_RESP_OK;
-    if(buf_len <= MAX_RAWBYTE_BUF_SZ) {
-        XMEMCPY(&mock_sys_pkt_write_content[0], buf, buf_len);
-        status = buf_len;
-    } else {
-        status = MQTT_RESP_ERR_TRANSMIT;
+    mqttRespStatus status = mock_sys_pkt_write_return_val;
+    if(status == MQTT_RESP_OK) {
+        if(buf_len <= MAX_RAWBYTE_BUF_SZ) {
+            XMEMCPY(&mock_sys_pkt_write_content[0], buf, buf_len);
+            status = buf_len;
+        } else {
+            status = MQTT_RESP_ERR_TRANSMIT;
+        }
     }
     return status;
 } // end of mqttSysPktWrite
@@ -191,6 +194,17 @@ TEST(tlsPktSendToPeer, one_msg_one_fragment)
     status = tlsPktSendToPeer(tls_session, flush_flg);
     TEST_ASSERT_EQUAL_INT(TLS_RESP_ERR_EXCEED_MAX_REC_SZ, status);
 
+    mock_sys_pkt_write_return_val = MQTT_RESP_ERR_TRANSMIT; // error check #3
+    tls_session->curr_outmsg_len = TLS_MAX_BYTES_RECORD_LAYER_PKT;
+    tls_session->log.last_encode_result = TLS_RESP_REQ_MOREDATA;
+    status = tlsPktSendToPeer(tls_session, flush_flg);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_ERR_SYS_SEND_PKT, status);
+    while(tlsChkFragStateOutMsg(tls_session) != TLS_RESP_REQ_REINIT) {
+        tlsDecrementFragNumOutMsg(tls_session);
+    }
+
+    mock_sys_pkt_write_return_val = MQTT_RESP_OK;
+    tls_session->log.last_encode_result = TLS_RESP_OK;
     tls_session->outlen_encoded  = tls_session->outbuf.len;
     tls_session->curr_outmsg_len = tls_session->outbuf.len;
     tlsEncodeWord16(&expect_content[0][3], (tls_session->curr_outmsg_len - TLS_RECORD_LAYER_HEADER_NBYTES));
@@ -479,8 +493,7 @@ TEST(tlsPktRecvFromPeer, one_msg_one_fragment)
     word16  idx = 0, jdx = 1;
     tlsRespStatus status = TLS_RESP_OK;
 
-    tls_session->flgs.hs_rx_encrypt = 1;
-    tls_session->sec.chosen_ciphersuite = &tls_supported_cipher_suites[0];
+    tls_session->flgs.hs_rx_encrypt = 0;
 
     mock_sys_pkt_read_return_val = MQTT_RESP_OK;
     nbytes_per_record_msg  = tls_session->inbuf.len;
@@ -495,8 +508,11 @@ TEST(tlsPktRecvFromPeer, one_msg_one_fragment)
     TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
     TEST_ASSERT_EQUAL_UINT8(1, tls_session->num_frags_in);
     TEST_ASSERT_EQUAL_UINT8(tls_session->num_frags_in,  tls_session->remain_frags_in );
+    status = tlsChkFragStateInMsg(tls_session);
+    TEST_ASSERT_EQUAL_INT((TLS_RESP_FIRST_FRAG | TLS_RESP_FINAL_FRAG), status);
     TEST_ASSERT_EQUAL_UINT16(0, tls_session->inlen_total);
-    TEST_ASSERT_EQUAL_UINT16(nbytes_per_record_msg, tls_session->inlen_unprocessed);
+    TEST_ASSERT_EQUAL_UINT16(0, tls_session->inlen_unprocessed);
+    TEST_ASSERT_EQUAL_UINT16(nbytes_per_record_msg, tls_session->inlen_decrypted);
     XMEMCPY(&actual_lastbyte_msgs[0], &tls_session->inbuf.data[MAX_RAWBYTE_BUF_SZ - 5], 5);
     TEST_ASSERT_EQUAL_STRING_LEN(&expect_lastbyte_msgs[0], &actual_lastbyte_msgs[0], 5);
 
@@ -567,10 +583,6 @@ TEST(tlsPktRecvFromPeer, one_msg_multi_fragments)
     TEST_ASSERT_EQUAL_UINT16(nbytes_per_record_msg, nbytes_recved);
     XMEMFREE(record_msg);
 } // end of TEST(tlsPktRecvFromPeer, one_msg_multi_fragments)
-
-
-
-
 
 
 

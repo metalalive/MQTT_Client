@@ -239,7 +239,7 @@ tlsRespStatus  tlsCopyCertRawData(tlsSession_t *session)
             status = tlsParseExtensions(session, &curr_cert->exts);
             inlen_decoded = session->inlen_decoded;
             if(status >= 0) {
-                if(session->ext_dec_total_len == 0) {
+                if(session->ext_dec_total_len == 0 && session->last_ext_entry_dec_len == 0) {
                     cert_copied_len = 0;
                 } // will be set to zero in the end of loop
             }
