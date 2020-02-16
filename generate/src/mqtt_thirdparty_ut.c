@@ -75,4 +75,14 @@ int hmac_memory(int hash, const unsigned char *key,  unsigned long keylen,
                       unsigned char *out,  unsigned long *outlen)
 { return 0; }
 
+int rsa_verify_hash_ex(const unsigned char *sig,            unsigned long  siglen,
+                       const unsigned char *hash,           unsigned long  hashlen,
+                             int            padding,
+                             int            hash_idx,       unsigned long  saltlen,
+                             int           *stat,     const rsa_key       *key)
+{
+    if(stat != NULL) { *stat = 1; }
+    return 0;
+}
+
 

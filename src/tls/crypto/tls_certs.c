@@ -100,11 +100,9 @@ static tlsRespStatus  tlsVerifyCert(tlsCert_t *ic, tlsCert_t  *sc)
 {
     tlsRespStatus status = TLS_RESP_OK;
     // check hashed distinguished name
-    if(ic != sc && sc != NULL) {
-        word16   hash_sz = mqttHashGetOutlenBytes(MQTT_HASH_SHA256);
-        if(XSTRNCMP((const char *)&sc->issuer.hashed_dn[0], (const char *)&ic->subject.hashed_dn[0], hash_sz) != 0) {
-            status = TLS_RESP_CERT_AUTH_FAIL; goto done;
-        }
+    word16   hash_sz = mqttHashGetOutlenBytes(MQTT_HASH_SHA256);
+    if(XSTRNCMP((const char *)&sc->issuer.hashed_dn[0], (const char *)&ic->subject.hashed_dn[0], hash_sz) != 0) {
+        status = TLS_RESP_CERT_AUTH_FAIL; goto done;
     }
     // TODO: check format of common name at here, also check whether the common name matches server IP or domain name.
     // decrypt signature & compare with hashed cert holder

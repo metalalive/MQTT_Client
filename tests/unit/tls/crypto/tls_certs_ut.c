@@ -2,9 +2,18 @@
 #include "unity.h"
 #include "unity_fixture.h"
 
+#define  NUM_PEER_CERTS  8
+#define  NUM_CA_CERTS    2
+#define  NBYTES_CERT_HASHED_DISTINGUISHED_NAME  0x20
 #define  MAX_RAWBYTE_BUF_SZ  0x80
 
 static tlsSession_t *tls_session;
+
+static byte   mock_cert_hashed_dn[NUM_PEER_CERTS + NUM_CA_CERTS][NBYTES_CERT_HASHED_DISTINGUISHED_NAME];
+static byte  *mock_cert_issuer_hashed_dn[NUM_PEER_CERTS];
+static byte  *mock_cert_subject_hashed_dn[NUM_PEER_CERTS];
+
+static tlsAlgoOID  mock_cert_sig_algo; // or TLS_ALGO_OID_RSASSA_PSS or TLS_ALGO_OID_SHA384_RSA_SIG
 
 const tlsCipherSpec_t  tls_supported_cipher_suites[] = {
     { // TLS_AES_128_GCM_SHA256, 0x1301
@@ -12,6 +21,17 @@ const tlsCipherSpec_t  tls_supported_cipher_suites[] = {
         (1 << TLS_ENCRYPT_ALGO_AES128) | (1 << TLS_ENC_CHAINMODE_GCM) | (1 << TLS_HASH_ALGO_SHA256)      ,// flags
         16   ,// tagSize
         16   ,// keySize
+        12   ,// ivSize
+        NULL ,// init_fn
+        NULL ,// encrypt_fn
+        NULL ,// decrypt_fn
+        NULL ,// done_fn
+    },
+    { // TLS_AES_256_GCM_SHA384, 0x1302
+        TLS_CIPHERSUITE_ID_AES_256_GCM_SHA384   ,// ident
+        (1 << TLS_ENCRYPT_ALGO_AES256) | (1 << TLS_ENC_CHAINMODE_GCM) | (1 << TLS_HASH_ALGO_SHA384)      ,// flags
+        16   ,// tagSize
+        32   ,// keySize
         12   ,// ivSize
         NULL ,// init_fn
         NULL ,// encrypt_fn
@@ -116,6 +136,23 @@ tlsRespStatus  tlsFreeExtEntry(tlsExtEntry_t *in) {
     XMEMFREE((void *)in);
     return TLS_RESP_OK;
 } // end of tlsFreeExtEntry
+
+word16  mqttHashGetOutlenBytes(mqttHashLenType type)
+{
+    word16 out = 0;
+    switch(type) {
+        case MQTT_HASH_SHA256:
+            out = 256; // unit: bit(s)
+            break;
+        case MQTT_HASH_SHA384:
+            out = 384; // unit: bit(s)
+            break;
+        default:
+            break;
+    }
+    out = out >> 3;
+    return out;
+} // end of mqttHashGetOutlenBits
 
 
 tlsRespStatus  tlsParseExtensions(tlsSession_t *session, tlsExtEntry_t **out)
@@ -259,24 +296,137 @@ tlsRespStatus  tlsParseExtensions(tlsSession_t *session, tlsExtEntry_t **out)
     return  status;
 } // end of tlsParseExtensions
 
+tlsRespStatus  tlsDecodeX509cert(tlsCert_t *cert)
+{
+    word32  mock_size = 0;
+    tlsDecodeWord24(&cert->rawbytes.len[0], &mock_size);
+    mock_size = mock_size >> 2;
+    if(cert->signature.data == NULL) {
+        cert->signature.data = XMALLOC(mock_size);
+        cert->sign_algo = mock_cert_sig_algo; // or TLS_ALGO_OID_RSASSA_PSS or TLS_ALGO_OID_SHA384_RSA_SIG
+        if(cert->sign_algo == TLS_ALGO_OID_RSASSA_PSS) {
+            cert->rsapss.hash_id = TLS_HASH_ALGO_SHA384;
+            cert->rsapss.salt_len = mqttHashGetOutlenBytes(MQTT_HASH_SHA384);
+        }
+    }
+    if(cert->subject.common_name == NULL) {
+        cert->subject.common_name = XMALLOC(mock_size);
+    }
+    if(cert->issuer.common_name == NULL) {
+        cert->issuer.common_name = XMALLOC(mock_size);
+    }
+    if(cert->subject.org_name == NULL) {
+        cert->subject.org_name = XMALLOC(mock_size);
+    }
+    if(cert->issuer.org_name == NULL) {
+        cert->issuer.org_name = XMALLOC(mock_size);
+    }
+    if(cert->cert_exts == NULL) {
+        cert->cert_exts = XMALLOC(mock_size);
+    }
+    if(cert->hashed_holder_info.data == NULL) {
+        cert->hashed_holder_info.data = XMALLOC(mock_size);
+    }
+    if(cert->pubkey == NULL) {
+        cert->pubkey = XMALLOC(mock_size);
+        cert->pubkey_algo = TLS_ALGO_OID_RSA_KEY;
+    }
+    if(cert->issuer.hashed_dn == NULL) {
+        mock_size = NBYTES_CERT_HASHED_DISTINGUISHED_NAME;
+        cert->issuer.hashed_dn = XMALLOC(mock_size);
+    }
+    if(cert->subject.hashed_dn == NULL) {
+        mock_size = NBYTES_CERT_HASHED_DISTINGUISHED_NAME;
+        cert->subject.hashed_dn = XMALLOC(mock_size);
+    }
+    return TLS_RESP_OK;
+} // end of tlsDecodeX509cert
+
+tlsHashAlgoID  TLScipherSuiteGetHashID( const tlsCipherSpec_t *cs_in )
+{
+    if(cs_in != NULL) {
+        if((cs_in->flags & (1 << TLS_HASH_ALGO_SHA256)) != 0x0) {
+            return TLS_HASH_ALGO_SHA256;
+        }
+        if((cs_in->flags & (1 << TLS_HASH_ALGO_SHA384)) != 0x0) {
+            return TLS_HASH_ALGO_SHA384;
+        }
+        return TLS_HASH_ALGO_UNKNOWN; // cipher suite selected but cannot be recognized
+    }
+    return TLS_HASH_ALGO_NOT_NEGO;
+} // end of TLScipherSuiteGetHashID
+
+tlsRespStatus  tlsTransHashTakeSnapshot(tlsSecurityElements_t  *sec, tlsHashAlgoID hash_id, byte *out, word16 outlen)
+{ return TLS_RESP_OK; }
+
+tlsRespStatus  tlsDecodeExtCertificate(tlsCert_t *cert, word16 first_ext_unfinished)
+{ return TLS_RESP_OK; }
+
+
 void tlsX509FreeCertExt(tlsX509v3ext_t *in)
 {
 } // end of tlsX509FreeCertExt
 
 void  tlsRSAfreePubKey(void *pubkey_p)
 {
+    XMEMFREE(pubkey_p);
 } // end of tlsRSAfreePubKey
 
+static tlsCert_t*  mockInitCAcerts(void)
+{
+    tlsCert_t *out = NULL;
+    tlsCert_t *curr_cert = NULL;
+    tlsCert_t *prev_cert = NULL;
+    word32  mock_size = 0x25;
+    word16  idx = 0;
+    // assume there are 2 cert items in CA cert chain
+    for(idx = 0; idx < NUM_CA_CERTS; idx++) {
+        curr_cert = XMALLOC(sizeof(tlsCert_t));
+        XMEMSET(curr_cert, 0x00, sizeof(tlsCert_t));
+        tlsEncodeWord24(&curr_cert->rawbytes.len[0], mock_size);
+        tlsDecodeX509cert(curr_cert);
+        if(out == NULL) { out = curr_cert; }
+        if(prev_cert == NULL) {
+            prev_cert = curr_cert;
+        } else {
+            prev_cert->next = curr_cert;
+            prev_cert       = prev_cert->next;
+        }
+    }
+    return out;
+} // end of mockInitCAcerts
 
 
 
 
 // ---------------------------------------------------------------------
 TEST_GROUP(tlsCopyCertRawData);
+TEST_GROUP(tlsDecodeCerts);
+TEST_GROUP(tlsVerifyCertChain);
+TEST_GROUP(tlsCertVerifyGenDigitalSig);
 
 TEST_GROUP_RUNNER(tlsCopyCertRawData)
 {
     RUN_TEST_CASE(tlsCopyCertRawData, multi_certs_multi_frags);
+}
+
+TEST_GROUP_RUNNER(tlsDecodeCerts)
+{
+    RUN_TEST_CASE(tlsDecodeCerts, decode_multi_certs);
+}
+
+TEST_GROUP_RUNNER(tlsVerifyCertChain)
+{
+    RUN_TEST_CASE(tlsVerifyCertChain, without_issuer_cert);
+    RUN_TEST_CASE(tlsVerifyCertChain, with_issuer_cert);
+    //// RUN_TEST_CASE(tlsVerifyCertChain, incorrect_issuer_order); // TODO:
+}
+TEST_GROUP_RUNNER(tlsCertVerifyGenDigitalSig)
+{
+    RUN_TEST_CASE(tlsCertVerifyGenDigitalSig, server_sha256);
+    RUN_TEST_CASE(tlsCertVerifyGenDigitalSig, server_sha384);
+    //// RUN_TEST_CASE(tlsCertVerifyGenDigitalSig, client_sha256);
+    //// RUN_TEST_CASE(tlsCertVerifyGenDigitalSig, client_sha384);
 }
 
 TEST_SETUP(tlsCopyCertRawData)
@@ -288,18 +438,38 @@ TEST_SETUP(tlsCopyCertRawData)
     tls_session->last_cpy_cert_len = 0;
 }
 
-TEST_TEAR_DOWN(tlsCopyCertRawData)
+TEST_SETUP(tlsDecodeCerts)
 {
-    tlsFreeCertChain(tls_session->peer_certs, TLS_FREE_CERT_ENTRY_ALL);
-    tls_session->peer_certs = NULL;
+    tls_session->flgs.hs_rx_encrypt = 1;
+    tls_session->sec.chosen_ciphersuite = NULL;
 }
 
+TEST_SETUP(tlsVerifyCertChain)
+{}
 
-#define  NUM_CERTS  8
+TEST_SETUP(tlsCertVerifyGenDigitalSig)
+{
+    tls_session->flgs.hs_rx_encrypt = 1;
+    tls_session->sec.chosen_ciphersuite = NULL;
+}
+
+TEST_TEAR_DOWN(tlsCopyCertRawData)
+{}
+
+TEST_TEAR_DOWN(tlsDecodeCerts)
+{}
+
+TEST_TEAR_DOWN(tlsVerifyCertChain)
+{}
+
+TEST_TEAR_DOWN(tlsCertVerifyGenDigitalSig)
+{}
+
+
 TEST(tlsCopyCertRawData, multi_certs_multi_frags)
 {
-    word16  certs_rawbyte_sz[NUM_CERTS];
-    word16  certs_ext_sz[NUM_CERTS] = {9, 6, 13, 19, 16, 10, 11, 12};
+    word16  certs_rawbyte_sz[NUM_PEER_CERTS];
+    word16  certs_ext_sz[NUM_PEER_CERTS] = {9, 6, 13, 19, 16, 10, 11, 12};
     byte   *certchain_rawbytes = NULL;
     word16  certchain_sz = 0;
     word16  nbytes_certs_copied = 0;
@@ -331,7 +501,7 @@ TEST(tlsCopyCertRawData, multi_certs_multi_frags)
     // partial extension section of the sixth certificate will be received in the seventh flight
     certs_rawbyte_sz[6] = tls_session->inbuf.len - 3 - 2 - certs_ext_sz[5] - 1;
     certs_rawbyte_sz[7] = tls_session->inbuf.len - 3 - 2 - certs_ext_sz[6] - 1;
-    for(idx = 0; idx < NUM_CERTS; idx++) {
+    for(idx = 0; idx < NUM_PEER_CERTS; idx++) {
         certchain_sz += 3 + certs_rawbyte_sz[idx] + 2 + certs_ext_sz[idx];
     }
     TEST_ASSERT_LESS_THAN_UINT16(TLS_MAX_BYTES_CERT_CHAIN, certchain_sz);
@@ -340,7 +510,7 @@ TEST(tlsCopyCertRawData, multi_certs_multi_frags)
         certchain_rawbytes[idx] = (idx + 1) & 0xff;
     } // end of for loop
     buf = certchain_rawbytes;
-    for(idx = 0; idx < NUM_CERTS; idx++) {
+    for(idx = 0; idx < NUM_PEER_CERTS; idx++) {
         buf += tlsEncodeWord24(buf, certs_rawbyte_sz[idx]);
         buf += certs_rawbyte_sz[idx];
         buf += tlsEncodeWord16(buf, certs_ext_sz[idx]);
@@ -396,10 +566,11 @@ TEST(tlsCopyCertRawData, multi_certs_multi_frags)
         TEST_ASSERT_EQUAL_UINT32((idx + 1), tls_session->last_cpy_cert_len);
         TEST_ASSERT_EQUAL_UINT16(0x0 , tls_session->last_ext_entry_dec_len);
         TEST_ASSERT_NOT_EQUAL(NULL, curr_cert->next);
+        TEST_ASSERT_EQUAL_UINT16(tls_session->inlen_decrypted, tls_session->inlen_decoded);
     } // end of for loop idx
 
     // ---------- copy raw bytes of next certificate from the fifth, sixth, seventh fragment ----------
-    for(idx = 4; idx < NUM_CERTS; idx++) {
+    for(idx = 4; idx < NUM_PEER_CERTS; idx++) {
         tls_session->inlen_decoded = 0;
         nbytes_certs_cpy = XMIN(certchain_sz - nbytes_certs_copied, tls_session->inbuf.len - tls_session->inlen_decoded);
         XMEMCPY(&tls_session->inbuf.data[tls_session->inlen_decoded], &certchain_rawbytes[nbytes_certs_copied], nbytes_certs_cpy);
@@ -427,8 +598,11 @@ TEST(tlsCopyCertRawData, multi_certs_multi_frags)
         if(idx < 7) {
             TEST_ASSERT_EQUAL_UINT(NULL, curr_cert->exts);
         }
+        TEST_ASSERT_EQUAL_UINT16(tls_session->inlen_decrypted, tls_session->inlen_decoded);
     } // end of for loop idx
 
+    tls_session->sec.flgs.ct_first_frag = 0;
+    tls_session->sec.flgs.ct_final_frag = 1;
     tls_session->inlen_decoded = 0;
     nbytes_certs_cpy = XMIN(certchain_sz - nbytes_certs_copied, tls_session->inbuf.len - tls_session->inlen_decoded);
     XMEMCPY(&tls_session->inbuf.data[tls_session->inlen_decoded], &certchain_rawbytes[nbytes_certs_copied], nbytes_certs_cpy);
@@ -440,13 +614,252 @@ TEST(tlsCopyCertRawData, multi_certs_multi_frags)
     TEST_ASSERT_NOT_EQUAL(NULL, curr_cert->exts);
     TEST_ASSERT_EQUAL_UINT16((certs_ext_sz[7] - 4), curr_cert->exts->content.len);
     TEST_ASSERT_EQUAL_UINT16(certchain_sz, nbytes_certs_copied);
+    TEST_ASSERT_EQUAL_UINT16(tls_session->inlen_decrypted, tls_session->inlen_decoded + 1 + tls_session->sec.chosen_ciphersuite->tagSize);
 
     XMEMFREE(certchain_rawbytes);
 } // end of TEST(tlsCopyCertRawData, multi_certs_multi_frags)
-#undef NUM_CERTS
+
+
+TEST(tlsDecodeCerts, decode_multi_certs)
+{
+    tlsCert_t  *middle_cert = NULL;
+    tlsCert_t  *curr_cert   = NULL;
+    word16  idx = 0;
+    tlsRespStatus status = TLS_RESP_OK;
+    byte final_item_rdy  = 0;
+
+    for(idx = 0, curr_cert = tls_session->peer_certs; idx < (NUM_PEER_CERTS >> 1); idx++, middle_cert = curr_cert, curr_cert = curr_cert->next);
+    TEST_ASSERT_NOT_EQUAL(NULL, middle_cert);
+    TEST_ASSERT_NOT_EQUAL(tls_session->peer_certs, middle_cert);
+    
+    mock_cert_sig_algo = TLS_ALGO_OID_SHA384_RSA_SIG;
+    final_item_rdy  = 0; // --------- assume final cert item is NOT ready yet ---------
+    status = tlsDecodeCerts(middle_cert, final_item_rdy);
+    tlsFreeCertChain(middle_cert, TLS_FREE_CERT_ENTRY_RAWBYTE | TLS_FREE_CERT_ENTRY_SKIP_FINAL_ITEM);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    // the cert items prior to middle_cert shouldn't be modified
+    for(curr_cert = tls_session->peer_certs; curr_cert != middle_cert; curr_cert = curr_cert->next) {
+        TEST_ASSERT_NOT_EQUAL(NULL, curr_cert->rawbytes.data);
+        TEST_ASSERT_EQUAL_UINT(NULL, curr_cert->signature.data);
+    } // end of for loop
+    for(curr_cert = middle_cert; curr_cert->next != NULL; curr_cert = curr_cert->next) {
+        TEST_ASSERT_EQUAL_UINT(NULL, curr_cert->rawbytes.data);
+        TEST_ASSERT_NOT_EQUAL(NULL, curr_cert->signature.data);
+        TEST_ASSERT_EQUAL_UINT16(TLS_ALGO_OID_SHA384_RSA_SIG, curr_cert->sign_algo);
+    } // end of for loop
+    // check the final cert item
+    TEST_ASSERT_NOT_EQUAL(NULL, curr_cert->rawbytes.data);
+    TEST_ASSERT_EQUAL_UINT(NULL, curr_cert->signature.data);
+
+    mock_cert_sig_algo = TLS_ALGO_OID_RSASSA_PSS;
+    final_item_rdy  = 1; // --------- assume final cert item is NOT ready yet ---------
+    status = tlsDecodeCerts(tls_session->peer_certs, final_item_rdy);
+    tlsFreeCertChain(tls_session->peer_certs, TLS_FREE_CERT_ENTRY_RAWBYTE);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    for(curr_cert = tls_session->peer_certs; curr_cert != NULL; curr_cert = curr_cert->next) {
+        TEST_ASSERT_EQUAL_UINT(NULL, curr_cert->rawbytes.data);
+        TEST_ASSERT_NOT_EQUAL(NULL, curr_cert->signature.data);
+        if(curr_cert->sign_algo != TLS_ALGO_OID_SHA384_RSA_SIG) {
+            TEST_ASSERT_EQUAL_UINT16(TLS_ALGO_OID_RSASSA_PSS, curr_cert->sign_algo);
+        }
+    } // end of for loop
+} // end of TEST(tlsDecodeCerts, decode_multi_certs)
 
 
 
+static void tlsVerifyCertChain_verify_single_chain(byte *cert_issuing_order)
+{
+    tlsCert_t  *curr_cert   = NULL;
+    tlsRespStatus status = TLS_RESP_OK;
+    word16  idx = 0;
+
+    cert_issuing_order[NUM_PEER_CERTS - 1] = 0; // the final item must always be zero, that represents index of server cert
+    //// printf("xxx: ");
+    //// for(idx = 0; idx < NUM_PEER_CERTS; idx++) {
+    ////     printf("%d, ", cert_issuing_order[idx]);
+    //// } // end of for loop
+    //// printf("\r\n");
+    mock_cert_issuer_hashed_dn[cert_issuing_order[0]] = mock_cert_subject_hashed_dn[cert_issuing_order[0]];
+    for(idx = 1; idx < NUM_PEER_CERTS; idx++) {
+        mock_cert_issuer_hashed_dn[cert_issuing_order[idx]] = mock_cert_subject_hashed_dn[cert_issuing_order[idx - 1]];
+    } // end of for loop
+    for(idx = 0, curr_cert = tls_session->peer_certs; curr_cert != NULL; idx++, curr_cert = curr_cert->next) {
+        XMEMCPY(curr_cert->issuer.hashed_dn, &mock_cert_issuer_hashed_dn[idx], NBYTES_CERT_HASHED_DISTINGUISHED_NAME);
+        XMEMCPY(curr_cert->subject.hashed_dn, &mock_cert_subject_hashed_dn[idx], NBYTES_CERT_HASHED_DISTINGUISHED_NAME);
+        curr_cert->flgs.auth_done = 0;
+        curr_cert->flgs.auth_pass = 0;
+        curr_cert->flgs.self_signed = 0;
+    } // end of for loop
+
+    status = tlsVerifyCertChain(NULL, tls_session->peer_certs);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    for(curr_cert = tls_session->peer_certs; curr_cert != NULL; curr_cert = curr_cert->next) {
+        TEST_ASSERT_EQUAL_UINT8(1, curr_cert->flgs.auth_done);
+        TEST_ASSERT_EQUAL_UINT8(1, curr_cert->flgs.auth_pass);
+        if(curr_cert->next == NULL) {
+            TEST_ASSERT_EQUAL_UINT8(1, curr_cert->flgs.self_signed);
+        }
+    } // end of for loop
+} // end of tlsVerifyCertChain_verify_single_chain
+
+static void tlsVerifyCertChain_verify_all_possible_chains(word16 avail_num, word16 total_num,
+                 byte *combination_selected_flags, byte *cert_issuing_order)
+{
+    word16  idx = 0;
+    if(avail_num == 0) {
+        tlsVerifyCertChain_verify_single_chain(cert_issuing_order);
+        return;
+    }
+    for(idx = 0; idx < total_num; idx++) {
+        if(combination_selected_flags[idx] == 0) {
+            combination_selected_flags[idx] = 1;
+            cert_issuing_order[total_num - avail_num] = idx + 1;
+            tlsVerifyCertChain_verify_all_possible_chains(avail_num - 1, total_num,
+                   combination_selected_flags, cert_issuing_order);
+            combination_selected_flags[idx] = 0;
+        }
+    } // end of for loop
+} // end of tlsVerifyCertChain_verify_all_possible_chains
+ 
+
+#define  tlsVerifyCertChain_verify_chains_wrapper(n, select_flgs, chain_order)  \
+         tlsVerifyCertChain_verify_all_possible_chains((n), (n), (select_flgs), (chain_order))
+TEST(tlsVerifyCertChain, without_issuer_cert)
+{
+    byte  combination_selected_flags[NUM_PEER_CERTS];
+    byte  cert_issuing_order[NUM_PEER_CERTS];
+    word16  idx = 0;
+
+    for(idx = 0; idx < NUM_PEER_CERTS; idx++) {
+        mock_cert_subject_hashed_dn[idx] = &mock_cert_hashed_dn[idx][0];
+    } // end of for loop
+    // this test will try all possible combinations of cert chain formation, which looks like :
+    // e.g. (0) <- (2) <- (5) <- (1) <- (6) <- (4) <- (7) <- (3)
+    // which means the owner of cert (2) issued cert (0), owner of cert (5) issued cert (2),
+    //   .... etc. , and cert (3) is CA cert
+    XMEMSET(&combination_selected_flags[0], 0x00, sizeof(byte) * NUM_PEER_CERTS);
+    tlsVerifyCertChain_verify_chains_wrapper(NUM_PEER_CERTS - 1, &combination_selected_flags[0], &cert_issuing_order[0]);
+} // end of TEST(tlsVerifyCertChain, without_issuer_cert)
+#undef  tlsVerifyCertChain_verify_chains_wrapper
+
+
+
+TEST(tlsVerifyCertChain, with_issuer_cert)
+{
+    tlsCert_t  *curr_cert   = NULL;
+    byte  cert_issuing_order[NUM_PEER_CERTS];
+    byte   *buf = NULL;
+    word16  idx = 0;
+    tlsRespStatus status = TLS_RESP_OK;
+
+    tls_session->CA_cert = mockInitCAcerts();
+
+    for(idx = 0; idx < NUM_CA_CERTS; idx++) {
+        mock_cert_subject_hashed_dn[idx] = &mock_cert_hashed_dn[NUM_PEER_CERTS + idx][0];
+    } // end of for loop
+    for(idx = 1; idx < NUM_CA_CERTS; idx++) {
+        mock_cert_issuer_hashed_dn[idx - 1] = mock_cert_subject_hashed_dn[idx];
+    } // end of for loop
+    mock_cert_issuer_hashed_dn[NUM_CA_CERTS - 1] = mock_cert_subject_hashed_dn[NUM_CA_CERTS - 1];
+    for(idx = 0, curr_cert = tls_session->CA_cert; curr_cert != NULL; idx++, curr_cert = curr_cert->next) {
+        XMEMCPY(curr_cert->issuer.hashed_dn, &mock_cert_issuer_hashed_dn[idx], NBYTES_CERT_HASHED_DISTINGUISHED_NAME);
+        XMEMCPY(curr_cert->subject.hashed_dn, &mock_cert_subject_hashed_dn[idx], NBYTES_CERT_HASHED_DISTINGUISHED_NAME);
+        curr_cert->flgs.auth_done = 0;
+        curr_cert->flgs.auth_pass = 0;
+        curr_cert->flgs.self_signed = 0;
+    } // end of for loop
+    buf = mock_cert_subject_hashed_dn[0]; // store for later use
+
+    for(idx = 0; idx < NUM_PEER_CERTS; idx++) {
+        mock_cert_subject_hashed_dn[idx] = &mock_cert_hashed_dn[idx][0];
+    } // end of for loop
+    cert_issuing_order[0] = 3;
+    cert_issuing_order[1] = 2;
+    cert_issuing_order[2] = 5;
+    cert_issuing_order[3] = 4;
+    cert_issuing_order[4] = 7;
+    cert_issuing_order[5] = 1;
+    cert_issuing_order[6] = 6;
+    cert_issuing_order[7] = 0;
+    mock_cert_issuer_hashed_dn[cert_issuing_order[0]] =  buf;
+    for(idx = 1; idx < NUM_PEER_CERTS; idx++) {
+        mock_cert_issuer_hashed_dn[cert_issuing_order[idx]] = mock_cert_subject_hashed_dn[cert_issuing_order[idx - 1]];
+    } // end of for loop
+    for(idx = 0, curr_cert = tls_session->peer_certs; curr_cert != NULL; idx++, curr_cert = curr_cert->next) {
+        XMEMCPY(curr_cert->issuer.hashed_dn, &mock_cert_issuer_hashed_dn[idx], NBYTES_CERT_HASHED_DISTINGUISHED_NAME);
+        XMEMCPY(curr_cert->subject.hashed_dn, &mock_cert_subject_hashed_dn[idx], NBYTES_CERT_HASHED_DISTINGUISHED_NAME);
+        curr_cert->flgs.auth_done = 0;
+        curr_cert->flgs.auth_pass = 0;
+        curr_cert->flgs.self_signed = 0;
+    } // end of for loop
+
+    status = tlsVerifyCertChain(tls_session->CA_cert, tls_session->peer_certs);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    for(curr_cert = tls_session->peer_certs; curr_cert != NULL; curr_cert = curr_cert->next) {
+        TEST_ASSERT_EQUAL_UINT8(1, curr_cert->flgs.auth_done);
+        TEST_ASSERT_EQUAL_UINT8(1, curr_cert->flgs.auth_pass);
+        TEST_ASSERT_EQUAL_UINT8(0, curr_cert->flgs.self_signed);
+    } // end of for loop
+
+    tlsFreeCertChain(tls_session->CA_cert, TLS_FREE_CERT_ENTRY_ALL);
+    tls_session->CA_cert = NULL;
+} // end of TEST(tlsVerifyCertChain, with_issuer_cert)
+
+
+TEST(tlsCertVerifyGenDigitalSig, server_sha256)
+{
+    tlsOpaque16b_t  gened_digi_sig = {0, NULL};
+    tlsRSApss_t     rsapssSig = {0 , 0};
+    tlsRespStatus   status = TLS_RESP_OK;
+    const byte      is_server = 1;
+
+    tls_session->sec.chosen_ciphersuite = &tls_supported_cipher_suites[1];
+    rsapssSig.hash_id  = TLS_HASH_ALGO_SHA256;
+    rsapssSig.salt_len = mqttHashGetOutlenBytes(rsapssSig.hash_id);
+    status = tlsCertVerifyGenDigitalSig(&tls_session->sec, (const tlsRSApss_t *)&rsapssSig,  &gened_digi_sig, is_server);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    TEST_ASSERT_NOT_EQUAL(NULL, gened_digi_sig.data);
+    TEST_ASSERT_EQUAL_UINT16(rsapssSig.salt_len, gened_digi_sig.len);
+
+    XMEMFREE(gened_digi_sig.data);
+} // end of TEST(tlsCertVerifyGenDigitalSig, server_sha256)
+
+
+TEST(tlsCertVerifyGenDigitalSig, server_sha384)
+{
+    tlsOpaque16b_t  gened_digi_sig = {0, NULL};
+    tlsRSApss_t     rsapssSig = {0 , 0};
+    tlsRespStatus   status = TLS_RESP_OK;
+    const byte      is_server = 1;
+
+    tls_session->sec.chosen_ciphersuite = &tls_supported_cipher_suites[0];
+    rsapssSig.hash_id  = TLS_HASH_ALGO_SHA384;
+    rsapssSig.salt_len = mqttHashGetOutlenBytes(rsapssSig.hash_id);
+    status = tlsCertVerifyGenDigitalSig(&tls_session->sec, (const tlsRSApss_t *)&rsapssSig,  &gened_digi_sig, is_server);
+    TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
+    TEST_ASSERT_NOT_EQUAL(NULL, gened_digi_sig.data);
+    TEST_ASSERT_EQUAL_UINT16(rsapssSig.salt_len, gened_digi_sig.len);
+
+    XMEMFREE(gened_digi_sig.data);
+} // end of TEST(tlsCertVerifyGenDigitalSig, server_sha384)
+
+
+
+
+
+
+
+
+
+static void mockInitCertHashedDN(void) {
+    word16 idx, jdx, kdx = 0;
+    kdx = 0x11;
+    for(idx = 0; idx < (NUM_PEER_CERTS + NUM_CA_CERTS); idx++) {
+    for(jdx = 0; jdx < NBYTES_CERT_HASHED_DISTINGUISHED_NAME; jdx++) {
+        mock_cert_hashed_dn[idx][jdx] = (kdx++) % 0xff;
+    } // end of for loop
+    } // end of for loop
+} // end of mockInitCertHashedDN
 
 
 static void RunAllTestGroups(void)
@@ -455,9 +868,15 @@ static void RunAllTestGroups(void)
     XMEMSET(tls_session, 0x00, sizeof(tlsSession_t));
     tls_session->inbuf.len  = MAX_RAWBYTE_BUF_SZ;
     tls_session->inbuf.data = (byte *) XMALLOC(sizeof(byte) * MAX_RAWBYTE_BUF_SZ);
+    mockInitCertHashedDN();
 
     RUN_TEST_GROUP(tlsCopyCertRawData);
+    RUN_TEST_GROUP(tlsDecodeCerts);
+    RUN_TEST_GROUP(tlsVerifyCertChain);
+    RUN_TEST_GROUP(tlsCertVerifyGenDigitalSig);
 
+    tlsFreeCertChain(tls_session->peer_certs, TLS_FREE_CERT_ENTRY_ALL);
+    tls_session->peer_certs = NULL;
     XMEMFREE(tls_session->inbuf.data);
     XMEMFREE(tls_session);
     tls_session = NULL;
