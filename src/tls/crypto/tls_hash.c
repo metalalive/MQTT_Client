@@ -234,7 +234,8 @@ tlsRespStatus  tlsTranscrptHashHSmsgUpdate(tlsSession_t  *session, tlsOpaque16b_
             inlen  -= TLS_RECORD_LAYER_HEADER_NBYTES;
         }
         if((session->flgs.hs_rx_encrypt != 0) && (session->sec.flgs.ct_final_frag != 0)) {
-            inlen  -= (1 + session->sec.chosen_ciphersuite->tagSize);
+            inlen  -= session->sec.chosen_ciphersuite->tagSize; // trim auth tag off
+            if(inlen > 0) { inlen -= 1; } // trim 1-byte ContentType away in TLSInnerPlainText
         } // for TLScipherText, 1-byte record type, authentication tag, and padding bytes must be skipped.
     }
     if(inlen > 0) {
@@ -249,7 +250,6 @@ tlsRespStatus  tlsTranscrptHashHSmsgUpdate(tlsSession_t  *session, tlsOpaque16b_
         }
         status = tlsTransHashTakeSnapshot(&session->sec, hash_id, session->sec.hashed_hs_msg.snapshot_server_finished, hash_sz);
     }
-////end_of_hs_hash_update:
     return status;
 } // end of tlsTranscrptHashHSmsgUpdate
 
@@ -299,28 +299,15 @@ tlsRespStatus  tlsTransHashTakeSnapshot(tlsSecurityElements_t  *sec, tlsHashAlgo
 
 
 
-// there are 2 cases when this DONE function should be called :
-// (1) when client encodes FINISH handshake message, the hashed handshake message will be included as
-//     part of authentication message.
-// (2) when anything goes wrong & TLS session is abnormally closed, this function will be called for
-//     de-initialization.
-tlsRespStatus  tlsTranscrptHashDone(tlsSecurityElements_t *sec, tlsOpaque16b_t *outbuf)
+// this De-Init function should be called :
+// (1) when everything goes well, the client finishes entire handshake process (from ClientHello to
+//     client's FINISH message.
+// (2) when anything goes wrong and TLS session is abnormally closed.
+tlsRespStatus  tlsTranscrptHashDeInit(tlsSecurityElements_t *sec)
 {
     if(sec == NULL) {  return TLS_RESP_ERRARGS; }
-    tlsRespStatus status = TLS_RESP_OK;
-    // if we haven't negotiated cipher suite, then directly free up the space for hash structure
-    tlsHashAlgoID hash_id = TLScipherSuiteGetHashID( sec->chosen_ciphersuite );
-    if((hash_id != TLS_HASH_ALGO_UNKNOWN) && (hash_id != TLS_HASH_ALGO_NOT_NEGO))
-    {
-        if((outbuf == NULL) || (outbuf->data == NULL)) {
-            status = TLS_RESP_ERRARGS;
-        }
-        else {
-            status =  tlsTransHashTakeSnapshot(sec, hash_id, outbuf->data, outbuf->len);
-        }
-    } // end of if chosen_ciphersuite != NULL
-    // de-initialization finally
+    // directly free up the space for hash structure
     tlsTransHashCleanAll(sec);
-    return status;
-} // end of tlsTranscrptHashDone
+    return  TLS_RESP_OK;
+} // end of tlsTranscrptHashDeInit
 

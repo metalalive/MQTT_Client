@@ -332,7 +332,7 @@ end_of_hs:
             // TODO: send alert to the peer
         }
     }
-    tlsTranscrptHashDone(&session->sec, NULL); // only de-initialize hash structure
+    tlsTranscrptHashDeInit(&session->sec); // de-initialize hash object(s)
     tlsCleanSpaceAfterHS(session);
     return status;
 } // end of tlsClientStartHandshake

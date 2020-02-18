@@ -346,7 +346,7 @@ tlsRespStatus  tlsTranscrptHashReInit(tlsSecurityElements_t *sec)
 tlsRespStatus  tlsTranscrptHashHSmsgUpdate(tlsSession_t  *session, tlsOpaque16b_t *buf)
 { return TLS_RESP_OK; }
 
-tlsRespStatus  tlsTranscrptHashDone(tlsSecurityElements_t *sec, tlsOpaque16b_t *outbuf)
+tlsRespStatus  tlsTranscrptHashDeInit(tlsSecurityElements_t *sec)
 { return TLS_RESP_OK; }
 
 tlsRespStatus  tlsTransHashCleanUnsuedHashHandler(tlsSecurityElements_t *sec)

@@ -13,7 +13,7 @@ tlsRespStatus  tlsTranscrptHashHSmsgUpdate(tlsSession_t  *session, tlsOpaque16b_
 
 tlsRespStatus  tlsTranscrptHashInit(tlsSecurityElements_t  *sec);
 
-tlsRespStatus  tlsTranscrptHashDone(tlsSecurityElements_t *sec, tlsOpaque16b_t *outbuf);
+tlsRespStatus  tlsTranscrptHashDeInit(tlsSecurityElements_t *sec);
 
 tlsRespStatus  tlsTranscrptHashReInit(tlsSecurityElements_t *sec);
 
