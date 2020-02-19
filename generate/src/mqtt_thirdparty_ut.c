@@ -11,6 +11,10 @@ const unsigned char  *mock_hash_curr_outbytes[2];
 unsigned char  *mock_last_hash_in_data[2];
 unsigned int    mock_last_hash_in_len[2];
 
+const  unsigned int mock_last_mp_from_ubin_max_sz = 9;
+unsigned int mock_last_mp_from_ubin_idx;
+unsigned char *mock_last_mp_from_ubin_in_data[9];
+size_t         mock_last_mp_from_ubin_in_len[9];
 
 struct ltc_prng_descriptor    prng_descriptor[1];
 struct ltc_cipher_descriptor  cipher_descriptor[2];
@@ -75,7 +79,14 @@ mp_err mp_init(mp_int *a)
 { return 0; }
 
 mp_err mp_from_ubin(mp_int *out, const unsigned char *buf, size_t size)
-{ return 0; }
+{
+    if(mock_last_mp_from_ubin_max_sz > mock_last_mp_from_ubin_idx) {
+        mock_last_mp_from_ubin_in_data[ mock_last_mp_from_ubin_idx ] = buf;
+        mock_last_mp_from_ubin_in_len[ mock_last_mp_from_ubin_idx ]  = size;
+        mock_last_mp_from_ubin_idx++;
+    }
+    return 0;
+}
 
 mp_err mp_add(const mp_int *a, const mp_int *b, mp_int *c)
 { return mock_mp_add_return_val; }
