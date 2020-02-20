@@ -240,21 +240,3 @@ tlsRespStatus  tlsECDHEgenSharedSecret(tlsSession_t *session, tlsOpaque8b_t *out
 } // end of tlsECDHEgenSharedSecret
 
 
-
-//// tlsRespStatus  tlsEstimatePSKbinders(tlsSession_t *session, tlsOpaque8b_t *out)
-//// {
-////     if((out == NULL) || (out->data == NULL)) {  return TLS_RESP_ERRARGS;  }
-////     byte    *buf = NULL;
-//// 
-////     buf = session->sec.hashed_hs_msg.snapshot_CH_no_pskbinder.sha256;
-////     if(buf == NULL) { return TLS_RESP_ERRARGS; }
-////     buf = session->sec.hashed_hs_msg.snapshot_CH_no_pskbinder.sha384;
-////     if(buf == NULL) { return TLS_RESP_ERRARGS; }
-//// 
-////     tlsRespStatus status = TLS_RESP_OK;
-////     // TODO: finish the implementation
-////     return status;
-//// } // end of tlsEstimatePSKbinders
-
-
-

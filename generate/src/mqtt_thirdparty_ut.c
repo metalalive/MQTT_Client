@@ -10,6 +10,10 @@ const unsigned char  *mock_hash_curr_state[2];
 const unsigned char  *mock_hash_curr_outbytes[2];
 unsigned char  *mock_last_hash_in_data[2];
 unsigned int    mock_last_hash_in_len[2];
+unsigned char  *mock_aes_gcm_process_pt_start;
+unsigned char  *mock_aes_gcm_process_ct_start;
+unsigned int    mock_aes_gcm_process_ct_len;
+unsigned char  *mock_aes_gcm_mac_data;
 
 const  unsigned int mock_last_mp_from_ubin_max_sz = 9;
 unsigned int mock_last_mp_from_ubin_idx;
@@ -22,7 +26,7 @@ struct ltc_hash_descriptor    hash_descriptor[2];
 
 ltc_math_descriptor  ltc_mp = { 0 };
 const ltc_math_descriptor  ltm_desc = { 0 };
-
+static ltc_ecc_curve  mock_ecc_curve_list[1];
 
 int sha256_init(hash_state *md)
 {
@@ -120,6 +124,94 @@ void rijndael_done(symmetric_key *skey)
 int rijndael_enc_keysize(int *keysize)
 { return 0; }
 
+int chacha20poly1305_init(chacha20poly1305_state *st, const unsigned char *key, unsigned long keylen)
+{ return 0; }
+
+int gcm_init(gcm_state *gcm, int cipher,  const unsigned char *key,  int keylen)
+{ return 0; }
+
+int gcm_reset(gcm_state *gcm)
+{ return 0; }
+
+int gcm_add_iv(gcm_state *gcm,  const unsigned char *IV,  unsigned long IVlen)
+{ return 0; }
+
+int gcm_add_aad(gcm_state *gcm, const unsigned char *adata,  unsigned long adatalen)
+{ return 0; }
+
+int gcm_process(gcm_state *gcm,  unsigned char *pt, unsigned long ptlen,  unsigned char *ct,  int direction)
+{
+    mock_aes_gcm_process_pt_start = pt;
+    mock_aes_gcm_process_ct_start = ct;
+    mock_aes_gcm_process_ct_len   = ptlen;
+    return 0;
+}
+
+int gcm_done(gcm_state *gcm,  unsigned char *tag,  unsigned long *taglen)
+{
+    if(mock_aes_gcm_mac_data != NULL && tag != NULL && taglen != NULL) {
+        XMEMCPY(tag, mock_aes_gcm_mac_data, *taglen);
+    }
+    return 0;
+}
+
+int ecc_make_key(prng_state *prng, int wprng, int keysize, ecc_key *key)
+{ return 0; }
+
+void ecc_free(ecc_key *key)
+{ return; }
+
+int ecc_ansi_x963_export(const ecc_key *key, unsigned char *out, unsigned long *outlen)
+{
+    if(key != NULL && out != NULL && outlen != NULL) {
+        XMEMCPY(out, key, *outlen);
+    }
+    return 0;
+}
+
+int ecc_find_curve(const char *name_or_oid, const ltc_ecc_curve **cu)
+{
+    if(cu != NULL) {
+        *cu = &mock_ecc_curve_list[0];
+    }
+    return 0;
+}
+
+int ecc_ansi_x963_import_ex(const unsigned char *in, unsigned long inlen, ecc_key *key, const ltc_ecc_curve *cu)
+{
+    if(key != NULL && in != NULL) {
+        size_t  sz = (inlen < sizeof(ecc_key) ? inlen: sizeof(ecc_key));
+        XMEMCPY(key, in, sz);
+    }
+    return 0;
+}
+
+int x25519_make_key(prng_state *prng, int wprng, curve25519_key *key)
+{ return 0; }
+
+int x25519_export(unsigned char *out, unsigned long *outlen,  int which, const curve25519_key *key)
+{
+    if(key != NULL && out != NULL && outlen != NULL) {
+        XMEMCPY(out, key, *outlen);
+    }
+    return 0;
+}
+
+int x25519_import(const unsigned char *in, unsigned long inlen, curve25519_key *key)
+{
+    if(key != NULL && in != NULL) {
+        size_t  sz = (inlen < sizeof(curve25519_key) ? inlen: sizeof(curve25519_key));
+        XMEMCPY(key, in, sz);
+    }
+    return 0;
+}
+
+int ecc_shared_secret(const ecc_key *private_key, const ecc_key *public_key, unsigned char *out, unsigned long *outlen)
+{ return 0; }
+
+int x25519_shared_secret(const curve25519_key *private_key,  const curve25519_key *public_key,
+                         unsigned char *out, unsigned long *outlen)
+{ return 0; }
 
 int hmac_memory(int hash, const unsigned char *key,  unsigned long keylen,
                 const unsigned char *in,   unsigned long inlen,

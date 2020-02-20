@@ -249,7 +249,8 @@ TEST(tlsDecryptRecordMsg, one_msg_multi_frags)
     TEST_ASSERT_EQUAL_UINT8(1, tls_session->log.num_enc_recmsg_recv);
     TEST_ASSERT_EQUAL_UINT16(len, tls_session->inlen_unprocessed);
     TEST_ASSERT_EQUAL_UINT16((tls_session->inbuf.len - len), tls_session->inlen_decrypted);
-    // the second fragment
+    // the second fragment, part of auth tag is received, but cannot be used yet for authentication encryption 
+    // because it is not complete.
     tls_session->remain_frags_in = 2;
     tls_session->num_frags_in = 3;
     tls_session->inlen_total = -2 + tls_session->sec.chosen_ciphersuite->tagSize;
@@ -259,6 +260,7 @@ TEST(tlsDecryptRecordMsg, one_msg_multi_frags)
     TEST_ASSERT_EQUAL_UINT8(0, tls_session->sec.flgs.ct_first_frag);
     TEST_ASSERT_EQUAL_UINT8(0, tls_session->sec.flgs.ct_final_frag);
     TEST_ASSERT_EQUAL_UINT8(1, tls_session->log.num_enc_recmsg_recv);
+    // still remain few data bytes to decrypt in later fragment
     TEST_ASSERT_EQUAL_UINT16(tls_session->sec.chosen_ciphersuite->tagSize, tls_session->inlen_unprocessed);
     TEST_ASSERT_EQUAL_UINT16((tls_session->inbuf.len - tls_session->sec.chosen_ciphersuite->tagSize), tls_session->inlen_decrypted);
 
