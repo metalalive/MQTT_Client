@@ -228,7 +228,7 @@ config:
 
 # optional function for those who use code navigation tools e.g. ctags
 update_navigator:
-	@rm -rf ./tags; ctags -R ./generate ./include ./src ./tests ./third_party
+	@rm -rf ./tags; ctags -R ./generate ./include ./src ./tests/integration ./third_party
 
 dbg_server:
 	@$(DBG_SERVER_CMD)

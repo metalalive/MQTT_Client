@@ -390,9 +390,6 @@ int  mqttGetPktLenPublish( mqttMsg_t *msg, word32 max_pkt_sz )
     if((remain_len + head_len) > max_pkt_sz) { 
         return MQTT_RESP_ERR_EXCEED_PKT_SZ ;
     }
-    if((remain_len + head_len) > MQTT_RECV_PKT_MAXBYTES) {
-        return MQTT_RESP_ERR_EXCEED_PKT_SZ;
-    } // report error because there might not be sufficient memory space to allocate.
     msg->pkt_len_set.remain_len = remain_len;
     msg->pkt_len_set.props_len  = props_len;
     return (remain_len + head_len);
