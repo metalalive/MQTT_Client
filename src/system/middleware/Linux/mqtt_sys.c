@@ -1,8 +1,25 @@
 #include "mqtt_include.h"
+static word32 mqtt_sys_init_time_ms;
+
+
+static word32  mqttSysGetCurrTimeMs(void) {
+    // get millisecond time since the application started
+    struct timespec  ts_result;
+    int    return_code = 0;
+    word32 out = 0;
+
+    return_code = clock_gettime(CLOCK_REALTIME, &ts_result);
+    if(return_code == 0) {
+        out  = ((ts_result.tv_sec * 1000) & 0xffffffff);
+        out += ((ts_result.tv_nsec / 1000000) & 0xffffffff);
+    } // return 0 for success
+    return out;
+} // end of mqttSysGetCurrTimeMs
 
 
 mqttRespStatus  mqttSysInit( void )
 {
+    mqtt_sys_init_time_ms = mqttSysGetCurrTimeMs();
     return  MQTT_RESP_OK ;
 } // end of mqttSysInit
 
@@ -11,7 +28,6 @@ mqttRespStatus  mqttSysDeInit( void )
 {
     return  MQTT_RESP_OK ;
 } // end of mqttSysDeInit
-
 
 
 static  mqttRespStatus  mqttSysSockCreate( int *sockfd_out, struct addrinfo *ainfo )
@@ -120,9 +136,8 @@ mqttRespStatus  mqttSysNetconnStop( mqttCtx_t *mctx )
 
 
 
-static mqttRespStatus mqttSysChkSockfdAvail (int sockfd_in, short evt_in)
+static mqttRespStatus mqttSysChkSockfdAvail (int sockfd_in, short evt_in, int poll_timeout_ms)
 {
-    const int    poll_timeout_ms = 700;
     const nfds_t nfds = 1;
     int      status  = 0;
     uint8_t  num_timeout      = 0;
@@ -132,6 +147,7 @@ static mqttRespStatus mqttSysChkSockfdAvail (int sockfd_in, short evt_in)
     userfds.fd      = sockfd_in;
     userfds.events  = evt_in;
     userfds.revents = 0;
+    poll_timeout_ms = poll_timeout_ms / max_num_timeout;
     while(1) { // TODO: scale this implementation while we have to consider multiple sockets case
         status = poll( &userfds, nfds, poll_timeout_ms );
         if(status == 0) {
@@ -162,7 +178,7 @@ int  mqttSysPktRead( void **extsysobjs, byte *buf, word32 buf_len, int timeout_m
     int  sockfd  = (int) extsysobjs[0]; //// mctx->ext_sysobjs[0];
     int  status  = 0;
 
-    status = (mqttRespStatus)mqttSysChkSockfdAvail(sockfd, (POLLIN | POLLPRI));
+    status = (mqttRespStatus)mqttSysChkSockfdAvail(sockfd, (POLLIN | POLLPRI), timeout_ms);
     if(status == MQTT_RESP_OK) {
         status = recv( sockfd, (void *)buf, buf_len, MSG_DONTWAIT );
         if(status == -1){ status = MQTT_RESP_ERR_TRANSMIT; }
@@ -170,7 +186,6 @@ int  mqttSysPktRead( void **extsysobjs, byte *buf, word32 buf_len, int timeout_m
     }
     return status;
 } // end of mqttSysPktRead
-
 
 
 
@@ -182,7 +197,7 @@ int  mqttSysPktWrite( void **extsysobjs, byte *buf, word32 buf_len )
     int  sockfd  = (int) extsysobjs[0]; //// (int) mctx->ext_sysobjs[0];
     int  status  = 0;
 
-    status = (mqttRespStatus)mqttSysChkSockfdAvail(sockfd, POLLOUT);
+    status = (mqttRespStatus)mqttSysChkSockfdAvail(sockfd, POLLOUT, 6000);
     if(status == MQTT_RESP_OK) {
         status = send( sockfd, (const void *)buf, buf_len, MSG_DONTWAIT );
         if(status == -1){ status = MQTT_RESP_ERR_TRANSMIT; }
@@ -190,8 +205,6 @@ int  mqttSysPktWrite( void **extsysobjs, byte *buf, word32 buf_len )
     }
     return status;
 } // end of mqttSysPktWrite
-
-
 
 
 
@@ -248,7 +261,7 @@ mqttRespStatus  mqttSysThreadWaitUntilExit( mqttSysThre_t *thre_in, void **retur
 
 mqttRespStatus  mqttSysGetEntropy(mqttStr_t *out)
 {
-    if((out==NULL) || (out->data==NULL) || (out->len < MQTT_MIN_BYTES_ENTROPY) || (out->len > MQTT_MAX_BYTES_ENTROPY)) {
+    if((out==NULL) || (out->data==NULL) || (out->len < 1) || (out->len > MQTT_MAX_BYTES_ENTROPY)) {
         return MQTT_RESP_ERRARGS;
     }
     byte   *buf     = &out->data[0];
@@ -260,13 +273,13 @@ mqttRespStatus  mqttSysGetEntropy(mqttStr_t *out)
     if(fp == NULL) {
         fp = fopen("/dev/random", "rb");
     }
-    if(fp == NULL) { return 0; }
+    if(fp == NULL) { return MQTT_RESP_ERR; }
     // disable buffering
     if(setvbuf(fp, NULL, _IONBF, 0) != 0) {
         fclose(fp);
-        return 0;
+        return MQTT_RESP_ERR;
     }
-    do { // TODO:verify this part
+    do {
         rd_len   = fread( buf, 1, buf_len, fp );
         if(rd_len < 1) {
             continue;
@@ -283,20 +296,22 @@ mqttRespStatus  mqttSysGetDateTime(mqttDateTime_t *out)
 {
     time_t     T = time(NULL);
     struct tm *t = localtime(&T);
+    unsigned int year = 1900 + t->tm_year;
     const byte decimal_base = 10;
     out->hour    = mqttCvtDecimalToBCDbyte(t->tm_hour   , decimal_base);
     out->minite  = mqttCvtDecimalToBCDbyte(t->tm_min    , decimal_base);
     out->second  = mqttCvtDecimalToBCDbyte(t->tm_sec    , decimal_base);
     out->date    = mqttCvtDecimalToBCDbyte(t->tm_mday   , decimal_base);
     out->month   = mqttCvtDecimalToBCDbyte(t->tm_mon + 1, decimal_base);
-    out->year[1] = mqttCvtDecimalToBCDbyte(t->tm_year   , decimal_base);
-    out->year[0] = 0x20;
+    out->year[1] = mqttCvtDecimalToBCDbyte((year % 100), decimal_base);
+    out->year[0] = mqttCvtDecimalToBCDbyte((year / 100), decimal_base);
     return  MQTT_RESP_OK;
 } // end of mqttSysGetDateTime
 
 
 word32  mqttSysGetTimeMs(void) {
-    return 0; // TODO: finish implementation
+    word32  curr_ms = mqttSysGetCurrTimeMs();
+    return mqttGetInterval(curr_ms, mqtt_sys_init_time_ms);
 } // end of mqttSysGetTimeMs
 
 
