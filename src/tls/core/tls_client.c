@@ -87,19 +87,21 @@ static tlsRespStatus   tlsClientSessionCreate(tlsSession_t **session)
     if(session == NULL) { return TLS_RESP_ERRARGS; }
     if(tls_CA_cert == NULL) { return TLS_RESP_ERR; }
     tlsSession_t  *s = NULL;
+    byte        *buf = NULL;
     word16       len = 0;
-    s = (tlsSession_t *) XMALLOC(sizeof(tlsSession_t));
-    XMEMSET(s, 0x00, sizeof(tlsSession_t));
+
+    len = sizeof(tlsSession_t) + TLS_DEFAULT_IN_BUF_BYTES + TLS_DEFAULT_OUT_BUF_BYTES;
+    buf = XMALLOC(sizeof(byte) * len);
+    XMEMSET(buf, 0x00, sizeof(byte) * len);
+    s = (tlsSession_t *) buf;
+    buf += sizeof(tlsSession_t);
     // initialize (receive) in buffer
-    len = TLS_DEFAULT_IN_BUF_BYTES;
-    s->inbuf.len  = len;
-    s->inbuf.data = (byte *) XMALLOC(sizeof(byte) * len);
-    XMEMSET( s->inbuf.data, 0x00, sizeof(byte) * len);
+    s->inbuf.len  = TLS_DEFAULT_IN_BUF_BYTES;
+    s->inbuf.data = (byte *) buf;
+    buf += TLS_DEFAULT_IN_BUF_BYTES;
     // initialize (send) out buffer
-    len = TLS_DEFAULT_OUT_BUF_BYTES;
-    s->outbuf.len  = len;
-    s->outbuf.data = (byte *) XMALLOC(sizeof(byte) * len);
-    XMEMSET( s->outbuf.data, 0x00, sizeof(byte) * len);
+    s->outbuf.len  = TLS_DEFAULT_OUT_BUF_BYTES;
+    s->outbuf.data = (byte *) buf;
     // load a list of available PSKs, which may include the PSK of previously successful connection,
     // (th PSK was received from New Session Ticket message of previously successful connection )
     // , or user-specified PSKs.
@@ -124,12 +126,6 @@ static tlsRespStatus    tlsClientSessionDelete(tlsSession_t *session)
     tlsSecurityElements_t  *sec = &s->sec;
     if(s != NULL) {
         XMEMSET(&s->ext_sysobjs[0], 0x00, sizeof(void *) * MQTT_MAX_NUM_EXT_SYSOBJS);
-        XASSERT( s->inbuf.data != NULL );
-        XASSERT( s->outbuf.data != NULL );
-        XMEMFREE((void *)s->inbuf.data);
-        XMEMFREE((void *)s->outbuf.data);
-        s->inbuf.data  = NULL;
-        s->outbuf.data = NULL;
         // clean up data for symmetric encryption
         if(sec->chosen_ciphersuite) {
             sec->chosen_ciphersuite->done_fn( &s->sec );
@@ -142,6 +138,8 @@ static tlsRespStatus    tlsClientSessionDelete(tlsSession_t *session)
             sec->secret.app.server.data = NULL;
             sec->secret.app.resumption.data = NULL;
         }
+        s->inbuf.data  = NULL;
+        s->outbuf.data = NULL;
         XMEMFREE((void *)s);
     }
     return TLS_RESP_OK; 

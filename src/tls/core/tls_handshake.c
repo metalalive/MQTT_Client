@@ -3,50 +3,44 @@
 
 static void tlsAllocSpaceBeforeKeyEx(tlsSession_t *session)
 {
+    byte *buf = NULL;
     word16 len = 0;
     // initialize key-exchange structure
     session->keyex.num_grps_total = tlsGetSupportedKeyExGrpSize();
+    len = (sizeof(tlsKeyExState) + sizeof(void *)) * session->keyex.num_grps_total;
+    buf = XMALLOC(len);
+    XMEMSET(buf, 0x00, (size_t)len);
+
     len = sizeof(tlsKeyExState) * session->keyex.num_grps_total;
-    session->keyex.grp_nego_state = (tlsKeyExState *) XMALLOC((size_t)len);
-    XMEMSET( session->keyex.grp_nego_state, 0x00, (size_t)len );
+    session->keyex.grp_nego_state = (tlsKeyExState *) &buf[0];
     // create a list of pointers, pointed to different key structures (e.g. ECC, X25519, DH)
-    len = sizeof(void *) * session->keyex.num_grps_total;
-    session->keyex.keylist = (void **) XMALLOC((size_t)len);
-    XMEMSET( session->keyex.keylist, 0x00, (size_t)len );
+    session->keyex.keylist = (void **) &buf[len];
     // chosen_grp_idx  should NOT be greater than num_grps_total, here we set num_grps_total as default value
     // which means we haven't found appropriate named groups / key exchange algorithm
     session->keyex.chosen_grp_idx = session->keyex.num_grps_total;
     // allocate space for early hankshake phase.
-    session->sec.client_rand = XMALLOC(sizeof(byte) * TLS_HS_RANDOM_BYTES);
-    session->sec.server_rand = XMALLOC(sizeof(byte) * TLS_HS_RANDOM_BYTES);
+    buf = XMALLOC(sizeof(byte) * ((TLS_HS_RANDOM_BYTES << 1) + TLS_MAX_BYTES_SESSION_ID));
+    session->sec.client_rand = &buf[0];
+    session->sec.server_rand = &buf[TLS_HS_RANDOM_BYTES];
     session->tmpbuf.session_id.len  = TLS_MAX_BYTES_SESSION_ID;
-    session->tmpbuf.session_id.data = XMALLOC(sizeof(byte) * TLS_MAX_BYTES_SESSION_ID);
+    session->tmpbuf.session_id.data = &buf[TLS_HS_RANDOM_BYTES << 1];
 } // end of tlsAllocSpaceBeforeKeyEx
 
 
 static void tlsCleanSpaceAfterKeyEx(tlsSession_t *session)
 {
-    if(session->tmpbuf.session_id.data != NULL) {
-        XMEMFREE((void *)session->tmpbuf.session_id.data);
-        session->tmpbuf.session_id.data = NULL;
-    }
     if(session->sec.client_rand != NULL) {
         XMEMFREE((void *)session->sec.client_rand);
         session->sec.client_rand = NULL;
-    }
-    if(session->sec.server_rand != NULL) {
-        XMEMFREE((void *)session->sec.server_rand);
         session->sec.server_rand = NULL;
+        session->tmpbuf.session_id.data = NULL;
     }
     // deallocate generated but unused key(s) after key-exchange algorithm is negotiated
     tlsFreeEphemeralKeyPairs(&session->keyex);
-    if( session->keyex.keylist != NULL ) {
-        XMEMFREE((void *)session->keyex.keylist);
-        session->keyex.keylist = NULL;
-    }
     if( session->keyex.grp_nego_state != NULL ){
         XMEMFREE((void *)session->keyex.grp_nego_state);
         session->keyex.grp_nego_state = NULL;
+        session->keyex.keylist = NULL;
     }
 } // end of tlsCleanSpaceAfterKeyEx
 
