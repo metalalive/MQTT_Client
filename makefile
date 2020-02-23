@@ -81,6 +81,7 @@ else
         TEST_COMMON_SOURCES = tests/integration/pattern_generator.c \
                               generate/src/mqtt_generate.c
         TEST_ENTRY_SOURCES += tests/integration/mqtt_client_tcp.c \
+                              tests/integration/mqtt_connect_test.c \
                               tests/integration/rand.c
         C_INCLUDES += -Itests/integration
     endif #### end of itest
@@ -173,7 +174,7 @@ gen_lib: $(BUILD_DIR)  $(TARGET_LIB_PATH)
 # for unit test, no need to build library and test images using cross-compiler
 # TODO: for few integration tests, no need to build test images with cross-compiler
 itest : $(TARGET_LIB_PATH)  $(TEST_COMMON_OBJECTS)  $(TEST_ENTRY_OBJECTS) \
-        $(foreach atest, $(TEST_ENTRY_OBJECTS), $(atest:.o=).elf  $(atest:.o=).hex  $(atest:.o=).text  $(atest:.o=).bin )
+        $(foreach atest, $(TEST_ENTRY_OBJECTS), $(atest:.o=).elf  $(atest:.o=).hex  $(atest:.o=).text  $(atest:.o=).bin)
 	@rm -rf $(BUILD_DIR_TOP)/$(TARGET_LIB_NAME);
 	@ln -s  itest/$(TARGET_LIB_NAME)  $(BUILD_DIR_TOP)/$(TARGET_LIB_NAME);
 

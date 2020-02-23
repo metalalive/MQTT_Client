@@ -161,7 +161,7 @@ typedef    chacha20poly1305_state  tlsCha20Poly1305_t;
 
 #define  TLS_CFG_KEYEX_X25519_FREE_KEY_FN(key)
 
-// TODO: examine key export function
+
 #define  TLS_CFG_KEYEX_X25519_EXPORT_PUBVAL_FN(tlsstatus, outbuf, key, keysize)  \
 { \
     unsigned long  export_sz = (keysize); \
@@ -183,11 +183,9 @@ typedef    chacha20poly1305_state  tlsCha20Poly1305_t;
 
 #define  TLS_CFG_KEYEX_X25519_IMPORT_PUBVAL_FN(tlsstatus, inbuf, inbuflen, key) \
 { \
-    int __status = x25519_import((const byte *)(inbuf), (word32)(inbuflen), (tlsX25519Key_t *)(key)); \
+    int __status = x25519_import_raw((const byte *)(inbuf), (word32)(inbuflen), PK_PUBLIC, (tlsX25519Key_t *)(key)); \
     (tlsstatus) = (__status == CRYPT_OK ? TLS_RESP_OK: TLS_RESP_ERR_KEYGEN); \
 }
-
-
 
 
 #define  TLS_CFG_RSA_INIT_PUBKEY_FN(tlsstatus, pubkey) \

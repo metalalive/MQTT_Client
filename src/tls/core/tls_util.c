@@ -10,7 +10,7 @@ const tlsVersionCode  tls_supported_versions[] = {
 // in this implementation, we only support of allowable named groups defined in TLS v1.3
 // the size of this array MUST NOT exceeds TLS_MAX_BYTES_NAMED_GRPS
 const tlsNamedGrp  tls_supported_named_groups[] = {
-    TLS_NAMED_GRP_SECP256R1, TLS_NAMED_GRP_X25519,
+    TLS_NAMED_GRP_X25519,    TLS_NAMED_GRP_SECP256R1,
     TLS_NAMED_GRP_SECP384R1, TLS_NAMED_GRP_SECP521R1,
 };
 

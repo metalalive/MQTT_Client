@@ -197,7 +197,7 @@ int x25519_export(unsigned char *out, unsigned long *outlen,  int which, const c
     return 0;
 }
 
-int x25519_import(const unsigned char *in, unsigned long inlen, curve25519_key *key)
+int x25519_import_raw(const unsigned char *in, unsigned long inlen, int which, curve25519_key *key)
 {
     if(key != NULL && in != NULL) {
         size_t  sz = (inlen < sizeof(curve25519_key) ? inlen: sizeof(curve25519_key));
