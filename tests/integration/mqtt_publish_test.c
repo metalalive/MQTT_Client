@@ -9,11 +9,12 @@ static mqttTestPatt testPatternSet;
 static mqttCtx_t *m_client;
 
 
+
 static mqttRespStatus mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mctx )
 { // this test acting as client only send CONNECT and DISCONNECT to its peer MQTT broker.
+    uint8_t  num_pub_msg_sent =  0;
     mqttRespStatus status =  MQTT_RESP_OK;
-    patt_in->connack      = NULL; 
-
+    patt_in->connack       = NULL; 
     // -------- send CONNECT packet to broker --------
     mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_CONNECT );
     status = mqttSendConnect( mctx, &patt_in->connack );
@@ -24,10 +25,24 @@ static mqttRespStatus mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mct
         mctx->err_info.reason_code = patt_in->connack->reason_code;
         goto disconnect_server;
     }
-    // -------- send optional PING packet to broker --------
-    status = mqttSendPingReq( mctx );
-    // -------- send DISCONNET packet to broker --------
+    // -------- send PUBLISH packet to broker --------
+    for(num_pub_msg_sent = 3; num_pub_msg_sent > 0; num_pub_msg_sent--) {
+        patt_in->pubresp = NULL;
+        mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_PUBLISH );
+        status = mqttSendPublish( mctx, &patt_in->pubresp );
+        mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_PUBLISH );
+        if(status < 0) { break; }
+        if(patt_in->pubmsg_send.qos > MQTT_QOS_0) {
+            if(patt_in->pubresp == NULL) { break; }
+            status = mqttChkReasonCode(patt_in->pubresp->reason_code);
+            if(status != MQTT_RESP_OK) {
+                mctx->err_info.reason_code = patt_in->pubresp->reason_code;
+                break;
+            }
+        }
+    } // end of for loop
 disconnect_server :
+    // -------- send DISCONNET packet to broker --------
     mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_DISCONNECT );
     mqttSendDisconnect( mctx );
     mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_DISCONNECT );
@@ -39,7 +54,7 @@ disconnect_server :
 static void mqttTestStartFn(void *params) 
 {
     mqttRespStatus status   = MQTT_RESP_ERR;
-    uint8_t  num_iter = 4;
+    uint8_t  num_iter = 0;
 
     if(m_client->drbg == NULL) {
         status = mqttDRBGinit(&m_client->drbg);
@@ -47,15 +62,13 @@ static void mqttTestStartFn(void *params)
     }
     XMEMSET( &testPatternSet, 0x00, sizeof(mqttTestPatt)) ;
     testPatternSet.drbg = m_client->drbg;
-    while(num_iter > 0)
-    {
-        status =  mqttNetconnStart( m_client );
+    for (num_iter = 2; num_iter > 0; num_iter--) {
+        status =  mqttNetconnStart(m_client);
         if( status == MQTT_RESP_OK ) {
-            mqttTestRunPatterns( &testPatternSet, m_client );
+            mqttTestRunPatterns(&testPatternSet, m_client);
         }
-        status =  mqttNetconnStop( m_client );
+        status =  mqttNetconnStop(m_client);
         if( status != MQTT_RESP_OK ) { break; }
-        num_iter--;
     } // end of while-loop
 end_of_main_test:
     if(m_client->drbg != NULL) {
@@ -68,7 +81,6 @@ end_of_main_test:
     mqttSysThreadDelete( NULL );
 #endif
 } // end of mqttTestStartFn
-
 
 
 

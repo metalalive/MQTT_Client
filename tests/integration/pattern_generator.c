@@ -395,13 +395,18 @@ static mqttRespStatus  mqttTestGenPattPublish( mqttDRBG_t *drbg, mqttMsg_t *pubm
     // total length of the application specific data 
     app_data_len = (send_pkt_maxbytes >> 1) + mqttUtilPRNG(drbg, send_pkt_maxbytes >> 2);
     app_data     = (byte *)XMALLOC(sizeof(byte) * app_data_len);
-    if(app_data == NULL){ return MQTT_RESP_ERRMEM; }
-    XMEMCPY( app_data, "{ mockdata:[", 12);
-    mqttTestRandGenStr(drbg, &app_data[12], (app_data_len - 12));
-    app_data[app_data_len - 2] = ']';
-    app_data[app_data_len - 1] = '}';
     pubmsg->app_data_len = app_data_len;
     pubmsg->buff         = app_data;
+    if(app_data == NULL){ return MQTT_RESP_ERRMEM; }
+    XMEMCPY(app_data, "{ mockdata:[", 12);
+    app_data     += 12;
+    app_data_len -= 12;
+    XMEMCPY(app_data, pubmsg->topic.data, pubmsg->topic.len);
+    app_data     += pubmsg->topic.len;
+    app_data_len -= pubmsg->topic.len;
+    mqttTestRandGenStr(drbg, app_data, app_data_len);
+    pubmsg->buff[pubmsg->app_data_len - 2] = ']';
+    pubmsg->buff[pubmsg->app_data_len - 1] = '}';
     return status;
 } // end of mqttTestGenPattPublish
 

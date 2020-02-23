@@ -9,11 +9,14 @@ static mqttTestPatt testPatternSet;
 static mqttCtx_t *m_client;
 
 
+
 static mqttRespStatus mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mctx )
 { // this test acting as client only send CONNECT and DISCONNECT to its peer MQTT broker.
     mqttRespStatus status =  MQTT_RESP_OK;
-    patt_in->connack      = NULL; 
-
+    uint8_t  num_pub_msg_recv = 0;
+    patt_in->connack  = NULL; 
+    patt_in->suback   = NULL;
+    patt_in->unsuback = NULL;
     // -------- send CONNECT packet to broker --------
     mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_CONNECT );
     status = mqttSendConnect( mctx, &patt_in->connack );
@@ -24,10 +27,38 @@ static mqttRespStatus mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mct
         mctx->err_info.reason_code = patt_in->connack->reason_code;
         goto disconnect_server;
     }
-    // -------- send optional PING packet to broker --------
-    status = mqttSendPingReq( mctx );
-    // -------- send DISCONNET packet to broker --------
+    // -------- send SUBSCRIBE packet, and wait for incoming PUBLISH packet (from broker) --------
+    mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_SUBSCRIBE );
+    status = mqttSendSubscribe( mctx, &patt_in->suback );
+    if((status < 0) || (patt_in->suback==NULL)) {
+        goto cleanup_subscribe_testdata;
+    }
+    status = mqttChkReasonCode(patt_in->suback->return_codes[0]);
+    if( status != MQTT_RESP_OK ){
+        mctx->err_info.reason_code = patt_in->suback->return_codes[0];
+        goto cleanup_subscribe_testdata;
+    }
+    // --------- wait for incoming PUBLISH packet ---------
+    mqttModifyReadMsgTimeout(mctx, 0xdbba0); // wait 15 minutes = 1000 * 60 * 15 milliseconds
+    for(num_pub_msg_recv = 3; num_pub_msg_recv > 0; num_pub_msg_recv--) {
+        patt_in->pubmsg_recv = NULL;
+        status = mqttClientWaitPkt( mctx, MQTT_PACKET_TYPE_PUBLISH, 0, (void **)&patt_in->pubmsg_recv );
+        if((status < 0) || (patt_in->pubmsg_recv==NULL)) { break; }
+    } // end of while-loop
+    mqttModifyReadMsgTimeout(mctx, MQTT_TEST_CMD_TIMEOUT_MS);
+    // -------- send UNSUBSCRIBE packet to broker --------
+    mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_UNSUBSCRIBE );
+    status = mqttSendUnsubscribe( mctx, &patt_in->unsuback );
+    if((status < 0) || (patt_in->unsuback==NULL)) { goto cleanup_subscribe_testdata; }
+    status = mqttChkReasonCode(patt_in->unsuback->return_codes[0]);
+    if( status != MQTT_RESP_OK ){
+        mctx->err_info.reason_code = patt_in->unsuback->return_codes[0];
+    }
+cleanup_subscribe_testdata:
+    mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_UNSUBSCRIBE );
+    mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_SUBSCRIBE );
 disconnect_server :
+    // -------- send DISCONNET packet to broker --------
     mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_DISCONNECT );
     mqttSendDisconnect( mctx );
     mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_DISCONNECT );
@@ -39,7 +70,7 @@ disconnect_server :
 static void mqttTestStartFn(void *params) 
 {
     mqttRespStatus status   = MQTT_RESP_ERR;
-    uint8_t  num_iter = 4;
+    uint8_t  num_iter = 0;
 
     if(m_client->drbg == NULL) {
         status = mqttDRBGinit(&m_client->drbg);
@@ -47,15 +78,13 @@ static void mqttTestStartFn(void *params)
     }
     XMEMSET( &testPatternSet, 0x00, sizeof(mqttTestPatt)) ;
     testPatternSet.drbg = m_client->drbg;
-    while(num_iter > 0)
-    {
-        status =  mqttNetconnStart( m_client );
+    for (num_iter = 1; num_iter > 0; num_iter--) {
+        status =  mqttNetconnStart(m_client);
         if( status == MQTT_RESP_OK ) {
-            mqttTestRunPatterns( &testPatternSet, m_client );
+            mqttTestRunPatterns(&testPatternSet, m_client);
         }
-        status =  mqttNetconnStop( m_client );
+        status =  mqttNetconnStop(m_client);
         if( status != MQTT_RESP_OK ) { break; }
-        num_iter--;
     } // end of while-loop
 end_of_main_test:
     if(m_client->drbg != NULL) {
@@ -68,7 +97,6 @@ end_of_main_test:
     mqttSysThreadDelete( NULL );
 #endif
 } // end of mqttTestStartFn
-
 
 
 

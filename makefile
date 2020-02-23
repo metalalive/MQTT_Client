@@ -80,8 +80,10 @@ else
     ifeq ($(MAKECMDGOALS), itest) # if make goal is 'test', then it is integration test
         TEST_COMMON_SOURCES = tests/integration/pattern_generator.c \
                               generate/src/mqtt_generate.c
-        TEST_ENTRY_SOURCES += tests/integration/mqtt_client_tcp.c \
+        TEST_ENTRY_SOURCES += tests/integration/mqtt_pub_subs_test.c \
                               tests/integration/mqtt_connect_test.c \
+                              tests/integration/mqtt_publish_test.c \
+                              tests/integration/mqtt_subscribe_test.c \
                               tests/integration/rand.c
         C_INCLUDES += -Itests/integration
     endif #### end of itest
