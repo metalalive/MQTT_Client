@@ -222,11 +222,12 @@ done:
 
 int  mqttSecurePktRecv(mqttCtx_t *mctx, byte *buf, word32 buf_len)
 {
-    if(mctx == NULL || mctx->secure_session == NULL || buf == NULL || buf_len == 0) {
+    tlsRespStatus   status = TLS_RESP_OK;
+    if(mctx == NULL || mctx->secure_session == NULL || buf == NULL) {
         return MQTT_RESP_ERRARGS;
     }
+    if(buf_len == 0) { goto done; }
     word16    nbytes_avail = 0;
-    tlsRespStatus   status = TLS_RESP_OK;
     tlsSession_t  *session = mctx->secure_session;
     status = tlsChkHSfinished(session);
     if(status < 0) { goto done; }

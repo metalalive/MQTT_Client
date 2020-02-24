@@ -457,8 +457,14 @@ TEST(mqttSecureNetconn, recv_ok)
 {
     byte  recvbuf[0x10];
     mqttRespStatus status  = MQTT_RESP_OK;
-    const  byte    buflen  = 0x10;
+    byte   buflen = 0;
 
+    status = mqttSecurePktRecv(unittest_mctx, NULL, (word32)buflen);
+    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERRARGS, status);
+    buflen  = 0x0;
+    status = mqttSecurePktRecv(unittest_mctx, &recvbuf[0], (word32)buflen);
+    TEST_ASSERT_EQUAL_INT(buflen, status);
+    buflen  = 0x10;
     status = mqttSecurePktRecv(unittest_mctx, &recvbuf[0], (word32)buflen);
     TEST_ASSERT_EQUAL_INT(buflen, status);
 } // end of TEST(mqttSecureNetconn, recv_ok)

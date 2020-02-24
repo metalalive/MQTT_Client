@@ -77,7 +77,7 @@ ifeq ($(MAKECMDGOALS), utest_helper) # if unit test is enabled
     TEST_ENTRY_SOURCES += $(addprefix tests/unit/, $(C_SOURCES:src/%.c=%_ut.c))
 else
     BUILD_DIR=$(BUILD_DIR_TOP)/itest
-    ifeq ($(MAKECMDGOALS), itest) # if make goal is 'test', then it is integration test
+    ifeq ($(MAKECMDGOALS), demo)
         TEST_COMMON_SOURCES = tests/integration/pattern_generator.c \
                               generate/src/mqtt_generate.c
         TEST_ENTRY_SOURCES += tests/integration/mqtt_pub_subs_test.c \
@@ -86,7 +86,7 @@ else
                               tests/integration/mqtt_subscribe_test.c \
                               tests/integration/rand.c
         C_INCLUDES += -Itests/integration
-    endif #### end of itest
+    endif #### end of demo
 endif #### end of utest_helper
 
 
@@ -164,10 +164,8 @@ vpath %.c $(sort $(dir $(C_SOURCES)))
 C_ASM_OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(ASM_SOURCES:.s=.o)))
 vpath %.s $(sort $(dir $(ASM_SOURCES)))
 
-ifeq ($(MAKECMDGOALS), itest) # only link the library when building images for integration test
-    TARGET_LIB_NAME=libmqttclient.a
-    TARGET_LIB_PATH=$(BUILD_DIR)/$(TARGET_LIB_NAME)
-endif
+TARGET_LIB_NAME=libmqttclient.a
+TARGET_LIB_PATH=$(BUILD_DIR)/$(TARGET_LIB_NAME)
 
 
 # ----------------- Goals -------------------
@@ -175,10 +173,8 @@ gen_lib: $(BUILD_DIR)  $(TARGET_LIB_PATH)
 
 # for unit test, no need to build library and test images using cross-compiler
 # TODO: for few integration tests, no need to build test images with cross-compiler
-itest : $(TARGET_LIB_PATH)  $(TEST_COMMON_OBJECTS)  $(TEST_ENTRY_OBJECTS) \
-        $(foreach atest, $(TEST_ENTRY_OBJECTS), $(atest:.o=).elf  $(atest:.o=).hex  $(atest:.o=).text  $(atest:.o=).bin)
-	@rm -rf $(BUILD_DIR_TOP)/$(TARGET_LIB_NAME);
-	@ln -s  itest/$(TARGET_LIB_NAME)  $(BUILD_DIR_TOP)/$(TARGET_LIB_NAME);
+demo : $(TARGET_LIB_PATH)  $(TEST_COMMON_OBJECTS)  $(TEST_ENTRY_OBJECTS) \
+       $(foreach atest, $(TEST_ENTRY_OBJECTS), $(atest:.o=).elf  $(atest:.o=).hex  $(atest:.o=).text  $(atest:.o=).bin)
 
 utest_helper : $(C_ASM_OBJECTS) $(TEST_COMMON_OBJECTS)  $(TEST_ENTRY_OBJECTS)
 	$(foreach atest, $(TEST_ENTRY_OBJECTS), $(CC) $(LDFLAGS) $(atest) $(atest:%_ut.o=%.o) $(TEST_COMMON_OBJECTS) -o $(atest:.o=.out);)
@@ -196,6 +192,8 @@ $(BUILD_DIR)/%.o: %.s makefile | $(BUILD_DIR)
 
 $(TARGET_LIB_PATH): $(C_ASM_OBJECTS)
 	$(AR)  rcs $@  $^
+	@rm -rf $(BUILD_DIR_TOP)/$(TARGET_LIB_NAME);
+	@ln -s  itest/$(TARGET_LIB_NAME)  $(BUILD_DIR_TOP)/$(TARGET_LIB_NAME);
 
 
 

@@ -194,12 +194,16 @@ int  mqttSysPktWrite( void **extsysobjs, byte *buf, word32 buf_len )
     if((extsysobjs == NULL) || (buf == NULL) || (buf_len == 0)) {
         return MQTT_RESP_ERRARGS ;
     }
-    int  sockfd  = (int) extsysobjs[0]; //// (int) mctx->ext_sysobjs[0];
+    int  sockfd  = (int) extsysobjs[0];
     int  status  = 0;
 
     status = (mqttRespStatus)mqttSysChkSockfdAvail(sockfd, POLLOUT, 6000);
     if(status == MQTT_RESP_OK) {
-        status = send( sockfd, (const void *)buf, buf_len, MSG_DONTWAIT );
+        // add MSG_NOSIGNAL flag to ignore SIGPIPE event asserted in the middle of send()
+        // when the peer closed network connection abnormally at earlier time.
+        // Note send() still returns error (-1) if connection to the peer is broken, in such case
+        // errno is set to EPIPE even send() was called with MSG_NOSIGNAL.
+        status = send( sockfd, (const void *)buf, buf_len, (MSG_DONTWAIT | MSG_NOSIGNAL));
         if(status == -1){ status = MQTT_RESP_ERR_TRANSMIT; }
         // positive integer returning from send() means number of bytes we wrote successfully
     }

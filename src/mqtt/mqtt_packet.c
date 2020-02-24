@@ -1169,13 +1169,12 @@ mqttRespStatus mqttPktWrite( struct __mqttCtx *mctx, byte *buf, word32 buf_len )
         return MQTT_RESP_ERRARGS;
     }
     int  wr_len = 0;
-    do {
+    while(buf_len > 0) {
         wr_len = mqttNetPktSend(mctx, buf, buf_len);
         if(wr_len < 0) { return (mqttRespStatus)wr_len; }
         buf        +=  wr_len;
         buf_len    -=  wr_len;
     } // end of loop
-    while( buf_len > 0 );
     return  MQTT_RESP_OK;
 } // end of mqttPktWrite
 
@@ -1222,7 +1221,7 @@ mqttRespStatus  mqttPktRead( struct __mqttCtx *mctx, byte *buf, word32 buf_max_l
 
     // ----------- get rest of data bytes ----------- 
     word32  curr_max_cp_len = XMIN(remain_len , buf_max_len);
-    do {  // read remaining part
+    while(curr_max_cp_len > 0) {  // read remaining part
         rd_len = mqttNetPktRecv( mctx, buf, curr_max_cp_len );
         // report other read error from low-level system. 
         if(rd_len < 0) { return (mqttRespStatus)rd_len; }
@@ -1230,7 +1229,6 @@ mqttRespStatus  mqttPktRead( struct __mqttCtx *mctx, byte *buf, word32 buf_max_l
         curr_max_cp_len -= rd_len ;
         buf             += rd_len ;
     } // end of loop
-    while(curr_max_cp_len > 0);
     // current Rx buffer cannot hold entire incoming packet, this should be protocol
     // error, in such case we return MQTT_RESP_ERR_EXCEED_PKT_SZ instead,
     if(remain_len > buf_max_len) {

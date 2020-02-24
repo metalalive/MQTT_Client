@@ -15,7 +15,6 @@ static mqttRespStatus mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mct
     mqttRespStatus status =  MQTT_RESP_OK;
     uint8_t  num_pub_msg_sent =  2 + mqttUtilPRNG(patt_in->drbg, 3);
     uint8_t  num_pub_msg_recv =  2 + mqttUtilPRNG(patt_in->drbg, 3);
-    uint8_t  num_ping_sent    =  1 + mqttUtilPRNG(patt_in->drbg, 2);
     patt_in->connack       = NULL; 
     patt_in->suback        = NULL;
     patt_in->unsuback      = NULL;
@@ -54,14 +53,12 @@ static mqttRespStatus mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mct
     mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_SUBSCRIBE );
     status = mqttSendSubscribe( mctx, &patt_in->suback );
     if((status < 0) || (patt_in->suback==NULL)) {
-        mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_SUBSCRIBE );
-        goto disconnect_server;
+        goto cleanup_subscribe_testdata;
     }
     status = mqttChkReasonCode(patt_in->suback->return_codes[0]);
     if( status != MQTT_RESP_OK ){
-        mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_SUBSCRIBE );
         mctx->err_info.reason_code = patt_in->suback->return_codes[0];
-        goto disconnect_server;
+        goto cleanup_subscribe_testdata;
     }
     // --------- wait for incoming PUBLISH packet ---------
     mqttModifyReadMsgTimeout(mctx, 0xdbba0); // wait 15 minutes = 1000 * 60 * 15 milliseconds
@@ -70,36 +67,30 @@ static mqttRespStatus mqttTestRunPatterns( mqttTestPatt *patt_in, mqttCtx_t *mct
         patt_in->pubmsg_recv = NULL;
         status = mqttClientWaitPkt( mctx, MQTT_PACKET_TYPE_PUBLISH, 0, (void **)&patt_in->pubmsg_recv );
         if((status < 0) || (patt_in->pubmsg_recv==NULL)) { break; }
+        // -------- send optional PING packet to broker --------
+        status = mqttSendPingReq( mctx );
+        if(status < 0) { break; }
         num_pub_msg_recv--;
     } // end of while-loop
     mqttModifyReadMsgTimeout(mctx, MQTT_TEST_CMD_TIMEOUT_MS);
     // -------- send UNSUBSCRIBE packet to broker --------
     mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_UNSUBSCRIBE );
     status = mqttSendUnsubscribe( mctx, &patt_in->unsuback );
-    mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_UNSUBSCRIBE );
-    mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_SUBSCRIBE );
-    if((status < 0) || (patt_in->unsuback==NULL)) { goto disconnect_server; }
+    if((status < 0) || (patt_in->unsuback==NULL)) { goto cleanup_subscribe_testdata; }
     status = mqttChkReasonCode(patt_in->unsuback->return_codes[0]);
     if( status != MQTT_RESP_OK ){
-        mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_SUBSCRIBE );
         mctx->err_info.reason_code = patt_in->unsuback->return_codes[0];
-        goto disconnect_server;
     }
-    // -------- send optional PING packet to broker --------
-    while(num_ping_sent > 0) {
-        status = mqttSendPingReq( mctx );
-        if(status < 0) { break; }
-        num_ping_sent--;
-    } // end of while-loop
-    // -------- send DISCONNET packet to broker --------
+cleanup_subscribe_testdata:
+    mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_UNSUBSCRIBE );
+    mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_SUBSCRIBE );
 disconnect_server :
+    // -------- send DISCONNET packet to broker --------
     mqttTestCopyPatterns( patt_in, mctx, MQTT_PACKET_TYPE_DISCONNECT );
     mqttSendDisconnect( mctx );
     mqttTestCleanupPatterns( patt_in, MQTT_PACKET_TYPE_DISCONNECT );
     return status;
 } // end of mqttTestRunPatterns
-
-
 
 
 
@@ -139,7 +130,6 @@ end_of_main_test:
 
 
 
-
 int main (int argc, char** argv)
 {
     mqttRespStatus status = MQTT_RESP_ERR;
@@ -161,5 +151,4 @@ int main (int argc, char** argv)
     }
     return 0;
 } // end of main()
-
 
