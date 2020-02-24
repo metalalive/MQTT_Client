@@ -10,7 +10,7 @@ script:
     - make  clean -C third_party
     - make  clean
     - make  DEBUG=yes -C third_party
-    - make  itest  DEBUG=yes  PLUS_C_DEFS="MQTT_CFG_RUN_TEST_THREAD"
+    - make  demo   DEBUG=yes  PLUS_C_DEFS="MQTT_CFG_RUN_TEST_THREAD"
     - make  utest  DEBUG=yes
 
 after_success:
