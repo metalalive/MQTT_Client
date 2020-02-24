@@ -5,9 +5,9 @@ COMMON_3PARTY_CLEAN_BUILT_CMD=
 
 # build math library libtommath.a for specific CPU platform
 COMMON_3PARTY_FILE_SUBST_CMD += \
-cp -rf ../generate/include/mqtt_third_party_config.h                     ./libtommath/mqtt_third_party_config.h; \
-cp -rf ../generate/include/mqtt_third_party_system_config.h              ./libtommath/mqtt_third_party_system_config.h; \
-cp -rf ../include/substitution/third_party/libtommath/tommath_private.h  ./libtommath/tommath_private.h;\
+cp -rf ../generate/include/mqtt_third_party_system_config.h                 ./libtommath/mqtt_third_party_system_config.h; \
+cp -rf ../include/substitution/third_party/libtommath/mqtt_third_party_config.h    ./libtommath/mqtt_third_party_config.h; \
+cp -rf ../include/substitution/third_party/libtommath/tommath_private.h            ./libtommath/tommath_private.h;         \
 cp -rf ../src/substitution/third_party/libtommath/mp_rand.c                        ./libtommath/mp_rand.c                    ; \
 cp -rf ../src/substitution/third_party/libtommath/s_mp_mul_digs_fast.c             ./libtommath/s_mp_mul_digs_fast.c         ; \
 cp -rf ../src/substitution/third_party/libtommath/s_mp_mul_high_digs_fast.c        ./libtommath/s_mp_mul_high_digs_fast.c    ; \
@@ -21,8 +21,8 @@ COMMON_3PARTY_BUILD_CMD += make libtommath.a V=1  CROSS_COMPILE=$(C_TOOLCHAIN_PR
 
 
 COMMON_3PARTY_FILE_SUBST_CMD += \
-cp -rf  ../generate/include/mqtt_third_party_config.h               ./libtomcrypt/src/headers/mqtt_third_party_config.h; \
 cp -rf  ../generate/include/mqtt_third_party_system_config.h        ./libtomcrypt/src/headers/mqtt_third_party_system_config.h; \
+cp -rf  ../include/substitution/third_party/libtomcrypt/headers/mqtt_third_party_config.h   ./libtomcrypt/src/headers/mqtt_third_party_config.h; \
 cp -rf  ../include/substitution/third_party/libtomcrypt/headers/tomcrypt_custom.h  ./libtomcrypt/src/headers/tomcrypt_custom.h; \
 cp -rf  ../src/substitution/third_party/libtomcrypt/src/hashes/sha2/sha512.c       ./libtomcrypt/src/hashes/sha2/sha512.c;     \
 cp -rf  ../src/substitution/third_party/libtomcrypt/src/pk/ec25519/ec25519_export.c  ./libtomcrypt/src/pk/ec25519/ec25519_export.c;   \

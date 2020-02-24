@@ -9,11 +9,6 @@
 // # can sepcify the memory function names that meet their platform requirement.
 #include "mqtt_third_party_system_config.h"
 
-// ---- for libtommath
-#define    MP_LOW_MEM // reduce static memory usage (on stack)
-#define    MP_RAND_REDEFINE
-
-
 // ---- for libtomcrypto
 // use libtommath
 #define USE_LTM
@@ -65,6 +60,5 @@
 
 #define LTC_NO_MISC
 #define LTC_PADDING
-
 
 #endif // end of _MQTT_THIRD_PARTY_CONFIG_H_
