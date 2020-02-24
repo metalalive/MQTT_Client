@@ -40,7 +40,8 @@ ifeq ($(MAKECMDGOALS), utest_helper)
         -Ithird_party/Unity/extras/memory/src
 
     TEST_COMMON_SOURCES +=  \
-        generate/src/mqtt_thirdparty_ut.c \
+        tests/unit/third_party/mqtt_libtommath_ut.c \
+        tests/unit/third_party/mqtt_libtomcrypt_ut.c \
         third_party/Unity/src/unity.c \
         third_party/Unity/extras/fixture/src/unity_fixture.c  \
         third_party/Unity/extras/memory/src/unity_memory.c

@@ -7,6 +7,7 @@
 static tlsSession_t *tls_session;
 static byte   mock_finish_verify_data[8];
 static word32 mock_sys_get_time_ms;
+static mqttStr_t  mock_server_addr = {10, "123.45.6.7"};
 
 
 static tlsRespStatus  mock_tlsAESGCMinit (tlsSecurityElements_t *sec, byte isDecrypt)
@@ -459,6 +460,7 @@ tlsRespStatus  tlsDecodeCerts(tlsCert_t *cert, byte final_item_rdy)
             cert->hashed_holder_info.data = XMALLOC(0x8); // only for testing purpose
             XMEMCPY(&cert->hashed_holder_info.data[0], &cert->rawbytes.data[0], 0x4);
             XMEMCPY(&cert->hashed_holder_info.data[4], &cert->rawbytes.data[cert_sz - 4], 0x4);
+            cert->subject.common_name = mock_server_addr.data;
         }
         cert =  cert->next;
     } // end of while-loop
@@ -1422,6 +1424,7 @@ static void RunAllTestGroups(void)
     XMEMSET(tls_session, 0x00, sizeof(tlsSession_t));
     tls_session->inbuf.len  = MAX_RAWBYTE_BUF_SZ;
     tls_session->inbuf.data = (byte *) XMALLOC(sizeof(byte) * MAX_RAWBYTE_BUF_SZ);
+    tls_session->server_name = &mock_server_addr;
 
     RUN_TEST_GROUP(tlsPktDecodeMisc);
     RUN_TEST_GROUP(tlsDecodeRecordLayer);
