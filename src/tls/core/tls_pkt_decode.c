@@ -132,6 +132,12 @@ static tlsRespStatus  tlsDecodeHScertificate(tlsSession_t *session)
 
     // verify peer's identity by verifying entire received certificate chain in the final fragment
     if(session->sec.flgs.ct_final_frag != 0) {
+         // check whether the common name matches MQTT server IP or domain name. TODO: consider proxy server ?
+        const char *peer_addr   = (const char *) session->peer_certs->subject.common_name;
+        const char *expect_addr = (const char *) session->server_name->data;
+        if(XSTRNCMP(peer_addr, expect_addr, session->server_name->len) != 0) {
+            status = TLS_RESP_CERT_AUTH_FAIL;  goto end_of_decode;
+        }
         // Note we can only verify this chain in the final fragment since the peer's cert chain would come
         // in arbitrary order. Ideally each cert in the chain list can be certified by the one immediately
         // proceding it (in the same chain) , however many TLS implementations don't work that way. 
