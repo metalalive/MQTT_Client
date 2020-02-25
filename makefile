@@ -54,7 +54,7 @@ C_INCLUDES = -Iinclude \
 BUILD_DIR_TOP=build
 
 # include generated build script
-include  ./generate/auto/makefile
+include  ./generate/auto/before_cfg.makefile
 
 ifeq ($(MAKECMDGOALS), utest_helper)
     include  ./auto/middleware/unknown.makefile

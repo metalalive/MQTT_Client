@@ -6,7 +6,7 @@ ifeq ($(DEBUG), yes)
 DBGCFLAGS = -g -gdwarf-2
 endif
 
-include  ../generate/auto/makefile
+include  ../generate/auto/before_cfg.makefile
 
 include  ../auto/platform/$(PLATFORM).makefile
 
