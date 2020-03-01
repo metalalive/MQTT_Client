@@ -54,18 +54,7 @@ C_INCLUDES = -Iinclude \
 BUILD_DIR_TOP=build
 
 # include generated build script
-include  ./generate/auto/before_cfg.makefile
-
-ifeq ($(MAKECMDGOALS), utest_helper)
-    include  ./auto/middleware/unknown.makefile
-else  # if unit test is NOT enabled
-    #### include hardware platfrom specific files, (NOTE) don't use cross-compile toolchain in unit test
-    include  ./auto/platform/$(PLATFORM).makefile
-    #### include middleware files, the middleware can be any API software integrated
-    #### with OS (e.g. RTOS, Linux kernel) .
-    include  ./auto/middleware/$(MIDDLEWARE).makefile
-    include  ./generate/auto/after_cfg.makefile
-endif
+include  ./generate/auto/makefile
 
 #---------------------------------------------------------
 # different files & paths for unit test, integration test 

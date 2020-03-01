@@ -86,3 +86,20 @@ else
     THIRD_PARTY_LIBS_PATH = third_party/libtomcrypt/libtomcrypt.a   third_party/libtommath/libtommath.a
 endif # end of if MAKECMDGOALS is utest_helper
 
+
+ifeq ($(MAKECMDGOALS), utest_helper)
+    include  ${PWD}/auto/middleware/unknown.makefile
+else  # if unit test is NOT enabled
+    #### include hardware platfrom specific files, (NOTE) don't use cross-compile toolchain in unit test
+    include  ${PWD}/auto/platform/$(PLATFORM).makefile
+    #### include middleware files, the middleware can be any API software integrated
+    #### with OS (e.g. RTOS, Linux kernel) .
+    include  ${PWD}/auto/middleware/$(MIDDLEWARE).makefile
+endif
+
+COMMON_3PARTY_BUILD_CMD=
+# build math library libtommath.a for specific CPU platform
+COMMON_3PARTY_BUILD_CMD += make libtommath.a V=1 CROSS_COMPILE=$(C_TOOLCHAIN_PREFIX) CFLAGS="$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(PLUS_C_DEFS)" -C ./libtommath;
+# build crypto library libtomcrypto.a
+COMMON_3PARTY_BUILD_CMD += make  V=1 CROSS_COMPILE=$(C_TOOLCHAIN_PREFIX) EXTRALIBS="../libtommath/libtommath.a"  CFLAGS="$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(PLUS_C_DEFS) -I../../include -I../libtommath"  -C ./libtomcrypt;
+
