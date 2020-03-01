@@ -1,6 +1,4 @@
 #include "mqtt_include.h"
-#include "unity.h"
-#include "unity_fixture.h"
 
 extern  int mock_mp_add_return_val;
 extern  size_t mock_mp_ubin_sz_val;

@@ -1,6 +1,4 @@
 #include "mqtt_include.h"
-#include "unity.h"
-#include "unity_fixture.h"
 
 static mqttCtx_t      *unittest_mctx;
 static mqttRespStatus  mock_sysinit_return_val;

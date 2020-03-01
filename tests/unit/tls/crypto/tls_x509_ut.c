@@ -1,6 +1,4 @@
 #include "mqtt_include.h"
-#include "unity.h"
-#include "unity_fixture.h"
 
 #define  NUM_TEST_CERTS  2
 

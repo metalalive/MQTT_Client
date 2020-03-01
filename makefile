@@ -182,7 +182,7 @@ utest_helper : $(C_ASM_OBJECTS) $(TEST_COMMON_OBJECTS)  $(TEST_ENTRY_OBJECTS)
 
 utest:
 	@make file_subst -C third_party;
-	@make utest_helper DEBUG=$(DEBUG);
+	@make utest_helper PLUS_C_DEFS="MQTT_UNIT_TEST_MODE" DEBUG=$(DEBUG);
 
 $(BUILD_DIR)/%.o: %.c makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@

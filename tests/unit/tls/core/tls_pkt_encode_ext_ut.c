@@ -1,6 +1,4 @@
 #include "mqtt_include.h"
-#include "unity.h"
-#include "unity_fixture.h"
 
 // internal parameter for read buffer, DO NOT modify these values
 #define  MAX_RAWBYTE_BUF_SZ         0x200

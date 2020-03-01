@@ -1,6 +1,4 @@
 #include "mqtt_include.h"
-#include "unity.h"
-#include "unity_fixture.h"
 
 static tlsSession_t *tls_session;
 

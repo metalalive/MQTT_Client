@@ -1,6 +1,4 @@
 #include "mqtt_include.h"
-#include "unity.h"
-#include "unity_fixture.h"
 
 #define  DER_ENCODED_RSA_PUBKEY_RAWBYTES_LEN   0x113
 #define  DER_ENCODED_RSA_PRIVKEY_RAWBYTES_LEN  0x4a8

@@ -1,6 +1,4 @@
 #include "mqtt_include.h"
-#include "unity.h"
-#include "unity_fixture.h"
 
 static byte  mock_x509_ext_rawbytes_data[] = {
     0xa3, 0x42,

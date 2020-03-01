@@ -1,6 +1,4 @@
 #include "mqtt_include.h"
-#include "unity.h"
-#include "unity_fixture.h"
 
 #define  NUM_PEER_CERTS  8
 #define  NUM_CA_CERTS    2

@@ -4,7 +4,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-// TODO: write script to automatically generate these define parameters
 
 // ------ user configuations for this MQTT implementation ------
 #define    MQTT_CFG_USE_TLS
@@ -12,7 +11,10 @@ extern "C" {
 
 #include "integration/libtommath/mqtt_third_party_include.h"
 #include "integration/libtomcrypt/mqtt_third_party_include.h"
-
+#if defined(MQTT_UNIT_TEST_MODE)
+    #include "unity.h"
+    #include "unity_fixture.h"
+#endif // end of MQTT_UNIT_TEST_MODE
 
 #ifdef __cplusplus
 }
