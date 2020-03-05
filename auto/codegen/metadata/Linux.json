@@ -1,0 +1,27 @@
+{
+"cmd": null,
+"path": {
+    "include": {
+        "compile": [
+            "include/system/middleware/Linux"
+        ],
+        "c_headers": null,
+        "libs": null
+    },
+    "src": {
+        "functional": [
+            "src/system/middleware/Linux/mqtt_sys.c"
+        ],
+        "unittest": null
+    }
+},
+"sys_fn_map": [
+    {
+        "malloc":  ["malloc",  "(size)"],
+        "realloc": ["realloc", "(mem, newsize)"],
+        "calloc":  ["calloc",  "(nmemb, size)"],
+        "free":    ["free",    "(mem)"]
+    }
+]
+}
+

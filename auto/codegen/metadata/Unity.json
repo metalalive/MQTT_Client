@@ -1,0 +1,40 @@
+{
+"cmd": {
+    "download": [
+       "git clone https://github.com/ThrowTheSwitch/Unity.git",
+       "cd  Unity",
+       "git checkout c3d7662a1e692aa0934fa61a2a67229f3b73a5a2",
+       "cd  .."
+    ],
+    "substitute": [
+        "cp -rf ../include/substitution/third_party/Unity/extras/memory/src/unity_memory.h  ./Unity/extras/memory/src"
+    ],
+    "build": null,
+    "clean": null
+},
+
+"path":{
+    "include": {
+        "compile": [
+            "third_party/Unity/src",
+            " third_party/Unity/extras/fixture/src",
+            "third_party/Unity/extras/memory/src"
+        ],
+        "c_headers":[
+            "\"unity.h\"",
+            "\"unity_fixture.h\""
+        ],
+        "libs": null
+    },
+    "src": {
+        "functional": null,
+        "unittest": [
+            "third_party/Unity/src/unity.c",
+            "third_party/Unity/extras/fixture/src/unity_fixture.c",
+            "third_party/Unity/extras/memory/src/unity_memory.c"
+        ]
+    }
+},
+
+"sys_fn_map": null
+}

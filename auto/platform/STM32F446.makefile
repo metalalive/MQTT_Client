@@ -1,56 +1,18 @@
 #----------------------------------
 # core functions of ESP_AT_parser
 #----------------------------------
-PLATFORM_3PARTY_DOWNLOAD_CMD =  
-
-PLATFORM_3PARTY_HOME:=third_party/ESP8266_AT_parser/Drivers/
 
 #--------------------------------------------------------
 # fireware implementation of the STM32F446 Nucleo board
 #--------------------------------------------------------
-C_SOURCES +=  \
-    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c \
-    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.c \
-    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c \
-    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rtc.c \
-    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c \
-    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c \
-    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c \
-    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ex.c \
-    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ramfunc.c \
-    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c \
-    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma_ex.c \
-    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c \
-    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr.c \
-    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr_ex.c \
-    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c \
-    $(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c \
-
-
-# C includes
-C_INCLUDES +=  \
--I$(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Inc \
--I$(PLATFORM_3PARTY_HOME)STM32F4xx_HAL_Driver/Inc/Legacy \
--I$(PLATFORM_3PARTY_HOME)CMSIS/Device/ST/STM32F4xx/Include \
--I$(PLATFORM_3PARTY_HOME)CMSIS/Include \
-
 
 # C defines
 C_DEFS +=  \
 -DUSE_HAL_DRIVER \
 -DSTM32F446xx 
 
-#------------------------------------------------
-# integration files for this MQTT implementation
-#------------------------------------------------
-C_SOURCES +=  \
-    ./src/system/platform/arm/armv7m/stm/stm32f446.c         \
-    ./src/system/platform/arm/armv7m/stm/system_stm32f4xx.c 
-
 # ASM sources
 ASM_SOURCES += ./src/system/platform/arm/armv7m/stm/bootcode_stm32f446.s
-
-C_INCLUDES +=  -Iinclude/system/platform/arm/armv7m/stm
 
 C_DEFS += -DMQTT_CFG_PLATFORM_STM32F446
 

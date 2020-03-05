@@ -1,0 +1,93 @@
+{
+"cmd": {
+
+    "download": [
+       "git clone https://github.com/libtom/libtomcrypt.git",
+       "cd  libtomcrypt",
+       "git checkout 0c30412a669d37451341ec871c08974da2451eca",
+       "cd  ..",
+       "git clone https://github.com/libtom/libtommath.git",
+       "cd  libtommath",
+       "git checkout 6378a90a70404a58d5b4ef20e81d9f817ba021c7",
+       "cd  .."
+    ],
+
+    "substitute": [
+        "cp -rf ../generate/include/mqtt_third_party_system_config.h                      ./libtommath",
+        "cp -rf ../include/substitution/third_party/libtommath/mqtt_third_party_config.h  ./libtommath",
+        "cp -rf ../include/substitution/third_party/libtommath/tommath_private.h          ./libtommath",
+        "cp -rf ../src/substitution/third_party/libtommath/mp_rand.c                      ./libtommath",
+        "cp -rf ../src/substitution/third_party/libtommath/s_mp_mul_digs_fast.c           ./libtommath",
+        "cp -rf ../src/substitution/third_party/libtommath/s_mp_mul_high_digs_fast.c      ./libtommath",
+        "cp -rf ../src/substitution/third_party/libtommath/s_mp_sqr_fast.c                ./libtommath",
+        "cp -rf ../src/substitution/third_party/libtommath/s_mp_exptmod.c                 ./libtommath",
+        "cp -rf ../src/substitution/third_party/libtommath/s_mp_exptmod_fast.c            ./libtommath",
+        "cp -rf ../src/substitution/third_party/libtommath/s_mp_montgomery_reduce_fast.c  ./libtommath",
+
+        "cp -rf ../generate/include/mqtt_third_party_system_config.h  ./libtomcrypt/src/headers",
+        "cp -rf ../include/substitution/third_party/libtomcrypt/headers/mqtt_third_party_config.h  ./libtomcrypt/src/headers",
+        "cp -rf ../include/substitution/third_party/libtomcrypt/headers/tomcrypt_custom.h          ./libtomcrypt/src/headers",
+        "cp -rf ../src/substitution/third_party/libtomcrypt/src/hashes/sha2/sha512.c           ./libtomcrypt/src/hashes/sha2",
+        "cp -rf ../src/substitution/third_party/libtomcrypt/src/pk/ec25519/ec25519_export.c  ./libtomcrypt/src/pk/ec25519",
+        "cp -rf ../src/substitution/third_party/libtomcrypt/src/pk/ec25519/tweetnacl.c    ./libtomcrypt/src/pk/ec25519",
+        "cp -rf ../src/substitution/third_party/libtomcrypt/src/pk/rsa/rsa_verify_hash.c  ./libtomcrypt/src/pk/rsa",
+        "cp -rf ../src/substitution/third_party/libtomcrypt/src/pk/rsa/rsa_sign_hash.c    ./libtomcrypt/src/pk/rsa",
+        "cp -rf ../src/substitution/third_party/libtomcrypt/src/pk/asn1/der/printable_string/der_length_printable_string.c  ./libtomcrypt/src/pk/asn1/der/printable_string",
+        "cp -rf ../src/substitution/third_party/libtomcrypt/src/pk/asn1/der/ia5/der_length_ia5_string.c   ./libtomcrypt/src/pk/asn1/der/ia5",
+        "cp -rf ../src/substitution/third_party/libtomcrypt/src/pk/asn1/der/teletex_string/der_length_teletex_string.c  ./libtomcrypt/src/pk/asn1/der/teletex_string"
+    ],
+
+    "build": [
+        "make libtommath.a V=1  CROSS_COMPILE=$(C_TOOLCHAIN_PREFIX)  CFLAGS=\"$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(PLUS_C_DEFS)\" -C ./libtommath",
+        "make  V=1 CROSS_COMPILE=$(C_TOOLCHAIN_PREFIX) EXTRALIBS=\"../libtommath/libtommath.a\"  CFLAGS=\"$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(PLUS_C_DEFS) -I../../include -I../libtommath\"  -C ./libtomcrypt"
+    ],
+
+    "clean": [
+        "make clean -C ./libtommath",
+        "make clean -C ./libtomcrypt"
+    ]
+},
+
+
+"path":{
+    "include": {
+        "compile": [
+            "third_party/libtomcrypt/src/headers",
+            "third_party/libtommath"
+        ],
+        "c_headers":[
+            "\"integration/libtommath/mqtt_third_party_include.h\"" ,
+            "\"integration/libtomcrypt/mqtt_third_party_include.h\""
+        ],
+        "libs":[
+            "third_party/libtomcrypt/libtomcrypt.a",
+            "third_party/libtommath/libtommath.a"
+        ]
+    },
+    "src": {
+        "functional": null,
+        "unittest": [
+            "tests/unit/third_party/mqtt_libtommath_ut.c",
+            "tests/unit/third_party/mqtt_libtomcrypt_ut.c"
+        ]
+    }
+},
+
+"sys_fn_map": [
+    {
+        "malloc":  ["MP_MALLOC" , "(size)"],
+        "realloc": ["MP_REALLOC", "(mem, oldsize, newsize)"],
+        "calloc":  ["MP_CALLOC" , "(nmemb, size)"],
+        "free":    ["MP_FREE"   , "(mem, size)"]
+    },
+    {
+        "malloc":  ["XMALLOC"],
+        "realloc": ["XREALLOC"],
+        "calloc":  ["XCALLOC"],
+        "free":    ["XFREE"]
+    }
+]
+
+}
+
+  

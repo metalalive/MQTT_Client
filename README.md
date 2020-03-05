@@ -4,9 +4,14 @@
 
 ### Overview
 
-This is MQTT v5 client implementation, with limited TLS v1.3 network connection, third-party cryptography library. It's verified on different embedded system platforms (currently STM32F4 and Raspberry PI development board)
+This is MQTT v5 client implementation, with limited support of TLS v1.3 protocol, third-party cryptography library. It's verified on different embedded system platforms (currently STM32F4 and Raspberry PI development board).
 
 ### Quick start
+
+Update configuration file `mqttclient.conf` with correct parameters e.g. address, port, user ID, password of MQTT broker, certificate path, private key path ... etc. , then run the following command :
+```
+make config
+```
 
 Download all necessary third-party repositories before building MQTT client library:
 ```
@@ -18,7 +23,7 @@ To build MQTT client library, you have :
 make  DEBUG=yes  -C third_party
 make  DEBUG=yes
 ```
-where `DEBUG=yes` is optional for debugging purpose. You will get `build/libmqttclient.a` if the library is successfully built.
+where `DEBUG=yes` is optional for debugging purpose. `build/libmqttclient.a` should be ready once the library is successfully built.
 
 
 To Build the demo test images, you have :
@@ -43,9 +48,6 @@ optional GDB debug command (user specific) :
 ```
 make  dbg_client
 ```
-
-
-
 
 
 

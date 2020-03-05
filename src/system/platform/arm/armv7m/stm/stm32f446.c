@@ -6,12 +6,12 @@
 #define  HAL_DMA_RECV_BUF_SIZE  0x280
 
 // Private variables ---------------------------------------------------------
-extern  const byte  mqttAuthInitHour   ;
-extern  const byte  mqttAuthInitMinutes;
-extern  const byte  mqttAuthInitSeconds;
-extern  const byte  mqttAuthInitMonth;
-extern  const byte  mqttAuthInitDate ;
-extern  const byte  mqttAuthInitYear ;
+extern  const byte   mqttAuthInitHour   ;
+extern  const byte   mqttAuthInitMinutes;
+extern  const byte   mqttAuthInitSeconds;
+extern  const byte   mqttAuthInitMonth;
+extern  const byte   mqttAuthInitDate ;
+extern  const word16 mqttAuthInitYear ;
 // data structure for RTC (Real-Time Calendar), for getting date time
 static  RTC_HandleTypeDef   hrtc;
 // timer used for other peripherals in STM32F446 development board
@@ -418,7 +418,7 @@ static HAL_StatusTypeDef STM32_HAL_RTC_Init(void)
     sDate.WeekDay = RTC_WEEKDAY_TUESDAY; // this implementation doesn't check what weekday it is today, ignore this value
     sDate.Month   = mqttAuthInitMonth; // can be from RTC_MONTH_JANUARY to RTC_MONTH_DECEMBER
     sDate.Date    = mqttAuthInitDate;
-    sDate.Year    = mqttAuthInitYear; // seems like UTC time format
+    sDate.Year    = mqttAuthInitYear & 0xff; // seems like UTC time format
     status = HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD);
 done:
     return status;

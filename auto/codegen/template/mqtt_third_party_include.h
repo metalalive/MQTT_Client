@@ -6,21 +6,12 @@ extern "C" {
 #endif
 
 // ------ user configuations for this MQTT implementation ------
+{{{ tls.c_define@genCdefine }}}
 
-#define MQTT_CFG_USE_TLS
-#define MQTT_CFG_ENABLE_TLS_V1_3
-
-
-
-#include "integration/libtommath/mqtt_third_party_include.h"
-#include "integration/libtomcrypt/mqtt_third_party_include.h"
-
+{{{ cryptolib.metadata.path.include.c_headers@getCinclude }}}
 
 #if defined(MQTT_UNIT_TEST_MODE)
-
-#include "unity.h"
-#include "unity_fixture.h"
-
+{{{ unitestlib.metadata.path.include.c_headers@getCinclude }}}
 #endif // end of MQTT_UNIT_TEST_MODE
 
 #ifdef __cplusplus

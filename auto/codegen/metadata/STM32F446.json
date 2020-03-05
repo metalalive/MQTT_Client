@@ -1,0 +1,47 @@
+{
+"cmd": {
+    "download": null,
+    "substitute": null,
+    "build": null,
+    "clean": null
+},
+
+"path": {
+    "include": {
+        "compile": [
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Inc",
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy  ",
+            "third_party/ESP8266_AT_parser/Drivers/CMSIS/Device/ST/STM32F4xx/Include",
+            "third_party/ESP8266_AT_parser/Drivers/CMSIS/Include",
+            "include/system/platform/arm/armv7m/stm"
+        ],
+        "c_headers":null,
+        "libs": null
+    },
+    "src": {
+        "functional": [
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c   ",
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.c",
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c  ",
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rtc.c   ",
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c   ",
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c",
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c ",
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ex.c",
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ramfunc.c",
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c  ",
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma_ex.c",
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c   ",
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr.c   ",
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr_ex.c",
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c",
+            "third_party/ESP8266_AT_parser/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c ",
+            "src/system/platform/arm/armv7m/stm/stm32f446.c",
+            "src/system/platform/arm/armv7m/stm/system_stm32f4xx.c"
+        ],
+        "unittest": null
+    }
+},
+"sys_fn_map": null
+}
+

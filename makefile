@@ -56,6 +56,7 @@ BUILD_DIR_TOP=build
 # include generated build script
 include  ./generate/auto/makefile
 
+CODEGEN_SCRIPT_CMD ?= python3
 #---------------------------------------------------------
 # different files & paths for unit test, integration test 
 #---------------------------------------------------------
@@ -212,9 +213,8 @@ clean:
 download_3party:
 	@make download_3party -C  third_party
 
-# TODO: configure will read through all configuration options in configuration file
 config:
-
+	@make config -C  auto/codegen/script  CODEGEN_SCRIPT_CMD="$(CODEGEN_SCRIPT_CMD)"
 
 # optional function for those who use code navigation tools e.g. ctags
 update_navigator:
