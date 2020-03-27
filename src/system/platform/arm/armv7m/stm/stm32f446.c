@@ -29,6 +29,8 @@ static  uint16_t  dma_buf_num_char_copied = 0;
 static  uint16_t  dma_buf_cpy_offset_next = 0;
 static  uint16_t  dma_buf_cpy_offset_curr = 0;
 
+static  uint8_t  platform_stm32_hal_init_flag = 0;
+
 
 
 
@@ -120,18 +122,24 @@ static HAL_StatusTypeDef SystemClock_Config(void)
     RCC_OscInitStruct.HSIState = RCC_HSI_ON;
     RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
     RCC_OscInitStruct.LSIState = RCC_LSI_ON;
-    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+    RCC_OscInitStruct.PLL.PLLM = 8;
+    RCC_OscInitStruct.PLL.PLLN = 80;
+    RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+    RCC_OscInitStruct.PLL.PLLQ = 2;
+    RCC_OscInitStruct.PLL.PLLR = 2;
     status = HAL_RCC_OscConfig(&RCC_OscInitStruct);
     if (status != HAL_OK) { goto done; }
     // Initializes the CPU, AHB and APB busses clocks
     RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                                 |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
     RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-    RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+    RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
     RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-    status =  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0);
-    if (status != HAL_OK) { goto done;  }
+    status =  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
+    if (status != HAL_OK) { goto done; }
     // initialize clocks for RTC
     PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RTC;
     PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
@@ -217,6 +225,21 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
         HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
     }
 } // end of HAL_UART_MspInit
+
+
+// will be called by HAL_UART_DeInit()
+void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
+{
+    if(huart->Instance==USART3)
+    {
+        __HAL_RCC_USART3_CLK_DISABLE();
+        // USART3 GPIO Configuration
+        // PC5     ------> USART3_RX
+        // PB10    ------> USART3_TX
+        HAL_GPIO_DeInit(GPIOB, GPIO_PIN_10);
+        HAL_GPIO_DeInit(GPIOC, GPIO_PIN_5);
+    }
+} // end of HAL_UART_MspDeInit
 
 
 // @brief  Suspend Tick increment.
@@ -370,7 +393,7 @@ static HAL_StatusTypeDef  STM32_HAL_periph_Init( void )
     // Configure GPIO pin Output Level
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
-    // Configure GPIO pins : PB10 PB4 
+    // Configure GPIO pins : PB9 as network device RST pin
     GPIO_InitStruct.Pin = GPIO_PIN_9 ;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -389,6 +412,16 @@ static HAL_StatusTypeDef  STM32_HAL_periph_Init( void )
     HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
     return HAL_OK;
 } // end of STM32_HAL_periph_Init 
+
+
+static HAL_StatusTypeDef  STM32_HAL_periph_Deinit( void )
+{
+    haluart3.Instance = USART3;
+    HAL_NVIC_DisableIRQ( USART3_IRQn );
+    __HAL_UART_DISABLE_IT( &haluart3 , UART_IT_IDLE );
+    HAL_UART_DeInit(&haluart3);
+    return HAL_OK;
+} // end of STM32_HAL_periph_Deinit
 
 
 static HAL_StatusTypeDef STM32_HAL_RTC_Init(void)
@@ -571,15 +604,19 @@ done:
 } // end of mqttPlatformGetDateTime
 
 
-
 mqttRespStatus  mqttPlatformInit( void )
 {
     HAL_StatusTypeDef  status = HAL_OK;
     // MCU Configuration--------------------------------------------------------  
-    // Reset of all peripherals, Initializes the Flash interface and the Systick. 
-    STM32_HAL_Init();
-    // Configure the system clock 
-    status = SystemClock_Config();
+    if(platform_stm32_hal_init_flag > 0) { // init count goes from 0x1 to 0x8
+        STM32_HAL_periph_Deinit();
+    } else {
+        platform_stm32_hal_init_flag = 1;
+        // Reset of all peripherals, Initializes the Flash interface and the Systick.
+        STM32_HAL_Init();
+        // Configure the system clock
+        status = SystemClock_Config();
+    }
     // Configure peripherals that will be used in this MQTT implementation
     if(status == HAL_OK) {
         status = STM32_HAL_periph_Init();
@@ -592,11 +629,9 @@ mqttRespStatus  mqttPlatformInit( void )
 
 
 
-
 mqttRespStatus  mqttPlatformDeInit( void )
 { // dummy , don't do anything
     return   MQTT_RESP_OK ;
 } // end of mqttHwPlatformDeInit
-
 
 
