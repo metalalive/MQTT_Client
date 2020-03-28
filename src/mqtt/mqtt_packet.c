@@ -1242,10 +1242,9 @@ mqttRespStatus  mqttPktRead( struct __mqttCtx *mctx, byte *buf, word32 buf_max_l
 
 
 
-
-
 mqttRespStatus  mqttDecodePkt( struct __mqttCtx *mctx, byte *buf, word32 buf_len,  mqttCtrlPktType  cmdtype, void **p_decode, word16 *recv_pkt_id )
 {
+    int decode_pkt_len = 0;
     mqttRespStatus  status = MQTT_RESP_OK;
     if((mctx==NULL) || (buf==NULL) || (buf_len==0) || (p_decode==NULL) || (recv_pkt_id == NULL)) {
         return MQTT_RESP_ERRARGS;
@@ -1254,13 +1253,15 @@ mqttRespStatus  mqttDecodePkt( struct __mqttCtx *mctx, byte *buf, word32 buf_len
     switch (cmdtype)
     {
         case MQTT_PACKET_TYPE_CONNACK      : 
-            status = mqttDecodePktConnack( buf, buf_len, *(mqttPktHeadConnack_t **)p_decode );
+            decode_pkt_len = mqttDecodePktConnack( buf, buf_len, *(mqttPktHeadConnack_t **)p_decode );
+            status = decode_pkt_len < 0 ? (mqttRespStatus)decode_pkt_len: MQTT_RESP_OK;
             if(status < 0) { break; }
             status = mqttPropErrChk( mctx, cmdtype, (*(mqttPktHeadConnack_t **)p_decode)->props );
             break;
         case MQTT_PACKET_TYPE_PUBLISH      :
         {
-            status = mqttDecodePktPublish( buf, buf_len, *(mqttMsg_t **)p_decode );
+            decode_pkt_len = mqttDecodePktPublish( buf, buf_len, *(mqttMsg_t **)p_decode );
+            status = decode_pkt_len < 0 ? (mqttRespStatus)decode_pkt_len: MQTT_RESP_OK;
             *recv_pkt_id = (*(mqttMsg_t **)p_decode)->packet_id;
             if(status < 0) { break; }
             status = mqttPropErrChk( mctx, cmdtype, (*(mqttMsg_t **)p_decode)->props );
@@ -1281,7 +1282,8 @@ mqttRespStatus  mqttDecodePkt( struct __mqttCtx *mctx, byte *buf, word32 buf_len
         case MQTT_PACKET_TYPE_PUBREL   :   
         case MQTT_PACKET_TYPE_PUBCOMP  :  
         {
-            status = mqttDecodePktPubResp( buf, buf_len, *(mqttPktPubResp_t **)p_decode, cmdtype );
+            decode_pkt_len = mqttDecodePktPubResp( buf, buf_len, *(mqttPktPubResp_t **)p_decode, cmdtype );
+            status = decode_pkt_len < 0 ? (mqttRespStatus)decode_pkt_len: MQTT_RESP_OK;
             *recv_pkt_id = (*(mqttPktPubResp_t **)p_decode)->packet_id ;
             if(status < 0) { break; }
             status = mqttPropErrChk( mctx, cmdtype, (*(mqttPktPubResp_t **)p_decode)->props );
@@ -1300,13 +1302,15 @@ mqttRespStatus  mqttDecodePkt( struct __mqttCtx *mctx, byte *buf, word32 buf_len
             break; 
         }
         case MQTT_PACKET_TYPE_SUBACK       :  
-            status = mqttDecodePktSuback( buf, buf_len, *(mqttPktSuback_t **)p_decode );
+            decode_pkt_len = mqttDecodePktSuback( buf, buf_len, *(mqttPktSuback_t **)p_decode );
+            status = decode_pkt_len < 0 ? (mqttRespStatus)decode_pkt_len: MQTT_RESP_OK;
             *recv_pkt_id = (*(mqttPktSuback_t **)p_decode)->packet_id ;
             if(status < 0) { break; }
             status = mqttPropErrChk( mctx, cmdtype, (*(mqttPktSuback_t **)p_decode)->props );
             break; 
         case MQTT_PACKET_TYPE_UNSUBACK     :  
-            status = mqttDecodePktUnsuback( buf, buf_len, *(mqttPktUnsuback_t **)p_decode );
+            decode_pkt_len = mqttDecodePktUnsuback( buf, buf_len, *(mqttPktUnsuback_t **)p_decode );
+            status = decode_pkt_len < 0 ? (mqttRespStatus)decode_pkt_len: MQTT_RESP_OK;
             *recv_pkt_id = (*(mqttPktUnsuback_t **)p_decode)->packet_id ;
             if(status < 0) { break; }
             status = mqttPropErrChk( mctx, cmdtype, (*(mqttPktUnsuback_t **)p_decode)->props );
@@ -1316,7 +1320,8 @@ mqttRespStatus  mqttDecodePkt( struct __mqttCtx *mctx, byte *buf, word32 buf_len
         case MQTT_PACKET_TYPE_PINGRESP     :  break;
         case MQTT_PACKET_TYPE_AUTH         :
         {
-            status = mqttDecodePktAuth( buf, buf_len, *(mqttAuth_t **)p_decode );
+            decode_pkt_len = mqttDecodePktAuth( buf, buf_len, *(mqttAuth_t **)p_decode );
+            status = decode_pkt_len < 0 ? (mqttRespStatus)decode_pkt_len: MQTT_RESP_OK;
             if(status < 0){ break; }
             // we don't do error check at here, instead we do so in mqttSendAuth()
             byte reason_code = (*(mqttAuth_t **)p_decode)->reason_code ;
@@ -1334,7 +1339,8 @@ mqttRespStatus  mqttDecodePkt( struct __mqttCtx *mctx, byte *buf, word32 buf_len
             break;
         }
         case MQTT_PACKET_TYPE_DISCONNECT   :
-            status = mqttDecodePktDisconn( buf, buf_len, *(mqttPktDisconn_t **)p_decode );
+            decode_pkt_len = mqttDecodePktDisconn( buf, buf_len, *(mqttPktDisconn_t **)p_decode );
+            status = decode_pkt_len < 0 ? (mqttRespStatus)decode_pkt_len: MQTT_RESP_OK;
             if(status < 0){ break; }
             status = mqttPropErrChk( mctx, cmdtype, (*(mqttPktDisconn_t **)p_decode)->props );
             // the only reason this client receives DISCONNECT will be some errors were made on this
@@ -1346,7 +1352,6 @@ mqttRespStatus  mqttDecodePkt( struct __mqttCtx *mctx, byte *buf, word32 buf_len
             status = MQTT_RESP_ERR_CTRL_PKT_TYPE;
             break;
     } // end of switch-case statement
-    if((int)status >= 0) { status = MQTT_RESP_OK; }
     return  status ;
 } // end of mqttDecodePkt
 
