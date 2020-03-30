@@ -7,15 +7,15 @@
 #define  MAX_NUM_AP_FOUND           3
 
 // In some use cases, users might call this read function multiple times only for fetching few bytes of packet data. so we need to reserve the packet data that hasn't been completed reading (from user applications)
-static espPbuf_t   *unfinish_rd_pktbuf      = NULL;
-static espPbuf_t   *unfinish_rd_pktbuf_head = NULL;
+static espPbuf_t   *mqtt_sys_esp_unfinish_rd_pktbuf     ;
+static espPbuf_t   *mqtt_sys_esp_unfinish_rd_pktbuf_head;
 
 // data structure to record IP, MAC address on current connection
-static espIp_t      curr_ip;
-static espMac_t     curr_mac;
+static espIp_t      mqtt_esp_curr_ip;
+static espMac_t     mqtt_esp_curr_mac;
 
 // temporarily store the Access-Points (AP) found by this ESP device
-static espAP_t      foundAPs[ MAX_NUM_AP_FOUND ];
+static espAP_t      mqtt_esp_foundAPs[ MAX_NUM_AP_FOUND ];
 
 // network connection object that is internally used in ESP AT parser
 static espNetConnPtr   espNetconn ;
@@ -150,17 +150,17 @@ static espRes_t  mqttSysConnectToAP( espIp_t *out_ip, espMac_t *out_mac )
 
     do {
         num_ap_found = 0;
-        ESP_MEMSET( &foundAPs[0], 0x00, sizeof(espAP_t) * MAX_NUM_AP_FOUND );
+        ESP_MEMSET( &mqtt_esp_foundAPs[0], 0x00, sizeof(espAP_t) * MAX_NUM_AP_FOUND );
         // scan all available APs around this ESP device , it's not practical to feed
         // MAC address & channel number to narrow down the search result to minimum.
         // (for some sophisticated Wi-fi Access Points (AP), channel number could be
         // changed each  time when the AP is launched )
-        response = eESPstaListAP((const char *)wifiSSID->data, wifiSSID->len, &foundAPs[0],
-                                  ESP_ARRAYSIZE(foundAPs), &num_ap_found, NULL, NULL, ESP_AT_CMD_BLOCKING );
+        response = eESPstaListAP((const char *)wifiSSID->data, wifiSSID->len, &mqtt_esp_foundAPs[0],
+                                  ESP_ARRAYSIZE(mqtt_esp_foundAPs), &num_ap_found, NULL, NULL, ESP_AT_CMD_BLOCKING );
         tried_conn  = 0;
         if((response == espOK) || (response == espOKIGNOREMORE)) {
             for (idx = 0; idx < num_ap_found; idx++) {
-                if( strncmp( foundAPs[idx].ssid, (const char *)wifiSSID->data, wifiSSID->len ) == 0 )
+                if( strncmp( mqtt_esp_foundAPs[idx].ssid, (const char *)wifiSSID->data, wifiSSID->len ) == 0 )
                 {
                     tried_conn = 1;
                     response =  eESPstaJoin((const char *)wifiSSID->data,   wifiSSID->len, 
@@ -215,7 +215,7 @@ static espRes_t  mqttSysCreateTCPconn(mqttCtx_t *mctx)
 
     conn =  pxESPgetNxtAvailConn();
     // reach maximum number of TCP connection, not available now
-    if(conn == NULL) { return espERRMEM; }
+    if(conn == NULL) { response = espERRMEM; goto done; }
     // get broker hostname & port
     mqttAuthGetBrokerHost( &mctx->broker_host, &mctx->broker_port );
     // establish new TCP connection between ESP device and remote peer (MQTT broker) 
@@ -223,11 +223,12 @@ static espRes_t  mqttSysCreateTCPconn(mqttCtx_t *mctx)
                       (const char* const)mctx->broker_host->data,  mctx->broker_host->len,
                       mctx->broker_port,  eESPdefaultEvtCallBack,  NULL, NULL, ESP_AT_CMD_BLOCKING );
     if(response == espOK) {
-        espNetconn = pxESPnetconnCreate( ESP_NETCONN_TYPE_TCP );
-        if(espNetconn == NULL) { return espERRMEM; }
+        espNetconn = pxESPnetconnCreate(ESP_NETCONN_TYPE_TCP);
+        if(espNetconn == NULL) { response = espERRMEM; goto done; }
         mctx->ext_sysobjs[0] = (void *) espNetconn;
         mctx->ext_sysobjs[1] = (void *) conn;
     }
+done:
     return response;
 } // end of mqttSysCreateTCPconn 
 
@@ -342,15 +343,16 @@ mqttRespStatus  mqttSysThreadWaitUntilExit( mqttSysThre_t *thre_in, void **retur
 mqttRespStatus  mqttSysNetconnStart( mqttCtx_t *mctx )
 {
     espRes_t  response = espOK;
-
     if(mctx == NULL) { return MQTT_RESP_ERRARGS; }
+    mqtt_sys_esp_unfinish_rd_pktbuf      = NULL;
+    mqtt_sys_esp_unfinish_rd_pktbuf_head = NULL;
 #if (ESP_CFG_RST_ON_INIT == 0)
     // reset & configure the ESP device.
     response =  eESPresetWithDelay( 1, NULL, NULL );
 #endif // end of ESP_CFG_RST_ON_INIT
     if(response == espOK) {
         // scan all available APs , connect to the AP specified by user if found
-        response = mqttSysConnectToAP( &curr_ip, &curr_mac );
+        response = mqttSysConnectToAP( &mqtt_esp_curr_ip, &mqtt_esp_curr_mac );
     }
     if(response == espOK) {
         // set up a TCP connection to remote peer (MQTT broker, in this case)
@@ -379,11 +381,17 @@ mqttRespStatus  mqttSysNetconnStop( mqttCtx_t *mctx )
     // release espConn_t back to connection pool in ESP library.
     if((void *)mctx->ext_sysobjs[1] != NULL) {
         espConn_t *conn =  (espConn_t *) mctx->ext_sysobjs[1];
+        // there might be incomplete IPD data leaving pointed by espConn_t, clean up all of them if exists.
         if(conn->pbuf != NULL) {
-            //TODO: figure out why there is missing memory checks here that cause hardware fault
-            vESPpktBufChainDelete( conn->pbuf ); 
+            vESPpktBufChainDelete( conn->pbuf );
         } // release packet buffer list that hasn't been freed.
         XMEMSET(conn, 0x00, sizeof(espConn_t)); 
+    }
+    // there might be packet buffer chain that hasn't been deallocated, clean up all of them if exists.
+    if(mqtt_sys_esp_unfinish_rd_pktbuf_head != NULL) {
+        vESPpktBufChainDelete(mqtt_sys_esp_unfinish_rd_pktbuf_head);
+        mqtt_sys_esp_unfinish_rd_pktbuf      = NULL;
+        mqtt_sys_esp_unfinish_rd_pktbuf_head = NULL;
     }
     espNetconn = NULL;
     mctx->ext_sysobjs[0] = NULL;
@@ -433,36 +441,36 @@ int  mqttSysPktRead( void **extsysobjs, byte *buf, word32 buf_len, int timeout_m
     if((extsysobjs == NULL) || (buf == NULL) || (buf_len == 0)) {
         return MQTT_RESP_ERRARGS;
     }
-    espconn = (espNetConnPtr) extsysobjs[0]; //// mctx->ext_sysobjs[0];
+    espconn = (espNetConnPtr) extsysobjs[0];
     if(espconn == NULL) { return MQTT_RESP_ERRMEM; }
 
     while(buf_len > 0) 
     {
-        if(unfinish_rd_pktbuf == NULL) {
+        if(mqtt_sys_esp_unfinish_rd_pktbuf == NULL) {
             // implement non-blocking packet read function.
-            response = eESPnetconnGrabNextPkt( espconn, &unfinish_rd_pktbuf, timeout_ms );
+            response = eESPnetconnGrabNextPkt( espconn, &mqtt_sys_esp_unfinish_rd_pktbuf, timeout_ms );
             if( response != espOK ){
-                unfinish_rd_pktbuf = NULL;
+                mqtt_sys_esp_unfinish_rd_pktbuf = NULL;
                 return ( copied_len_total > 0 ? copied_len_total : MQTT_RESP_TIMEOUT);
             }
-            unfinish_rd_pktbuf_head = unfinish_rd_pktbuf;
+            mqtt_sys_esp_unfinish_rd_pktbuf_head = mqtt_sys_esp_unfinish_rd_pktbuf;
         }
-        rd_ptr       = unfinish_rd_pktbuf->rd_ptr ;
-        curr_src_p   = & unfinish_rd_pktbuf->payload[rd_ptr] ;
+        rd_ptr       = mqtt_sys_esp_unfinish_rd_pktbuf->rd_ptr ;
+        curr_src_p   = & mqtt_sys_esp_unfinish_rd_pktbuf->payload[rd_ptr] ;
         curr_dst_p   = & buf[ copied_len_total ];
-        remain_payld_len  = unfinish_rd_pktbuf->payload_len - rd_ptr ;
+        remain_payld_len  = mqtt_sys_esp_unfinish_rd_pktbuf->payload_len - rd_ptr ;
         copied_len_iter   = ESP_MIN( buf_len, remain_payld_len );
         copied_len_total += copied_len_iter;
         ESP_MEMCPY( curr_dst_p, curr_src_p, copied_len_iter );
         buf_len     -= copied_len_iter;
         rd_ptr      += copied_len_iter;
-        unfinish_rd_pktbuf->rd_ptr =  rd_ptr ;
-        if(rd_ptr >= unfinish_rd_pktbuf->payload_len) {
-            unfinish_rd_pktbuf = unfinish_rd_pktbuf->next;
-            if(unfinish_rd_pktbuf == NULL) {
+        mqtt_sys_esp_unfinish_rd_pktbuf->rd_ptr =  rd_ptr ;
+        if(rd_ptr >= mqtt_sys_esp_unfinish_rd_pktbuf->payload_len) {
+            mqtt_sys_esp_unfinish_rd_pktbuf = mqtt_sys_esp_unfinish_rd_pktbuf->next;
+            if(mqtt_sys_esp_unfinish_rd_pktbuf == NULL) {
                 // free the allocated space to the last packet we read
-                vESPpktBufChainDelete( unfinish_rd_pktbuf_head );
-                unfinish_rd_pktbuf_head = NULL;
+                vESPpktBufChainDelete( mqtt_sys_esp_unfinish_rd_pktbuf_head );
+                mqtt_sys_esp_unfinish_rd_pktbuf_head = NULL;
             }
         }
     } // end of while-loop
@@ -477,7 +485,7 @@ int  mqttSysPktWrite( void **extsysobjs, byte *buf, word32 buf_len )
     if((extsysobjs == NULL) || (buf == NULL) || (buf_len == 0)) {
         return MQTT_RESP_ERRARGS ;
     }
-    espConn_t  *espconn = (espConn_t *) extsysobjs[1];  ////  mctx->ext_sysobjs[1] ;
+    espConn_t  *espconn = (espConn_t *) extsysobjs[1];
     espRes_t    response;
     if(espconn == NULL) {
         return MQTT_RESP_ERRMEM;
