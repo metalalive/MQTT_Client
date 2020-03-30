@@ -38,8 +38,8 @@
     ],
 
     "build": [
-        "make libtommath.a V=1  CROSS_COMPILE=$(C_TOOLCHAIN_PREFIX)  CFLAGS=\"$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(PLUS_C_DEFS)\" -C ./libtommath",
-        "make  V=1 CROSS_COMPILE=$(C_TOOLCHAIN_PREFIX) EXTRALIBS=\"../libtommath/libtommath.a\"  CFLAGS=\"$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(PLUS_C_DEFS) -I../../include -I../libtommath\"  -C ./libtomcrypt"
+        "make libtommath.a V=1  CROSS_COMPILE=$(C_TOOLCHAIN_PREFIX)  CFLAGS=\"$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(EXTRA_C_DEFS)\" -C ./libtommath",
+        "make  V=1 CROSS_COMPILE=$(C_TOOLCHAIN_PREFIX) EXTRALIBS=\"../libtommath/libtommath.a\"  CFLAGS=\"$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(EXTRA_C_DEFS) -I../../include -I../libtommath\"  -C ./libtomcrypt"
     ],
 
     "clean": [

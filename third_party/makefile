@@ -1,4 +1,4 @@
-PLUS_C_DEFS ?=
+EXTRA_C_DEFS ?=
 
 DEBUG ?= no
 

@@ -223,10 +223,9 @@ static espRes_t  mqttSysCreateTCPconn(mqttCtx_t *mctx)
                       (const char* const)mctx->broker_host->data,  mctx->broker_host->len,
                       mctx->broker_port,  eESPdefaultEvtCallBack,  NULL, NULL, ESP_AT_CMD_BLOCKING );
     if(response == espOK) {
-        espNetconn = pxESPnetconnCreate(ESP_NETCONN_TYPE_TCP);
+        espNetconn = pxESPnetconnCreate(conn);
         if(espNetconn == NULL) { response = espERRMEM; goto done; }
         mctx->ext_sysobjs[0] = (void *) espNetconn;
-        mctx->ext_sysobjs[1] = (void *) conn;
     }
 done:
     return response;
@@ -365,28 +364,22 @@ mqttRespStatus  mqttSysNetconnStart( mqttCtx_t *mctx )
 
 mqttRespStatus  mqttSysNetconnStop( mqttCtx_t *mctx )
 {
+    espNetConnPtr  netconn = NULL;
+    espConn_t     *conn = NULL;
     espRes_t   response = espOK;
     if(mctx == NULL) { return MQTT_RESP_ERRARGS; }
-    // close TCP connection
-    eESPconnClientClose( (espConn_t *)mctx->ext_sysobjs[1],
-                         NULL, NULL, ESP_AT_CMD_BLOCKING );
-    // quit from AP, reset ESP device again
-    eESPcloseDevice( );
-    // de-initialize network connection object used in ESP parser.
-    eESPnetconnDelete( espNetconn );
+    netconn = (espNetConnPtr)mctx->ext_sysobjs[0];
+    conn    = pxESPgetConnHandleObj(netconn);
     // in this system port, ext_sysobjs[0] should always point to espNetconn and never modified.
-    if(espNetconn != NULL && (void *)mctx->ext_sysobjs[0] != (void *)espNetconn) {
+    if(espNetconn != NULL && netconn != (void *)espNetconn) {
         response = espERRMEM;
     }
-    // release espConn_t back to connection pool in ESP library.
-    if((void *)mctx->ext_sysobjs[1] != NULL) {
-        espConn_t *conn =  (espConn_t *) mctx->ext_sysobjs[1];
-        // there might be incomplete IPD data leaving pointed by espConn_t, clean up all of them if exists.
-        if(conn->pbuf != NULL) {
-            vESPpktBufChainDelete( conn->pbuf );
-        } // release packet buffer list that hasn't been freed.
-        XMEMSET(conn, 0x00, sizeof(espConn_t)); 
-    }
+    // close TCP connection
+    eESPconnClientClose( conn, NULL, NULL, ESP_AT_CMD_BLOCKING );
+    // quit from AP, reset ESP device again
+    eESPcloseDevice();
+    // de-initialize network connection object used in ESP parser.
+    eESPnetconnDelete( netconn );
     // there might be packet buffer chain that hasn't been deallocated, clean up all of them if exists.
     if(mqtt_sys_esp_unfinish_rd_pktbuf_head != NULL) {
         vESPpktBufChainDelete(mqtt_sys_esp_unfinish_rd_pktbuf_head);
@@ -395,7 +388,6 @@ mqttRespStatus  mqttSysNetconnStop( mqttCtx_t *mctx )
     }
     espNetconn = NULL;
     mctx->ext_sysobjs[0] = NULL;
-    mctx->ext_sysobjs[1] = NULL;
     return  mqttSysRespCvtFromESPresp( response );
 } // end of mqttSysNetconnStop
 
@@ -407,7 +399,6 @@ mqttRespStatus  mqttSysInit( void )
     XASSERT( response == espOK );
     return  MQTT_RESP_OK ;
 } // end of mqttSysInit
-
 
 
 
@@ -485,12 +476,15 @@ int  mqttSysPktWrite( void **extsysobjs, byte *buf, word32 buf_len )
     if((extsysobjs == NULL) || (buf == NULL) || (buf_len == 0)) {
         return MQTT_RESP_ERRARGS ;
     }
-    espConn_t  *espconn = (espConn_t *) extsysobjs[1];
+    espNetConnPtr  netconn = NULL;
+    espConn_t  *conn = NULL;
     espRes_t    response;
-    if(espconn == NULL) {
+    netconn = (espNetConnPtr) extsysobjs[0];
+    conn = pxESPgetConnHandleObj(netconn);
+    if(conn == NULL) {
         return MQTT_RESP_ERRMEM;
     }
-    response = eESPconnClientSend( espconn,  buf,  buf_len, NULL, NULL, ESP_AT_CMD_BLOCKING );
+    response = eESPconnClientSend( conn,  buf,  buf_len, NULL, NULL, ESP_AT_CMD_BLOCKING );
     return  (response == espOK ? buf_len : mqttSysRespCvtFromESPresp(response));
 } // end of mqttSysPktWrite
 

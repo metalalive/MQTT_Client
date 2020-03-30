@@ -28,7 +28,7 @@ where `DEBUG=yes` is optional for debugging purpose. `build/libmqttclient.a` sho
 
 To Build the demo test images, you have :
 ```
-make demo DEBUG=yes  PLUS_C_DEFS="MQTT_CFG_RUN_TEST_THREAD "
+make demo DEBUG=yes  EXTRA_C_DEFS="MQTT_CFG_RUN_TEST_THREAD "
 ```
 where `MQTT_CFG_RUN_TEST_THREAD` is optional macro if you'd like to run the test in seperate thread.
 

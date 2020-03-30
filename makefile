@@ -3,7 +3,7 @@
 ######################################
 
 # extra defined parameters users want to specify
-PLUS_C_DEFS ?= 
+EXTRA_C_DEFS ?=
 
 DEBUG ?= no
 
@@ -46,7 +46,7 @@ ASM_SOURCES =
 AS_DEFS = 
 
 # C defines
-C_DEFS = $(foreach def, $(PLUS_C_DEFS), $(addprefix -D, $(def)) )
+C_DEFS = $(foreach def, $(EXTRA_C_DEFS), $(addprefix -D, $(def)) )
 
 # C includes
 C_INCLUDES = -Iinclude \
@@ -172,7 +172,7 @@ utest_helper : $(C_ASM_OBJECTS) $(TEST_COMMON_OBJECTS)  $(TEST_ENTRY_OBJECTS)
 
 utest:
 	@make file_subst -C third_party;
-	@make utest_helper PLUS_C_DEFS="MQTT_UNIT_TEST_MODE" DEBUG=$(DEBUG);
+	@make utest_helper EXTRA_C_DEFS="MQTT_UNIT_TEST_MODE" DEBUG=$(DEBUG);
 
 $(BUILD_DIR)/%.o: %.c makefile | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
