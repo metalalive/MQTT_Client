@@ -4,7 +4,6 @@ import  re
 import  json
 
 from default import CONFIG_FILE_PATH
-from default import PLATFORM_MAKEFILE_PATH
 from default import MIDDLEWARE_MAKEFILE_PATH
 from default import METADATA_PATH
 from default import TEMPLATE_PATH
@@ -20,7 +19,6 @@ from default import TEMPLATE_VAR_HIER_SEPERATOR
 from default import TEMPLATE_VAR_MICROOPS_SYNTAX
 from default import TEMPLATE_VAR_WILDCARD_SYNTAX
 from default import CONFIG_PARAM_NAME_MIDDLEWARE
-from default import CONFIG_PARAM_NAME_PLATFORM
 from default import CONFIG_PARAM_NAME_CRYPTOLIB
 from default import CONFIG_PARAM_NAME_UNITESTLIB
 from default import CONFIG_PARAM_NAME_SYSINITHOUR
@@ -118,21 +116,21 @@ class CodeGenerator:
         with open(self.cfg_file_path, "r") as cfg_file:
             lines = cfg_file.read().splitlines()
         for line in lines:
-            if(line.__len__() is 0):
+            if(len(line) == 0):
                 continue # skip empty line
             comment = re.findall(''.join(["^[ ]*?", CFG_FILE_COMMENT_SYMBOL]) , line, re.S)
-            if(comment.__len__() is not 0):
+            if(len(comment) != 0):
                 continue # skip if it's comment
             line = line.split(CFG_FILE_COMMENT_SYMBOL)
             line = re.split("[ ]+", line[0].strip())
             # every configuration parameter should come with (name, value) pair
-            if(line.__len__() < 2):
+            if(len(line) < 2):
                 self.error = {"status": err_types.incomplete_param_pair, "rootcause": line}
                 break
-            elif(line[1].__len__() is 0):
+            elif(len(line[1]) == 0):
                 self.error = {"status": err_types.incomplete_param_pair, "rootcause": line}
                 break
-            elif(line.__len__() > 2 and line[2].__len__() is not 0):
+            elif(len(line) > 2 and len(line[2]) != 0):
                 self.error = {"status": err_types.incomplete_param_pair, "rootcause": line}
                 break
             if(not self._update_cfg_param(self.config, line[0], line[1])):
@@ -143,12 +141,6 @@ class CodeGenerator:
         self._set_sysinit_time(self.config)
         # few essential checks on middleware and platform makefiles
         filepath = [None, "/", None, ".makefile"]
-        if(self.error is err_types.ok):
-            filepath[0] = PLATFORM_MAKEFILE_PATH
-            filepath[2] = self.config[CONFIG_PARAM_NAME_PLATFORM]["value"]
-            if(not path.exists(''.join(filepath))):
-                self.error = {"status": err_types.target_not_exist, "path": filepath}
-
         if(self.error is err_types.ok):
             filepath[0] = MIDDLEWARE_MAKEFILE_PATH
             filepath[2] = self.config[CONFIG_PARAM_NAME_MIDDLEWARE]["value"]
@@ -162,8 +154,8 @@ class CodeGenerator:
     def _load_metadata(self): # load JSON-based metadata
         filepath = [METADATA_PATH, "/", None, ".json"]
         try:
-            for name in (CONFIG_PARAM_NAME_PLATFORM, CONFIG_PARAM_NAME_MIDDLEWARE,
-                          CONFIG_PARAM_NAME_UNITESTLIB, CONFIG_PARAM_NAME_CRYPTOLIB):
+            for name in (CONFIG_PARAM_NAME_MIDDLEWARE, CONFIG_PARAM_NAME_UNITESTLIB,
+                         CONFIG_PARAM_NAME_CRYPTOLIB):
                 filepath[2] = self.config[name]["value"]
                 with open(''.join(filepath), 'r') as f:
                     self.config[name]["metadata"] = json.load(f)

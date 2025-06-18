@@ -367,7 +367,10 @@ sv scalarbase(gf p[4],const u8 *s, u8 *pool)
   set25519(((gf *)q)[1],Y);    //// set25519(q[1],Y);
   set25519(((gf *)q)[2],gf1);  //// set25519(q[2],gf1);
   M(((gf *)q)[3],X,Y);         //// M(q[3],X,Y);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
   scalarmult(p,q,s, pool);
+#pragma GCC diagnostic pop
   ////XFREE(q);
 }
 
@@ -389,8 +392,11 @@ int tweetnacl_crypto_sk_to_pk(u8 *pk, const u8 *sk)
   d[31] &= 127;
   d[31] |= 64;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
   scalarbase(p,d,tmpbuf);
   pack(pk,p);
+#pragma GCC diagnostic pop
   XFREE(d);
   d = NULL;
   p = NULL;
@@ -491,8 +497,11 @@ int tweetnacl_crypto_sign(u8 *sm,u64 *smlen,const u8 *m,u64 mlen,const u8 *sk,co
 
   tweetnacl_crypto_hash(r, sm+32, mlen+32);
   reduce(r);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
   scalarbase(p,r,tmpbuf);
   pack(sm,p);
+#pragma GCC diagnostic pop
 
   FOR(i,32) sm[i+32] = pk[i];
   tweetnacl_crypto_hash(h,sm,mlen + 64);
@@ -601,18 +610,24 @@ int tweetnacl_crypto_sign_open(int *stat, u8 *m,u64 *mlen,const u8 *sm,u64 smlen
   p  = (i64 *) &tmpbuf[0]; tmpbuf += (sizeof(gf) << 2);//// (i64 *) XMALLOC(sizeof(gf) * 4);
   q  = (i64 *) &tmpbuf[0]; tmpbuf += (sizeof(gf) << 2);//// (i64 *) XMALLOC(sizeof(gf) * 4);
   int  status = CRYPT_OK;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
   if (unpackneg(q,pk)) { status = CRYPT_ERROR; goto done; }
+#pragma GCC diagnostic pop
 
   XMEMMOVE(m,sm,smlen);
   XMEMMOVE(s,m + 32,32);
   XMEMMOVE(m + 32,pk,32);
   tweetnacl_crypto_hash(h,m,smlen);
   reduce(h);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
   scalarmult(p,q,h,tmpbuf);
 
   scalarbase(q,s,tmpbuf);
   add(p,q,tmpbuf);
   pack(t,p);
+#pragma GCC diagnostic pop
 
   smlen -= 64;
   if (tweetnacl_crypto_verify_32(sm, t)) {

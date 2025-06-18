@@ -10,7 +10,6 @@ TEMPLATE_VAR_MICROOPS_SYNTAX = "@"  # syntax to indicate micro operations(s) the
 TEMPLATE_VAR_WILDCARD_SYNTAX = "*"
 
 CONFIG_PARAM_NAME_MIDDLEWARE = "middleware"
-CONFIG_PARAM_NAME_PLATFORM   = "platform"
 CONFIG_PARAM_NAME_CRYPTOLIB  = "cryptolib"
 CONFIG_PARAM_NAME_UNITESTLIB = "unitestlib"
 
@@ -36,7 +35,6 @@ CONFIG_FILE_PATH = PROJECT_HOME + "mqttclient.conf"
 
 CONFIG_VALID_PARAMS = {
     CONFIG_PARAM_NAME_MIDDLEWARE : {"value":"default_os_name",        },
-    CONFIG_PARAM_NAME_PLATFORM   : {"value":"default_platform_name",  },
     CONFIG_PARAM_NAME_CRYPTOLIB  : {"value":"default_crypto_lib_name",},
     CONFIG_PARAM_NAME_UNITESTLIB : {"value":"Unity"                   },
     "tls"              : {"value":"yes",  "c_define":["MQTT_CFG_USE_TLS", "MQTT_CFG_ENABLE_TLS_V1_3"], },
@@ -56,7 +54,6 @@ CONFIG_VALID_PARAMS = {
     CONFIG_PARAM_NAME_SYSINITYEAR     : {"value":1999,},
 } # end of CONFIG_VALID_PARAMS
 
-PLATFORM_MAKEFILE_PATH    = PROJECT_HOME + "auto/platform"
 MIDDLEWARE_MAKEFILE_PATH  = PROJECT_HOME + "auto/middleware"
 METADATA_PATH  = PROJECT_HOME + "auto/codegen/metadata"
 TEMPLATE_PATH  = PROJECT_HOME + "auto/codegen/template"

@@ -1,8 +1,8 @@
 OPENOCD_HOME ?= /PATH/TO/YOUR_OPENOCD_INSTALL
 
-MIDDLEWARE ?= Linux
+MIDDLEWARE ?= ESP8266_AT_parser
 
-PLATFORM ?= unknown
+HW_PLATFORM ?= unknown
 
 COMMON_3PARTY_DOWNLOAD_CMD = git clone https://github.com/libtom/libtomcrypt.git;cd  libtomcrypt;git checkout 0c30412a669d37451341ec871c08974da2451eca;cd  ..;git clone https://github.com/libtom/libtommath.git;cd  libtommath;git checkout 6378a90a70404a58d5b4ef20e81d9f817ba021c7;cd  ..;git clone https://github.com/ThrowTheSwitch/Unity.git;cd  Unity;git checkout c3d7662a1e692aa0934fa61a2a67229f3b73a5a2;cd  ..;
 
@@ -10,29 +10,25 @@ COMMON_3PARTY_FILE_SUBST_CMD = cp -rf ../generate/include/mqtt_third_party_syste
 
 COMMON_3PARTY_CLEAN_BUILT_CMD = make clean -C ./libtommath;make clean -C ./libtomcrypt;
 
-C_INCLUDES += -Igenerate/include  -Ithird_party/libtomcrypt/src/headers -Ithird_party/libtommath \
-                -Iinclude/system/middleware/Linux \
-               
+C_INCLUDES += -Igenerate/include  -Ithird_party/libtomcrypt/src/headers -Ithird_party/libtommath
 
 ifeq ($(MAKECMDGOALS), utest_helper)
     C_INCLUDES          +=  -Ithird_party/Unity/src -I third_party/Unity/extras/fixture/src -Ithird_party/Unity/extras/memory/src
     TEST_COMMON_SOURCES += tests/unit/third_party/mqtt_libtommath_ut.c tests/unit/third_party/mqtt_libtomcrypt_ut.c third_party/Unity/src/unity.c third_party/Unity/extras/fixture/src/unity_fixture.c third_party/Unity/extras/memory/src/unity_memory.c 
 else
-    C_SOURCES  += src/system/middleware/Linux/mqtt_sys.c  \
-                  
     # built third-party libraries that will be used in linking process of a test image
     THIRD_PARTY_LIBS_PATH = third_party/libtomcrypt/libtomcrypt.a third_party/libtommath/libtommath.a 
 endif # end of if MAKECMDGOALS is utest_helper
 
-ifeq ($(MAKECMDGOALS), utest_helper)
-    include  ${PWD}/auto/middleware/unknown.makefile
-else  # if unit test is NOT enabled
+ifeq ($(strip $(filter utest_helper clean config, $(MAKECMDGOALS))), )
     #### include hardware platfrom specific files, (NOTE) don't use cross-compile toolchain in unit test
-    include  ${PWD}/auto/platform/$(PLATFORM).makefile
+    include  ${PWD}/auto/platform/$(HW_PLATFORM).makefile
     #### include middleware files, the middleware can be any API software integrated
     #### with OS (e.g. RTOS, Linux kernel) .
     include  ${PWD}/auto/middleware/$(MIDDLEWARE).makefile
+else  # when running unit-test, clean, config
+    include  ${PWD}/auto/middleware/unknown.makefile
 endif
 
-COMMON_3PARTY_BUILD_CMD = make libtommath.a V=1  CROSS_COMPILE=$(C_TOOLCHAIN_PREFIX)  CFLAGS="$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(PLUS_C_DEFS)" -C ./libtommath;make  V=1 CROSS_COMPILE=$(C_TOOLCHAIN_PREFIX) EXTRALIBS="../libtommath/libtommath.a"  CFLAGS="$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(PLUS_C_DEFS) -I../../include -I../libtommath"  -C ./libtomcrypt;
+COMMON_3PARTY_BUILD_CMD = make libtommath.a V=1  CROSS_COMPILE=$(GNU_CMD_PREFIX)  CFLAGS="$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(EXTRA_C_DEFS)" -C ./libtommath;make  V=1 CROSS_COMPILE=$(GNU_CMD_PREFIX) EXTRALIBS="../libtommath/libtommath.a"  CFLAGS="$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(EXTRA_C_DEFS) -I./src/headers -I../../include -I../libtommath"  -C ./libtomcrypt;
 

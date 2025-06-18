@@ -27,7 +27,7 @@
         "libs": null
     },
     "src": {
-        "functional": null,
+        "integration-test": null,
         "unittest": [
             "third_party/Unity/src/unity.c",
             "third_party/Unity/extras/fixture/src/unity_fixture.c",

@@ -1,53 +1,5 @@
 {
-"cmd": {
-    "download": [
-       "git clone https://github.com/metalalive/ESP8266_AT_parser.git"
-    ],
-    "substitute": null,
-    "build": null,
-    "clean": null
-},
-
-"path": {
-    "include": {
-        "compile": [
-            "third_party/ESP8266_AT_parser/Src/ESP_AT_parser/inc",
-            "third_party/ESP8266_AT_parser/Src/FreeRTOS/Source/include",
-            "third_party/ESP8266_AT_parser/Src/FreeRTOS/Source/portable/GCC/ARM_CM4_MPU",
-            "include/system/middleware/ESP_AT_parser"
-        ],
-        "c_headers":null,
-        "libs": null
-    },
-    "src": {
-        "functional": [
-            "third_party/ESP8266_AT_parser/Src/ESP_AT_parser/src/api/esp_misc.c",
-            "third_party/ESP8266_AT_parser/Src/ESP_AT_parser/src/api/esp_ping.c",
-            "third_party/ESP8266_AT_parser/Src/ESP_AT_parser/src/api/esp_sta.c",
-            "third_party/ESP8266_AT_parser/Src/ESP_AT_parser/src/api/esp_ap.c",
-            "third_party/ESP8266_AT_parser/Src/ESP_AT_parser/src/api/esp_conn.c",
-            "third_party/ESP8266_AT_parser/Src/ESP_AT_parser/src/esp/esp.c",
-            "third_party/ESP8266_AT_parser/Src/ESP_AT_parser/src/esp/esp_cmd.c",
-            "third_party/ESP8266_AT_parser/Src/ESP_AT_parser/src/esp/esp_recv_buf.c",
-            "third_party/ESP8266_AT_parser/Src/ESP_AT_parser/src/esp/esp_parser.c",
-            "third_party/ESP8266_AT_parser/Src/ESP_AT_parser/src/esp/esp_pktbuf.c",
-            "third_party/ESP8266_AT_parser/Src/ESP_AT_parser/src/esp/esp_util.c  ",
-            "third_party/ESP8266_AT_parser/Src/ESP_AT_parser/src/esp/esp_thread.c",
-            "third_party/ESP8266_AT_parser/Src/FreeRTOS/Source/portable/MemMang/heap_4.c",
-            "third_party/ESP8266_AT_parser/Src/FreeRTOS/Source/portable/GCC/ARM_CM4_MPU/port.c",
-            "third_party/ESP8266_AT_parser/Src/FreeRTOS/Source/croutine.c  ",
-            "third_party/ESP8266_AT_parser/Src/FreeRTOS/Source/event_groups.c",
-            "third_party/ESP8266_AT_parser/Src/FreeRTOS/Source/list.c ",
-            "third_party/ESP8266_AT_parser/Src/FreeRTOS/Source/queue.c",
-            "third_party/ESP8266_AT_parser/Src/FreeRTOS/Source/stream_buffer.c ",
-            "third_party/ESP8266_AT_parser/Src/FreeRTOS/Source/tasks.c ",
-            "third_party/ESP8266_AT_parser/Src/FreeRTOS/Source/timers.c",
-            "third_party/ESP8266_AT_parser/Src/ESP_AT_parser/src/system/esp_system_freertos.c",
-            "src/system/middleware/ESP_AT_parser/mqtt_sys.c"
-        ],
-        "unittest": null
-    }
-},
+"cmd": null, "path": null,
 "sys_fn_map": [
     {
         "malloc":  ["pvPortMalloc",  "(size)"],
@@ -57,4 +9,3 @@
     }
 ]
 }
-

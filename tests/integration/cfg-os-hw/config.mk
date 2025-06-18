@@ -1,0 +1,16 @@
+ITEST_REL_PATH = tests/integration
+ITEST_FULLPATH = $(MQC_PROJ_HOME)/$(ITEST_REL_PATH)
+
+APPCFG_HW_C_INCLUDES = $(ITEST_FULLPATH)/include
+
+APPCFG_MIDDLEWARE_C_INCLUDES = $(ITEST_FULLPATH)/include
+
+APPCFG_ASM_SOURCES = $(ITEST_FULLPATH)/cfg-os-hw/bootcode_stm32f446.s
+
+APP_LINK_SCRIPT = $(ITEST_FULLPATH)/cfg-os-hw/stm32f446_flash.ld
+
+# LD_SPECS_FILE = -specs=nano.specs
+# EXTRA_LIBS =  -lnosys
+
+HW4TST_C_SOURCES = $(ITEST_FULLPATH)/cfg-os-hw/stm32f446_config.c
+

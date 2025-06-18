@@ -5,16 +5,25 @@
 extern "C" {
 #endif
 
-#define  ESP_CFG_DEV_ESP01  1
-// in this project we apply ESP-01, FreeRTOS port for STM32 Cortex-M4, turn off AT echo function
+// Add necessary includes for memory management functions
+#include <stddef.h> // For size_t
+#include <string.h> // For memset
+#include <limits.h> // For SIZE_MAX (used in overflow check for calloc)
+
+// Forward declarations for FreeRTOS memory functions, assuming they are defined elsewhere
+// (e.g., in FreeRTOS.h or a specific port's header file)
+extern void *pvPortMalloc( size_t xWantedSize );
+extern void vPortFree( void *pv );
+void *pvPortCalloc(size_t nmemb, size_t size);
+void *pvPortRealloc(void *old, size_t size);
+
+// in this project we apply ESP-12, FreeRTOS port for STM32 Cortex-M4, turn off AT echo function
+#define  ESP_CFG_DEV_ESP12  1
 #define  ESP_CFG_SYS_PORT   ESP_SYS_PORT_FREERTOS
 #define  ESP_CFG_PING       1
 
 // specify hardware reset pin instead of running AT+RST command
 #define  ESP_CFG_RST_PIN
-
-// initialize underlying platform (especially UART Tx/Rx) every time when  reset function is called.
-#define  ESP_CFG_PLATFORM_REINIT_ON_RST
 
 // max bytes per packet size for this MQTT implementation
 #define  ESP_CFG_MAX_BYTES_PER_CIPSEND    1440
@@ -28,11 +37,12 @@ extern "C" {
 // the memory functions provided by cross-compile toolchain.
 #define  ESP_MALLOC( sizebytes )         pvPortMalloc( (size_t)(sizebytes) )
 #define  ESP_MEMFREE( mptr )             vPortFree( (void *)(mptr) )
+
+// implemented at here using FreeRTOS heap functions
 #define  ESP_CALLOC( nmemb, size )       pvPortCalloc( nmemb, (size_t)(size) )
 #define  ESP_REALLOC( memptr, newsize)   pvPortRealloc( memptr, (size_t)(newsize) )
 
 #ifdef __cplusplus
 }
 #endif
-#endif // end of  __ESP_CONFIG_H 
-
+#endif // end of  __ESP_CONFIG_H

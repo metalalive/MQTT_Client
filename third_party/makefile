@@ -9,7 +9,7 @@ endif
 include  ../generate/auto/makefile
 
 
-gen_lib: file_subst
+gen_3pty_libs: file_subst
 	$(COMMON_3PARTY_BUILD_CMD)
 
 file_subst:

@@ -1,4 +1,5 @@
 #include "mqtt_include.h"
+#include "esp/esp_private.h"
 
 // [Note]
 // The low-level implementation should depend on what kind of underlying hardware / operating system applied to your application, this file only shows API integration with our ESP AT parser, used with ESP8266 wifi device. 
@@ -20,6 +21,31 @@ static espAP_t      mqtt_esp_foundAPs[ MAX_NUM_AP_FOUND ];
 // network connection object that is internally used in ESP AT parser
 static espNetConnPtr   espNetconn ;
 
+
+void *pvPortCalloc(size_t nmemb, size_t size) {
+    size_t total_size;
+    if (nmemb == 0 || size == 0) {
+        total_size = 0;
+    } else {
+        total_size = nmemb * size;
+    }
+    void *ptr =  pvPortMalloc(total_size);
+    if (ptr != NULL) {
+        memset(ptr, 0, total_size);
+    }
+    return ptr;
+}
+
+void *pvPortRealloc(void *old, size_t size) {
+    void *new_ptr = NULL;
+    if (size != 0) {
+     new_ptr = pvPortMalloc(size);
+    }
+    if (old != NULL) {
+      vPortFree(old);
+    }
+    return new_ptr;
+}
 
 static espRes_t  eESPdefaultEvtCallBack( espEvt_t*  evt )
 {
@@ -210,10 +236,9 @@ static espRes_t  mqttSysConnectToAP( espIp_t *out_ip, espMac_t *out_mac )
 
 static espRes_t  mqttSysCreateTCPconn(mqttCtx_t *mctx)
 {
+    extern espGlbl_t espGlobal;
     espRes_t  response = espOK;
-    espConn_t*    conn =  NULL;
-
-    conn =  pxESPgetNxtAvailConn();
+    espConn_t*    conn = pxESPgetNxtAvailConn(&espGlobal);
     // reach maximum number of TCP connection, not available now
     if(conn == NULL) { response = espERRMEM; goto done; }
     // get broker hostname & port
