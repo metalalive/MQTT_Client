@@ -10,10 +10,13 @@ COMMON_3PARTY_FILE_SUBST_CMD = {{{ *.metadata.cmd.substitute@ListAppendSemicolon
 
 COMMON_3PARTY_CLEAN_BUILT_CMD = {{{*.metadata.cmd.clean@ListAppendSemicolon }}}
 
-C_INCLUDES += -Igenerate/include {{{ cryptolib.metadata.path.include.compile@GCCincludeOpt }}}
+COMMON_C_HEADER_PATHS = include  generate/include \
+	{{{ cryptolib.metadata.path.include.compile@ListAppendWhitespace }}}
+
+C_HEADERS_PATHS += $(addprefix $(MQC_PROJ_HOME)/, $(COMMON_C_HEADER_PATHS))
 
 ifeq ($(MAKECMDGOALS), utest_helper)
-    C_INCLUDES          += {{{ unitestlib.metadata.path.include.compile@GCCincludeOpt }}}
+    C_HEADERS_PATHS     += {{{ unitestlib.metadata.path.include.compile@ListAppendWhitespace }}}
     TEST_COMMON_SOURCES += {{{ *.metadata.path.src.unittest@ListAppendWhitespace }}}
 else
     # built third-party libraries that will be used in linking process of a test image

@@ -1,3 +1,2 @@
-
-C_INCLUDES += -Iinclude/system/middleware/unknown
+C_HEADERS_PATHS += include/system/middleware/unknown
 

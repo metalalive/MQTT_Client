@@ -14,7 +14,7 @@ CFLAGS += -Wint-to-pointer-cast  -Wpointer-to-int-cast  -pthread
 EXTRA_LIBS =  -pthread
 
 ifneq ($(MAKECMDGOALS), utest_helper)
-	C_INCLUDES += -I$(MQC_PROJ_HOME)/include/system/middleware/Linux
+	C_HEADERS_PATHS += $(MQC_PROJ_HOME)/include/system/middleware/Linux
 	LIB_C_SRCS += $(MQC_PROJ_HOME)/src/system/middleware/Linux/mqtt_sys.c
 endif
 

@@ -44,7 +44,7 @@ AS_DEFS =
 
 C_DEFS = $(foreach def, $(EXTRA_C_DEFS), $(addprefix -D, $(def)) )
 
-C_INCLUDES = -Iinclude
+C_HEADERS_PATHS =
 
 BUILD_DIR=build
 
@@ -63,7 +63,7 @@ else
                              tests/integration/mqtt_publish.c \
                              tests/integration/mqtt_subscribe.c \
                              tests/integration/rand.c
-        C_INCLUDES += -Itests/integration
+        C_HEADERS_PATHS += -Itests/integration
     endif #### end of demo
 endif #### end of utest_helper
 
@@ -86,6 +86,8 @@ include  ./generate/auto/makefile
 
 # optimization
 OPT = -Og
+
+C_INCLUDES = $(addprefix -I, $(C_HEADERS_PATHS))
 
 # compile gcc flags
 ASFLAGS += $(CPU_ARCH_FLAGS) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections

@@ -1,9 +1,14 @@
 {
 "cmd": {
     "download": [
-       "git clone https://github.com/ThrowTheSwitch/Unity.git",
+       "mkdir -p  Unity",
        "cd  Unity",
-       "git checkout c3d7662a1e692aa0934fa61a2a67229f3b73a5a2",
+       "git init",
+       "git remote add -t master orig1234  https://github.com/ThrowTheSwitch/Unity.git",
+       "git fetch --depth 1 orig1234  c3d7662a1e692aa0934fa61a2a67229f3b73a5a2",
+       "git checkout FETCH_HEAD",
+       "git branch master-local",
+       "git checkout master-local",
        "cd  .."
     ],
     "substitute": [
@@ -17,7 +22,7 @@
     "include": {
         "compile": [
             "third_party/Unity/src",
-            " third_party/Unity/extras/fixture/src",
+            "third_party/Unity/extras/fixture/src",
             "third_party/Unity/extras/memory/src"
         ],
         "c_headers":[
