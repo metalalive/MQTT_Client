@@ -1,4 +1,3 @@
-# TODO, move some parameters to demo (integration test) section
 include  $(RTOS_HW_BUILD_PATH)/Inc/build-cfg/mk/hw/stm32f446.mk
 include  $(RTOS_HW_BUILD_PATH)/Inc/build-cfg/mk/toolchain/gcc-arm-cortex-m4.mk
 

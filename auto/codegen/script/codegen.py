@@ -9,7 +9,7 @@ from default import METADATA_PATH
 from default import TEMPLATE_PATH
 from default import TEMPLATE_FILES
 from default import OUTPUT_PATH
-from default import CONFIG_VALID_PARAMS
+from default import COMMON_CFG_PARAMS, CONFIG_VALID_PARAMS
 from default import CFG_FILE_COMMENT_SYMBOL
 from default import VAR_START_REGEX_SYNTAX
 from default import VAR_END_REGEX_SYNTAX
@@ -56,6 +56,8 @@ class CodeGenerator:
             checks_passed = self._parse_cfg_file()
         if(checks_passed):
             checks_passed = self._load_metadata()
+        if(checks_passed):
+            checks_passed = self._validate_config_params()
         if(checks_passed):
             checks_passed = self._render()
         print("Code generation "+ ("succeed" if checks_passed else "failed") + ", detail status:"+ str(self.error))
@@ -139,16 +141,37 @@ class CodeGenerator:
         # if date/time is NOT specified in user configuration file, then this script automatically
         # get current date/time from underlying OS
         self._set_sysinit_time(self.config)
-        # few essential checks on middleware and platform makefiles
-        filepath = [None, "/", None, ".makefile"]
-        if(self.error is err_types.ok):
-            filepath[0] = MIDDLEWARE_MAKEFILE_PATH
-            filepath[2] = self.config[CONFIG_PARAM_NAME_MIDDLEWARE]["value"]
-            if(not path.exists(''.join(filepath))):
-                self.error = {"status": err_types.target_not_exist, "path": filepath}
-
         return (True if self.error is err_types.ok else False)
 #### end of CodeGenerator._parse_cfg_file
+
+    def _validate_config_params(self) -> bool:
+        """
+        Validates that configuration parameters set in mqttclient.conf are
+        applicable to the chosen middleware.
+        """
+        middleware_name = self.config[CONFIG_PARAM_NAME_MIDDLEWARE]["value"]
+        middleware_metadata = self.config[CONFIG_PARAM_NAME_MIDDLEWARE]["metadata"]
+        # Get the set of parameters explicitly supported by the chosen middleware
+        supported_middleware_params = set(middleware_metadata.get("supported_config_params", []))
+        for param_name, param_data in self.config.items():
+            # Only check parameters that were explicitly set in the config file
+            # (i.e., not default values from CONFIG_VALID_PARAMS)
+            if param_data["set_flag"]:
+                # Check if the parameter is not common AND not supported by the current middleware  
+                if param_name not in COMMON_CFG_PARAMS and param_name not in supported_middleware_params:
+                    self.error = {
+                        "status": err_types.param_not_applicable,
+                        "name": param_name,
+                        "middleware": middleware_name
+                    }
+                    return False
+        # Also perform the middleware makefile existence check here, as it depends
+        # on the middleware value
+        filepath = [MIDDLEWARE_MAKEFILE_PATH, "/", middleware_name, ".makefile"]
+        if not path.exists(''.join(filepath)):
+            self.error = {"status": err_types.target_not_exist, "path": ''.join(filepath)}
+            return False
+        return (True if self.error is err_types.ok else False)
 
 
     def _load_metadata(self): # load JSON-based metadata

@@ -35,10 +35,8 @@ demo:
 	@for appn in $(DEMO_APPS_NAME); do \
 		echo "--- Building $$app ---"; \
 		$(MAKE) buildapp \
-			DEBUG=$(DEBUG) \
+			DEBUG=$(DEBUG) OS=$(OS)  HW_PLATFORM=$(HW_PLATFORM) \
 			RTOS_HW_BUILD_PATH=$(RTOS_HW_BUILD_PATH) \
-			OS=$(OS) \
-			HW_PLATFORM=$(HW_PLATFORM) \
 			TOOLCHAIN_BASEPATH=$(TOOLCHAIN_BASEPATH) \
 			ESP_PROJ_HOME=$(ESP_PROJ_HOME) \
 			APP_NAME=$$appn \

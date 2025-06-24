@@ -1,6 +1,5 @@
 {
-"cmd": null,
-"path": null,
+"cmd": null, "path": null,
 "sys_fn_map": [
     {
         "malloc":  ["malloc",  "(size)"],
@@ -8,6 +7,7 @@
         "calloc":  ["calloc",  "(nmemb, size)"],
         "free":    ["free",    "(mem)"]
     }
-]
+],
+"supported_config_params": []
 }
 

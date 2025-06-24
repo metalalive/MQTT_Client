@@ -7,5 +7,9 @@
         "calloc":  ["pvPortCalloc",  "(nmemb, size)"],
         "free":    ["vPortFree",     "(mem)"]
     }
+],
+"supported_config_params": [
+    "os", "hw_platform", "rtos_hw_build_path", "toolchain_basepath",
+    "esp_proj_home", "wifiusername", "wifiuserpasswd"
 ]
 }

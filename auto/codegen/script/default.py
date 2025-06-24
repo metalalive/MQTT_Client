@@ -20,18 +20,43 @@ CONFIG_PARAM_NAME_SYSINITMONTH   = "sysinitmonth"
 CONFIG_PARAM_NAME_SYSINITDATE    = "sysinitdate"    
 CONFIG_PARAM_NAME_SYSINITYEAR    = "sysinityear"    
 
+CONFIG_PARAM_NAME_OS = "os"
+CONFIG_PARAM_NAME_HW_PLATFORM = "hw_platform"
+CONFIG_PARAM_NAME_RTOS_HW_BUILD_PATH = "rtos_hw_build_path"
+CONFIG_PARAM_NAME_TOOLCHAIN_BASEPATH = "toolchain_basepath"
+CONFIG_PARAM_NAME_ESP_PROJ_HOME = "esp_proj_home" # specific to middleware ESP8266-AT-parser
+
 file_types = Enum("File Type", "make c_header c_src")
 
 err_types  = Enum("Error Type", "ok    null_not_allowed    target_not_exist   \
                                  incomplete_param_pair     invalid_param_name \
                                  duplicate_param_name      metadata_decode_error \
-                                 invalid_micro_op \
+                                 param_not_applicable      invalid_micro_op \
                   ")
 
 
 PROJECT_HOME = "../../../"
 
 CONFIG_FILE_PATH = PROJECT_HOME + "mqttclient.conf"
+
+COMMON_CFG_PARAMS = [
+    CONFIG_PARAM_NAME_MIDDLEWARE,
+    CONFIG_PARAM_NAME_CRYPTOLIB,
+    CONFIG_PARAM_NAME_UNITESTLIB,
+    "tls"            , 
+    "pathcert"       , 
+    "pathprivkey"    , 
+    "brokeraddr"     , 
+    "brokerport"     , 
+    "brokerusername" , 
+    "brokeruserpasswd",
+    CONFIG_PARAM_NAME_SYSINITHOUR,
+    CONFIG_PARAM_NAME_SYSINITMINUTES,
+    CONFIG_PARAM_NAME_SYSINITSECONDS,
+    CONFIG_PARAM_NAME_SYSINITMONTH,
+    CONFIG_PARAM_NAME_SYSINITDATE,
+    CONFIG_PARAM_NAME_SYSINITYEAR   
+]
 
 CONFIG_VALID_PARAMS = {
     CONFIG_PARAM_NAME_MIDDLEWARE : {"value":"default_os_name",        },
@@ -44,13 +69,21 @@ CONFIG_VALID_PARAMS = {
     "brokerport"       : {"value":1883,             },
     "brokerusername"   : {"value":"default_broker_user_name",},
     "brokeruserpasswd" : {"value":"default_broker_passwd",   },
+
     "wifiusername"     : {"value":"default_wifi_uname",      },
     "wifiuserpasswd"   : {"value":"default_wifi_pass",       },
+    CONFIG_PARAM_NAME_OS: {"value":"unknown", },
+    CONFIG_PARAM_NAME_HW_PLATFORM : {"value":"unknown", },
+    CONFIG_PARAM_NAME_RTOS_HW_BUILD_PATH : {"value":"/path/to/your/rtos_hw_build", },
+    CONFIG_PARAM_NAME_TOOLCHAIN_BASEPATH : {"value":"/path/to/your/toolchain", },
+    CONFIG_PARAM_NAME_ESP_PROJ_HOME    : {"value":"/path/to/your/esp_project", }, 
+
     CONFIG_PARAM_NAME_SYSINITHOUR     : {"value":1,   },
     CONFIG_PARAM_NAME_SYSINITMINUTES  : {"value":2,   },
     CONFIG_PARAM_NAME_SYSINITSECONDS  : {"value":3,   },
     CONFIG_PARAM_NAME_SYSINITMONTH    : {"value":4,   },
     CONFIG_PARAM_NAME_SYSINITDATE     : {"value":5,   },
+    CONFIG_PARAM_NAME_SYSINITYEAR     : {"value":1999,},
     CONFIG_PARAM_NAME_SYSINITYEAR     : {"value":1999,},
 } # end of CONFIG_VALID_PARAMS
 

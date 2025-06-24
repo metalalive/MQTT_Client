@@ -8,7 +8,6 @@ endif
 
 include  ../generate/auto/makefile
 
-
 gen_3pty_libs: file_subst
 	$(COMMON_3PARTY_BUILD_CMD)
 
@@ -20,5 +19,4 @@ clean:
 
 download_3party:
 	@$(COMMON_3PARTY_DOWNLOAD_CMD)
-
 

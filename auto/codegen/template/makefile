@@ -2,7 +2,16 @@ OPENOCD_HOME ?= /PATH/TO/YOUR_OPENOCD_INSTALL
 
 MIDDLEWARE ?= {{{ middleware.value }}}
 
-HW_PLATFORM ?= unknown
+# Middleware-specific configuration parameters (will be empty if not set in mqttclient.conf)
+
+HW_PLATFORM ?= {{{ hw_platform.value }}}
+OS ?= {{{ os.value }}}
+
+RTOS_HW_BUILD_PATH ?= {{{ rtos_hw_build_path.value }}}
+
+TOOLCHAIN_BASEPATH ?= {{{ toolchain_basepath.value }}}
+
+ESP_PROJ_HOME ?= {{{ esp_proj_home.value }}}
 
 COMMON_3PARTY_DOWNLOAD_CMD = {{{ *.metadata.cmd.download@ListAppendSemicolon }}}
 
