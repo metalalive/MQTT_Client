@@ -1,0 +1,244 @@
+-------------------------------------------------
+--- MQTT Client Library - Build Help Document ---
+-------------------------------------------------
+
+This document provides instructions for building the MQTT client library and its associated demo applications using the provided Makefiles.
+
+The primary build script is located at ./makefile.
+Configuration parameters are read from mqttclient.conf, which can be created by copying template file `mqttclient-sample.conf` and modifying its content.
+It is crucial to run `make config` after any changes to mqttclient.conf to regenerate build files.
+
+--- Common Build Commands ---
+
+These commands are generally applicable regardless of the chosen middleware or platform.
+
+1.  make clean
+    Description:
+        Removes all generated build artifacts, including object files, libraries, and executables, from the build directory.
+
+    Example:
+    ```
+    make clean
+    ```
+
+
+2.  make config
+    Description:
+        Runs the code generation script (auto/codegen/script/codegen.py) to generate middleware-specific Makefiles and header files based on the settings in mqttclient.conf. This must be run after any changes to mqttclient.conf.
+
+    Example:
+    ```
+    make config
+    ```
+
+
+3.  make download_3party
+    Description:
+        Downloads necessary third-party library source code. This command delegates to a script in the third_party directory.
+
+    Example:
+    ```
+    make download_3party
+    ```
+
+
+--- Linux Middleware Commands ---
+
+These commands are used when middleware is set to Linux in mqttclient.conf.
+
+1.  make gen_3pty_libs
+    Description:
+        Builds the third-party libraries required for the MQTT client.
+
+    Variables:
+    *   DEBUG: Set to yes for a debug build (includes debug symbols and coverage).
+
+    Example:
+    ```
+    make gen_3pty_libs -C ./third_party DEBUG=yes
+    ```
+
+
+2.  make gen_lib
+    Description:
+        Builds the core MQTT client library (libmqttclient.a).
+
+    Variables:
+    *   DEBUG: Set to yes for a debug build.
+
+    Example:
+    ```
+    make gen_lib DEBUG=yes
+    ```
+
+
+3.  make demo
+    Description:
+        Builds and runs all integration test demo applications for the Linux platform.
+
+    Variables:
+    *   DEBUG: Set to yes for a debug build.
+
+    Example:
+    ```
+    make demo DEBUG=yes
+    ```
+
+
+--- ESP8266-AT-Parser Middleware Commands ---
+
+These commands are used when middleware is set to ESP8266_AT_parser in mqttclient.conf. This port targets embedded systems, specifically ESP8266 with FreeRTOS.
+Many commands require specific path variables to be set. Remember to replace /path/to/... placeholders with your actual paths.
+
+Note:
+    following variables are optional on the command line if they are properly configured in `mqttclient.conf`.
+        - `OS`
+        - `HW_PLATFORM`
+        - `RTOS_HW_BUILD_PATH`
+        - `TOOLCHAIN_BASEPATH`
+        - `ESP_PROJ_HOME`
+
+1.  make gen_3pty_libs
+    Description:
+        Builds the third-party libraries required for the MQTT client on the target platform.
+
+    Variables:
+    *   DEBUG: Set to yes for a debug build.
+    *   HW_PLATFORM: Specifies the hardware platform (e.g., stm32f446).
+    *   RTOS_HW_BUILD_PATH: Path to your RTOS hardware build environment (e.g., rtos-playground).
+    *   TOOLCHAIN_BASEPATH: Base path to your ARM GNU toolchain.
+
+    Example:
+    ```
+    make gen_3pty_libs -C ./third_party DEBUG=yes HW_PLATFORM=stm32f446 \
+        RTOS_HW_BUILD_PATH=/opt/mywork/tsunghan/Documents/os/rtos/rtos-playground \
+        TOOLCHAIN_BASEPATH=/usr/local/arm-gnu/14.2.rel1
+    ```
+
+
+2.  make gen_lib
+    Description:
+        Builds the core MQTT client library (libmqttclient.a) for the target platform.
+
+    Variables:
+    *   DEBUG: Set to yes for a debug build.
+    *   OS: Specifies the operating system (e.g., freertos-v10).
+    *   HW_PLATFORM: Specifies the hardware platform (e.g., stm32f446).
+    *   RTOS_HW_BUILD_PATH: Path to your RTOS hardware build environment.
+    *   TOOLCHAIN_BASEPATH: Base path to your ARM GNU toolchain.
+    *   ESP_PROJ_HOME: Path to the ESP8266 AT parser project.
+    *   APPCFG_BASEPATH: Base path for application-specific configurations (e.g., tests/integration/cfg-os-hw).
+
+    Example:
+    ```
+    make gen_lib DEBUG=yes OS=freertos-v10 HW_PLATFORM=stm32f446 \
+        RTOS_HW_BUILD_PATH=/opt/mywork/tsunghan/Documents/os/rtos/rtos-playground \
+        TOOLCHAIN_BASEPATH=/usr/local/arm-gnu/14.2.rel1 \
+        ESP_PROJ_HOME=/opt/mywork/tsunghan/Documents/c/network/wifi/ESP8266_AT_parser \
+        APPCFG_BASEPATH=$PWD/tests/integration/cfg-os-hw
+    ```
+
+
+3.  make buildapp
+    Description:
+        Builds a single, specified application for the target platform. You can use this command to compile your own custom applications or individual demo applications, especially if they are designed to be integrated with other software or systems.
+
+    Variables:
+    *   DEBUG: Set to yes for a debug build.
+    *   OS: Specifies the operating system.
+    *   HW_PLATFORM: Specifies the hardware platform.
+    *   RTOS_HW_BUILD_PATH: Path to your RTOS hardware build environment.
+    *   TOOLCHAIN_BASEPATH: Base path to your ARM GNU toolchain.
+    *   ESP_PROJ_HOME: Path to the ESP8266 AT parser project.
+    *   APP_NAME: The name of the specific application to build (e.g., mqtt_connect).
+    *   APP_BASEPATH: Base path for the application's source files (e.g., tests/integration).
+
+    Example:
+    ```
+    make buildapp DEBUG=yes OS=freertos-v10 HW_PLATFORM=stm32f446 \
+        RTOS_HW_BUILD_PATH=/opt/mywork/tsunghan/Documents/os/rtos/rtos-playground \
+        TOOLCHAIN_BASEPATH=/usr/local/arm-gnu/14.2.rel1 \
+        ESP_PROJ_HOME=/opt/mywork/tsunghan/Documents/c/network/wifi/ESP8266_AT_parser \
+        APP_NAME=mqtt_connect \
+        APP_BASEPATH=$PWD/tests/integration
+    ```
+
+
+4.  make demo
+    Description:
+        Builds all integration test demo applications for the target platform. This command iterates through all defined TEST_ENTRY_SOURCES and calls buildapp for each.
+
+    Variables: (Same as buildapp, but APP_NAME and APP_BASEPATH are handled internally for each demo).
+
+    Example:
+    ```
+    make demo DEBUG=yes OS=freertos-v10 HW_PLATFORM=stm32f446 \
+        RTOS_HW_BUILD_PATH=/opt/mywork/tsunghan/Documents/os/rtos/rtos-playground \
+        TOOLCHAIN_BASEPATH=/usr/local/arm-gnu/14.2.rel1 \
+        ESP_PROJ_HOME=/opt/mywork/tsunghan/Documents/c/network/wifi/ESP8266_AT_parser
+    ```
+
+
+--- Debugger Commands (STM32F4) ---
+
+These commands are specific to setting up a debugging session for STM32F4 platforms.
+
+1.  make dbg_server
+    Description:
+        Starts the OpenOCD debug server. This typically requires OpenOCD to be installed and configured for your specific hardware.
+
+    Variables:
+    *   HW_PLATFORM: Specifies the hardware platform (e.g., stm32f446).
+    *   RTOS_HW_BUILD_PATH: Path to your RTOS hardware build environment.
+
+    Example:
+    ```
+    make dbg_server HW_PLATFORM=stm32f446 \
+        RTOS_HW_BUILD_PATH=/opt/mywork/tsunghan/Documents/os/rtos/rtos-playground
+    ```
+
+
+2.  make dbg_client
+    Description:
+        Starts the GDB debugger client, connecting to the OpenOCD server.
+
+    Variables:
+    *   HW_PLATFORM: Specifies the hardware platform.
+    *   RTOS_HW_BUILD_PATH: Path to your RTOS hardware build environment.
+    *   TOOLCHAIN_BASEPATH: Base path to your ARM GNU toolchain (for arm-none-eabi-gdb).
+    *   GDB_SCRIPT_PATH: Path to the GDB initialization script (e.g., auto/platform/utility.gdb).
+
+    Example:
+    ```
+    make dbg_client HW_PLATFORM=stm32f446 \
+        RTOS_HW_BUILD_PATH=/opt/mywork/tsunghan/Documents/os/rtos/rtos-playground \
+        TOOLCHAIN_BASEPATH=/usr/local/arm-gnu/14.2.rel1 \
+        GDB_SCRIPT_PATH=./auto/platform/utility.gdb
+    ```
+
+
+--- Key Build Variables ---
+
+Here's a summary of important variables you might need to set on the command line:
+
+*   DEBUG: (yes/no, default no) Enables/disables debug symbols and potentially code coverage.
+*   MQC_PROJ_HOME: (Internal, set by $(shell pwd)) The absolute path to the root of the MQTT client project.
+*   MIDDLEWARE: (From mqttclient.conf) The chosen middleware (e.g., Linux, ESP8266_AT_parser).
+*   HW_PLATFORM: (From mqttclient.conf or command line) The specific hardware platform (e.g., stm32f446).
+*   OS: (From mqttclient.conf or command line) The operating system (e.g., freertos-v10).
+*   RTOS_HW_BUILD_PATH: (From mqttclient.conf or command line) Path to your RTOS hardware build environment. Essential for embedded builds.
+*   TOOLCHAIN_BASEPATH: (From mqttclient.conf or command line) Base path to your cross-compilation toolchain (e.g., arm-gnu). Essential for embedded builds.
+*   ESP_PROJ_HOME: (From mqttclient.conf or command line) Path to the ESP8266 AT parser project. Specific to ESP8266_AT_parser middleware.
+*   APPCFG_BASEPATH: (Command line) Base path for application-specific configurations. Used by gen_lib and buildapp for embedded targets.
+*   APP_NAME: (Command line) The name of a specific demo application to build (e.g., mqtt_connect). Used with buildapp.
+*   APP_BASEPATH: (Command line) The base path where the source files for APP_NAME are located. Used with buildapp.
+*   GDB_SCRIPT_PATH: (Command line) Path to a GDB initialization script. Used with dbg_client.
+*   EXTRA_C_DEFS: (Command line) Additional C preprocessor definitions to pass to the compiler (e.g., EXTRA_C_DEFS="MQTT_UNIT_TEST_MODE" for unit tests).
+
+--- Important Notes ---
+
+*   Path Placeholders: Always replace `/path/to/...` with the actual absolute paths on your system.
+*   mqttclient.conf: This file is the primary configuration source. Ensure it's correctly set up for your desired middleware and crypto library.
+*   `make config`: Remember to run `make config` every time you modify mqttclient.conf.
+*   Unit Tests: The `make utest` command can be used to run the unit tests.
+

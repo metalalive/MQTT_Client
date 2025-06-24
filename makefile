@@ -171,3 +171,6 @@ dbg_server:
 dbg_client:
 	@$(DBG_CLIENT_CMD)
 
+help:
+	@cat ./build-help-doc
+
