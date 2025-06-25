@@ -1,0 +1,7 @@
+.aider*
+generate/*
+build/*
+mqttclient.conf
+third_party/Unity
+third_party/libtomcrypt
+third_party/libtommath

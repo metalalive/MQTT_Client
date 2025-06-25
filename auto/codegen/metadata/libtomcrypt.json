@@ -1,14 +1,22 @@
 {
 "cmd": {
-
     "download": [
-       "git clone https://github.com/libtom/libtomcrypt.git",
+       "mkdir -p  libtomcrypt  libtommath",
        "cd  libtomcrypt",
-       "git checkout 0c30412a669d37451341ec871c08974da2451eca",
-       "cd  ..",
-       "git clone https://github.com/libtom/libtommath.git",
-       "cd  libtommath",
-       "git checkout 6378a90a70404a58d5b4ef20e81d9f817ba021c7",
+       "git init",
+       "git remote add  -t develop orig1234  https://github.com/libtom/libtomcrypt.git",
+       "git fetch --depth 1 orig1234  0c30412a669d37451341ec871c08974da2451eca",
+       "git checkout FETCH_HEAD",
+       "git branch develop-local",
+       "git checkout develop-local",
+
+       "cd  ../libtommath",
+       "git init",
+       "git remote add -t develop orig2345  https://github.com/libtom/libtommath.git",
+       "git fetch --depth 1 orig2345  6378a90a70404a58d5b4ef20e81d9f817ba021c7",
+       "git checkout FETCH_HEAD",
+       "git branch develop-local",
+       "git checkout develop-local",
        "cd  .."
     ],
 
@@ -38,8 +46,8 @@
     ],
 
     "build": [
-        "make libtommath.a V=1  CROSS_COMPILE=$(C_TOOLCHAIN_PREFIX)  CFLAGS=\"$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(EXTRA_C_DEFS)\" -C ./libtommath",
-        "make  V=1 CROSS_COMPILE=$(C_TOOLCHAIN_PREFIX) EXTRALIBS=\"../libtommath/libtommath.a\"  CFLAGS=\"$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(EXTRA_C_DEFS) -I../../include -I../libtommath\"  -C ./libtomcrypt"
+        "make libtommath.a V=0  CROSS_COMPILE=$(GNU_CMD_PREFIX)  CFLAGS=\"$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(EXTRA_C_DEFS)\" -C ./libtommath",
+        "make  V=0 CROSS_COMPILE=$(GNU_CMD_PREFIX) EXTRALIBS=\"../libtommath/libtommath.a\"  CFLAGS=\"$(CPU_ARCH_FLAGS) $(DBGCFLAGS) $(EXTRA_C_DEFS) -I./src/headers -I../../include -I../libtommath\"  -C ./libtomcrypt"
     ],
 
     "clean": [
@@ -47,7 +55,6 @@
         "make clean -C ./libtomcrypt"
     ]
 },
-
 
 "path":{
     "include": {
@@ -65,7 +72,7 @@
         ]
     },
     "src": {
-        "functional": null,
+        "integration-test": null,
         "unittest": [
             "tests/unit/third_party/mqtt_libtommath_ut.c",
             "tests/unit/third_party/mqtt_libtomcrypt_ut.c"
@@ -87,7 +94,4 @@
         "free":    ["XFREE"]
     }
 ]
-
 }
-
-  

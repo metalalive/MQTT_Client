@@ -1,3 +1,4 @@
+#define _GNU_SOURCE // required by few Linux syscall functions
 #include "mqtt_include.h"
 static word32 mqtt_sys_init_time_ms;
 

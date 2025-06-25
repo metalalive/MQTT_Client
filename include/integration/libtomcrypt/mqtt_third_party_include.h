@@ -421,6 +421,10 @@ word32  tlsRNGread(byte *out, word32 outlen, void *prng) \
     status = mqttUtilRandByteSeq((mqttDRBG_t *)prng, out, (word16)outlen); \
     return (status==MQTT_RESP_OK ? outlen: 0); \
 } \
+static unsigned long tlsRNGreadWrapper(unsigned char *out, unsigned long outlen, prng_state *prng) { \
+    word32 result = tlsRNGread(out, (word32) outlen, (void *)prng); \
+    return (unsigned long) result; \
+} \
 static tlsRespStatus wrapper_fn(mqttCtx_t *mctx) \
 { \
     tls_drbg_src_obj = (void **) &mctx->drbg;  \
@@ -428,7 +432,7 @@ static tlsRespStatus wrapper_fn(mqttCtx_t *mctx) \
     prng_descriptor[0].name        = "MQTT_TLS_DRBG";  \
     prng_descriptor[0].export_size = 0;          \
     prng_descriptor[0].add_entropy = NULL;       \
-    prng_descriptor[0].read        = tlsRNGread; \
+    prng_descriptor[0].read = tlsRNGreadWrapper; \
     XMEMSET(&cipher_descriptor[0], 0x0, sizeof(struct ltc_cipher_descriptor)); \
     cipher_descriptor[0].name = "aes"; \
     cipher_descriptor[0].ID   = 6;     \

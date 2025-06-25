@@ -1,6 +1,5 @@
 #include "mqtt_include.h"
 
-
 // Private macro -------------------------------------------------------------
 // TODO: figure out why Rx buffer size less than 0x200 bytes could lead to packet loss
 #define  HAL_DMA_RECV_BUF_SIZE  0x280
@@ -16,11 +15,6 @@ extern  const word16 mqttAuthInitYear ;
 static  RTC_HandleTypeDef   hrtc;
 // timer used for other peripherals in STM32F446 development board
 static  TIM_HandleTypeDef   htim2;
-// STM32F446 board doesn't have network hardware module, in order to run this MQTT implementation,
-// it's essential to connect this board to external network device (e.g. ESP8266 wifi module)
-static  UART_HandleTypeDef haluart3; 
-// the DMA module used with UART3 (STM32F4xx board)
-static  DMA_HandleTypeDef  haldma_usart3_rx; 
 // get rough response data from ESP device.
 static  uint8_t   recv_data_buf[ HAL_DMA_RECV_BUF_SIZE ]; 
 // in each system port, DMA/UART ISR should specify starting offset 
@@ -31,8 +25,14 @@ static  uint16_t  dma_buf_cpy_offset_curr = 0;
 
 static  uint8_t  platform_stm32_hal_init_flag = 0;
 
-
-
+// ---- external configuration functions ----
+extern HAL_StatusTypeDef  SystemClock_Config(void);
+extern HAL_StatusTypeDef  STM32_HAL_GPIO_Init( void );
+extern HAL_StatusTypeDef  STM32_HAL_DMA_Init( void );
+extern HAL_StatusTypeDef  STM32_HAL_UART_Init( void );
+extern HAL_StatusTypeDef  STM32_HAL_UART_DeInit( void );
+extern UART_HandleTypeDef *STM32_config_UART(void);
+extern DMA_HandleTypeDef  *STM32_config_DMA4UART(void);
 
 // @brief  This function configures the TIM2 as a time base source. 
 //         The time source is configured  to have 1ms time base with a dedicated 
@@ -48,6 +48,7 @@ static  uint8_t  platform_stm32_hal_init_flag = 0;
 // * this function can be called by STM32_HAL_Init() or HAL_RCC_ClockConfig() 
 HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
 {
+    // TODO, remove this overwrite , use HAL default implementation instead
     RCC_ClkInitTypeDef    clkconfig;
     uint32_t              uwTimclock = 0;
     uint32_t              uwPrescalerValue = 0;
@@ -99,58 +100,6 @@ static void STM32_HAL_MspInit(void)
   __HAL_RCC_PWR_CLK_ENABLE();
 }
 
-
-
-
-/**
-  * @brief System Clock Configuration
-  * @retval None
-  */
-static HAL_StatusTypeDef SystemClock_Config(void)
-{
-    HAL_StatusTypeDef status = HAL_OK;
-    RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-    RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-    RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
-  
-    // Configure the main internal regulator output voltage
-    __HAL_RCC_PWR_CLK_ENABLE();
-    __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
-    // Initializes the CPU, AHB and APB busses clocks
-    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_LSI;
-    RCC_OscInitStruct.LSEState = RCC_LSE_OFF;
-    RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-    RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-    RCC_OscInitStruct.LSIState = RCC_LSI_ON;
-    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-    RCC_OscInitStruct.PLL.PLLM = 8;
-    RCC_OscInitStruct.PLL.PLLN = 80;
-    RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-    RCC_OscInitStruct.PLL.PLLQ = 2;
-    RCC_OscInitStruct.PLL.PLLR = 2;
-    status = HAL_RCC_OscConfig(&RCC_OscInitStruct);
-    if (status != HAL_OK) { goto done; }
-    // Initializes the CPU, AHB and APB busses clocks
-    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                                |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-    RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-    RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
-    RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-    status =  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
-    if (status != HAL_OK) { goto done; }
-    // initialize clocks for RTC
-    PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RTC;
-    PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
-    status = HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct);
-done:
-    return status;
-} // end of SystemClock_Config
-
-
-
-
 // @brief  This function is used to initialize the HAL Library; it must be the first 
 //         instruction to be executed in the main program (before to call any other
 //         HAL function), it performs the following:
@@ -197,51 +146,6 @@ void HAL_RTC_MspInit(RTC_HandleTypeDef* hrtc)
     }
 } // end of HAL_RTC_MspInit
 
-
-// will be called by HAL_UART_Init()
-void HAL_UART_MspInit(UART_HandleTypeDef* huart)
-{
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-    if(huart->Instance==USART3)
-    {
-        __HAL_RCC_USART3_CLK_ENABLE();
-        __HAL_RCC_GPIOC_CLK_ENABLE();
-        __HAL_RCC_GPIOB_CLK_ENABLE();
-        // USART3 GPIO Configuration    
-        // PC5     ------> USART3_RX
-        // PB10    ------> USART3_TX 
-        GPIO_InitStruct.Pin = GPIO_PIN_5;
-        GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-        GPIO_InitStruct.Pull = GPIO_PULLUP;
-        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-        GPIO_InitStruct.Alternate = GPIO_AF7_USART3;
-        HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-        GPIO_InitStruct.Pin = GPIO_PIN_10;
-        GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-        GPIO_InitStruct.Pull = GPIO_PULLUP;
-        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-        GPIO_InitStruct.Alternate = GPIO_AF7_USART3;
-        HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-    }
-} // end of HAL_UART_MspInit
-
-
-// will be called by HAL_UART_DeInit()
-void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
-{
-    if(huart->Instance==USART3)
-    {
-        __HAL_RCC_USART3_CLK_DISABLE();
-        // USART3 GPIO Configuration
-        // PC5     ------> USART3_RX
-        // PB10    ------> USART3_TX
-        HAL_GPIO_DeInit(GPIOB, GPIO_PIN_10);
-        HAL_GPIO_DeInit(GPIOC, GPIO_PIN_5);
-    }
-} // end of HAL_UART_MspDeInit
-
-
 // @brief  Suspend Tick increment.
 // @note   Disable the tick increment by disabling TIM2 update interrupt.
 // @param  None
@@ -267,161 +171,85 @@ void HAL_ResumeTick(void)
 
 // brief This function handles Non maskable interrupt.
 void NMI_Handler(void)
-{
-} // end of NMI_Handler
-
-
+{}
 
 // brief This function handles Pre-fetch fault, memory access fault.
-void BusFault_Handler(void)
-{
-  while (1);
+void BusFault_Handler(void) {
+    while (1);
 }
 
 
 
 // brief This function handles Undefined instruction or illegal state.
-void UsageFault_Handler(void)
-{
-  while (1);
+void UsageFault_Handler(void) {
+    while (1);
 }
 
 
 // brief This function handles Debug monitor.
 void DebugMon_Handler(void)
-{
-}
-
+{}
 
 // brief This function handles TIM2 global interrupt.
-void TIM2_IRQHandler(void)
-{
+void TIM2_IRQHandler(void) {
     HAL_TIM_IRQHandler(&htim2);
 }
 
-
-// DMA interrupt service routine used on STM32 board
-void DMA1_Stream1_IRQHandler(void)
-{
-  HAL_DMA_IRQHandler( &haldma_usart3_rx );
-} // end of DMA1_Stream1_IRQHandler
-
-
+void STM32_generic_DMAstream_IRQHandler(DMA_HandleTypeDef *hdma) {
+    HAL_DMA_IRQHandler(hdma);
+}
 
 void HAL_UART_RxHalfCpltCallback(UART_HandleTypeDef *huart)
-{
-} // end of HAL_UART_RxHalfCpltCallback
-
-
+{}
 
 // executed by DMA Transmission completion (TC) event interrupt
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-    if( huart == &haluart3){
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+    UART_HandleTypeDef *uart_cfg = STM32_config_UART();
+    if( huart == uart_cfg) {
         dma_buf_num_char_copied  = HAL_DMA_RECV_BUF_SIZE  -  dma_buf_cpy_offset_curr;
         mqttSysPktRecvHandler( (huart->pRxBuffPtr + dma_buf_cpy_offset_curr), dma_buf_num_char_copied );
         dma_buf_cpy_offset_curr = 0;
     }
-} // end of HAL_UART_RxCpltCallback
-
-
+}
 
 // UART Rx interrupt service routine in this test
-void USART3_IRQHandler( void )
-{
-    HAL_UART_IRQHandler(&haluart3);
+void STM32_generic_USART_IRQHandler(UART_HandleTypeDef *uart_cfg) {
+    HAL_UART_IRQHandler(uart_cfg);
     // check if Idle flag is set, if idle line detection event leads to this interrupt.
-    if ( __HAL_UART_GET_FLAG( &haluart3, UART_FLAG_IDLE ) )
-    {
+    if ( __HAL_UART_GET_FLAG( uart_cfg, UART_FLAG_IDLE ) ) {
         // clear current IDLE-detection interrupt.
-        __HAL_UART_CLEAR_IDLEFLAG( &haluart3 );
+        __HAL_UART_CLEAR_IDLEFLAG( uart_cfg );
+        DMA_HandleTypeDef  *uart3_rx = STM32_config_DMA4UART();
         // calculate received data bytes & its length, and pass it to higher-level handling function.
-        dma_buf_cpy_offset_next = HAL_DMA_RECV_BUF_SIZE - __HAL_DMA_GET_COUNTER( &haldma_usart3_rx );
-        if(dma_buf_cpy_offset_next > dma_buf_cpy_offset_curr && haluart3.pRxBuffPtr != NULL) {
+        dma_buf_cpy_offset_next = HAL_DMA_RECV_BUF_SIZE - __HAL_DMA_GET_COUNTER( uart3_rx );
+        if(dma_buf_cpy_offset_next > dma_buf_cpy_offset_curr && uart_cfg-> pRxBuffPtr != NULL) {
             dma_buf_num_char_copied  = dma_buf_cpy_offset_next -  dma_buf_cpy_offset_curr;
-            mqttSysPktRecvHandler( (haluart3.pRxBuffPtr + dma_buf_cpy_offset_curr), dma_buf_num_char_copied );
+            mqttSysPktRecvHandler( (uart_cfg->pRxBuffPtr + dma_buf_cpy_offset_curr), dma_buf_num_char_copied );
         } // otherwise, skip the received data from this interrupt, TODO: figure out if that's hardware error ?
         dma_buf_cpy_offset_curr = dma_buf_cpy_offset_next;
     } 
 } // end of USART3_IRQHandler
 
 
-
 static HAL_StatusTypeDef  STM32_HAL_periph_Init( void )
 {
-    // enable DMA 1 Stream 1 for UART3 Rx
-    __HAL_RCC_DMA1_CLK_ENABLE();
-    HAL_NVIC_SetPriority( DMA1_Stream1_IRQn, (configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1), 0 );
-    HAL_NVIC_EnableIRQ( DMA1_Stream1_IRQn );
-    //  ---------- initialize UART for ESP device ---------- 
-    haluart3.Instance = USART3;
-    haluart3.Init.BaudRate = 115200;
-    haluart3.Init.WordLength = UART_WORDLENGTH_8B;
-    haluart3.Init.StopBits = UART_STOPBITS_1;
-    haluart3.Init.Parity = UART_PARITY_NONE;
-    haluart3.Init.Mode = UART_MODE_TX_RX;
-    haluart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-    haluart3.Init.OverSampling = UART_OVERSAMPLING_16;
-    if (HAL_UART_Init(&haluart3) != HAL_OK) {
-        return HAL_ERROR;
-    }
-    //// manually enable IDLE line detection interrupt
-    __HAL_UART_ENABLE_IT( &haluart3 , UART_IT_IDLE );    
-    HAL_NVIC_SetPriority( USART3_IRQn, (configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY + 1), 0 );
-    HAL_NVIC_EnableIRQ( USART3_IRQn );
-    //  ---------- initialize DMA for Rx of ESP device. ---------- 
-    haldma_usart3_rx.Instance = DMA1_Stream1;
-    haldma_usart3_rx.Init.Channel = DMA_CHANNEL_4;
-    haldma_usart3_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
-    haldma_usart3_rx.Init.PeriphInc = DMA_PINC_DISABLE;
-    haldma_usart3_rx.Init.MemInc = DMA_MINC_ENABLE;
-    haldma_usart3_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-    haldma_usart3_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
-    haldma_usart3_rx.Init.Mode = DMA_CIRCULAR;
-    haldma_usart3_rx.Init.Priority = DMA_PRIORITY_LOW;
-    haldma_usart3_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
-    if (HAL_DMA_Init(&haldma_usart3_rx) != HAL_OK) {
-        return HAL_ERROR ;
-    }
-    __HAL_LINKDMA(&haluart3, hdmarx, haldma_usart3_rx);
-    //  ---------- initialize GPIO pins  for ESP device ---------- 
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-    // GPIO Ports Clock Enable 
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
     __HAL_RCC_GPIOC_CLK_ENABLE();
-    // Configure GPIO pin Output Level
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
-    // Configure GPIO pins : PB9 as network device RST pin
-    GPIO_InitStruct.Pin = GPIO_PIN_9 ;
-    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-    // Configure GPIO pin : PC8 
-    GPIO_InitStruct.Pin = GPIO_PIN_8;
-    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-    // Configure GPIO pin : PC9 
-    GPIO_InitStruct.Pin = GPIO_PIN_9;
-    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-    return HAL_OK;
+    HAL_StatusTypeDef result = STM32_HAL_UART_Init();
+    if (result != HAL_OK) {
+        return result;
+    }
+    result = STM32_HAL_DMA_Init();
+    if (result != HAL_OK) {
+        return result;
+    }
+    return STM32_HAL_GPIO_Init();
 } // end of STM32_HAL_periph_Init 
 
-
-static HAL_StatusTypeDef  STM32_HAL_periph_Deinit( void )
-{
-    haluart3.Instance = USART3;
-    HAL_NVIC_DisableIRQ( USART3_IRQn );
-    __HAL_UART_DISABLE_IT( &haluart3 , UART_IT_IDLE );
-    HAL_UART_DeInit(&haluart3);
-    return HAL_OK;
-} // end of STM32_HAL_periph_Deinit
+static HAL_StatusTypeDef  STM32_HAL_periph_Deinit( void ) {
+    return STM32_HAL_UART_DeInit();
+}
 
 
 static HAL_StatusTypeDef STM32_HAL_RTC_Init(void)
@@ -462,10 +290,11 @@ mqttRespStatus   mqttPlatformPktRecvEnable( void )
 {
     mqttRespStatus     response   = MQTT_RESP_OK;
     HAL_StatusTypeDef  status_chk = HAL_ERROR;
+    UART_HandleTypeDef *uart_cfg = STM32_config_UART();
     dma_buf_num_char_copied  = 0;
     dma_buf_cpy_offset_next  = 0;
     dma_buf_cpy_offset_curr  = 0;
-    status_chk = HAL_UART_Receive_DMA( &haluart3, (uint8_t *)&recv_data_buf[0], HAL_DMA_RECV_BUF_SIZE );
+    status_chk = HAL_UART_Receive_DMA( uart_cfg, (uint8_t *)&recv_data_buf[0], HAL_DMA_RECV_BUF_SIZE );
     switch(status_chk) {
         case HAL_OK       : response = MQTT_RESP_OK     ;   break; 
         case HAL_ERROR    : response = MQTT_RESP_ERR    ;   break; 
@@ -482,7 +311,8 @@ mqttRespStatus   mqttPlatformPktRecvDisable( void )
 {
     mqttRespStatus     response   = MQTT_RESP_OK;
     HAL_StatusTypeDef  status_chk = HAL_ERROR;
-    status_chk = HAL_UART_DMAStop( &haluart3 );
+    UART_HandleTypeDef *uart_cfg = STM32_config_UART();
+    status_chk = HAL_UART_DMAStop( uart_cfg );
     ESP_MEMSET( (void *)&recv_data_buf, 0x00, HAL_DMA_RECV_BUF_SIZE );
     switch(status_chk) {
         case HAL_OK       : response = MQTT_RESP_OK     ;   break; 
@@ -500,7 +330,8 @@ mqttRespStatus  mqttPlatformPktSend( void* data, size_t len, uint32_t timeout )
 {
     mqttRespStatus     response   = MQTT_RESP_OK;
     HAL_StatusTypeDef  status_chk = HAL_ERROR;
-    status_chk  = HAL_UART_Transmit( &haluart3, (uint8_t* )data, len, timeout );
+    UART_HandleTypeDef *uart_cfg = STM32_config_UART();
+    status_chk  = HAL_UART_Transmit( uart_cfg, (uint8_t* )data, len, timeout );
     switch(status_chk) {
         case HAL_OK       : response = MQTT_RESP_OK     ;   break; 
         case HAL_ERROR    : response = MQTT_RESP_ERR    ;   break; 
@@ -519,6 +350,8 @@ mqttRespStatus  mqttPlatformNetworkModRst( uint8_t state )
     // at here, state = 0 means reset assertion, non-zero value means reset de-assertion.
     GPIO_PinState pinstate = state==0x0 ? GPIO_PIN_RESET: GPIO_PIN_SET;
     HAL_GPIO_WritePin( GPIOB, GPIO_PIN_9, pinstate );
+    // FIXME, TODO, make pins to entropy device configuarable.
+    // currnetly tied to PB9, not ideal
     return  MQTT_RESP_OK;
 } // end of mqttPlatformNetworkModRst
 
@@ -539,18 +372,16 @@ mqttRespStatus  mqttPlatformGetEntropy(mqttStr_t *out)
     if((out==NULL) || (out->data==NULL) || (out->len < 1) || (out->len > MQTT_MAX_BYTES_ENTROPY)) {
         return MQTT_RESP_ERRARGS;
     }
-    word32         start_time = 0;
-    word32         stop_time  = 0;
-    word32         tmp = 0;
-    word32         idx = 0;
-    word32         prev_wr_idx = 0;
-    word32         wr_idx    = 0;
-    word32         wr_offset = 0;
+    word32   start_time = 0, stop_time  = 0;
+    word32   tmp = 0,  idx = 0, prev_wr_idx = 0, wr_idx = 0, wr_offset = 0;
+
     const  word32  max_wait_time   = HAL_RCC_GetPCLK1Freq() >> 5;
     GPIO_PinState  echo_state;
     const  uint8_t nbits_grab = 2; // grab 2 bits every time when we read from entropy
     word32         num_iterations = (out->len << 3) / nbits_grab;
 
+    // FIXME, TODO, make pins to entropy device configuarable.
+    // currnetly tied to PC8 and PC9, not ideal
     for(idx=0; idx<num_iterations; idx++) {
         HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
         mqttSysDelay(1);
@@ -604,8 +435,7 @@ done:
 } // end of mqttPlatformGetDateTime
 
 
-mqttRespStatus  mqttPlatformInit( void )
-{
+mqttRespStatus  mqttPlatformInit( void ) {
     HAL_StatusTypeDef  status = HAL_OK;
     // MCU Configuration--------------------------------------------------------  
     if(platform_stm32_hal_init_flag > 0) { // init count goes from 0x1 to 0x8
@@ -627,11 +457,7 @@ mqttRespStatus  mqttPlatformInit( void )
     return  (status == HAL_OK ? MQTT_RESP_OK : MQTT_RESP_ERR );
 } // end of mqttPlatformInit
 
-
-
-mqttRespStatus  mqttPlatformDeInit( void )
-{ // dummy , don't do anything
+mqttRespStatus  mqttPlatformDeInit( void ) {
     return   MQTT_RESP_OK ;
-} // end of mqttHwPlatformDeInit
-
+}
 

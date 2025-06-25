@@ -23,6 +23,7 @@
 #define LTC_NO_PKCS
 #define LTC_PKCS_1
 #define LTC_PKCS_5
+#define LTC_PKCS_12
 #define LTC_RSA_VERIFY_SIG_PKCS_1_V1_5_OVERWRITE
 #define LTC_RSA_SIGN_NO_PKCS_1_V1_5
 

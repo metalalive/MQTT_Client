@@ -83,9 +83,6 @@ class MicroOperations:
         in_list.append("\n")
         return in_list
 
-    def _GCC_include_option(in_list):
-        return MicroOperations._list_add_pattern_before(in_list, " -I")
-
     def _wrap_quote(in_str):
         if(isinstance(in_str, str)):
             in_str = ''.join(["\"", in_str,"\""])
@@ -114,7 +111,6 @@ class MicroOperations:
         "sysFnMap"       : _map_C_sys_fn,
         "genCdefine"     : _gen_C_define,
         "getCinclude"    : _gen_C_include,
-        "GCCincludeOpt"  : _GCC_include_option,
         "wrapQuote"      : _wrap_quote,
         "convertBCD"     : _convert_BCD,
         "ListAppendSemicolon"  : _list_append_semicolon,
