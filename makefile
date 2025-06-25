@@ -81,8 +81,11 @@ TARGET_LIB_PATH=$(BUILD_DIR)/$(TARGET_LIB_NAME)
 ifdef APPCFG_BASEPATH
 	include  $(APPCFG_BASEPATH)/config.mk
 endif
-# include generated build script
-include  ./generate/auto/makefile
+
+ifeq ($(strip $(filter help clean config, $(MAKECMDGOALS))), )
+	# include generated build script
+	include  ./generate/auto/makefile
+endif
 
 # optimization
 OPT = -Og
@@ -157,13 +160,15 @@ $(BUILD_DIR):
 	@mkdir -p $@
 
 clean:
-	@rm -fR $(BUILD_DIR)
+	@rm -rf $(BUILD_DIR)
+	@make clean -C ./third_party
+	@make clean -C auto/codegen/script  MQC_PROJ_HOME=$(MQC_PROJ_HOME)
   
 download_3party:
 	@make download_3party -C  third_party
 
 config:
-	@make config -C  auto/codegen/script
+	@make config -C  auto/codegen/script  MQC_PROJ_HOME=$(MQC_PROJ_HOME)
 
 dbg_server:
 	@$(DBG_SERVER_CMD)

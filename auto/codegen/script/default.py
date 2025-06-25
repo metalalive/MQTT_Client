@@ -1,11 +1,11 @@
 from enum import Enum
 
 CFG_FILE_COMMENT_SYMBOL = "#"
-VAR_START_REGEX_SYNTAX = "\{{3,}"  # left-end syntax should be {{{
-VAR_END_REGEX_SYNTAX   = "\}{3,}"  # right-end syntax should be }}}
-VAR_START_OR_END_REGEX_SYNTAX = "[\{\}]{3,}"
+VAR_START_REGEX_SYNTAX = r"\{{3,}"  # left-end syntax should be {{{
+VAR_END_REGEX_SYNTAX   = r"\}{3,}"  # right-end syntax should be }}}
+VAR_START_OR_END_REGEX_SYNTAX = r"[\{\}]{3,}"
 ARB_CHARS_REGEX_LAZY   = ".*?"
-TEMPLATE_VAR_HIER_SEPERATOR  = "\."  # seperator syntax in variable hierarchy of a template file
+TEMPLATE_VAR_HIER_SEPERATOR  = r"\."  # seperator syntax in variable hierarchy of a template file
 TEMPLATE_VAR_MICROOPS_SYNTAX = "@"  # syntax to indicate micro operations(s) the code generator must do, in a template file
 TEMPLATE_VAR_WILDCARD_SYNTAX = "*"
 
