@@ -5,122 +5,121 @@
 extern "C" {
 #endif
 
-
 // if we don't have specific implementation for following functions, then we
 // call functions from standard C library as default
-#ifndef  XMEMSET
-#define  XMEMSET  memset
-#endif 
-
-#ifndef  XMALLOC
-#define  XMALLOC  malloc
-#endif 
-
-#ifndef  XCALLOC
-#define  XCALLOC  calloc
+#ifndef XMEMSET
+    #define XMEMSET memset
 #endif
 
-#ifndef  XREALLOC
-#define  XREALLOC  realloc 
+#ifndef XMALLOC
+    #define XMALLOC malloc
 #endif
 
-#ifndef  XMEMCPY
-#define  XMEMCPY  memcpy
-#endif 
-
-#ifndef  XMEMFREE 
-#define  XMEMFREE  free
-#endif 
-
-#ifndef  XSTRLEN 
-#define  XSTRLEN  strlen
-#endif 
-
-#ifndef  XSTRCHR
-#define  XSTRCHR  strchr
+#ifndef XCALLOC
+    #define XCALLOC calloc
 #endif
 
-#ifndef  XMEMCHR
-#define  XMEMCHR  memchr
+#ifndef XREALLOC
+    #define XREALLOC realloc
 #endif
 
-#ifndef  XSTRSTR
-#define  XSTRSTR  strstr
+#ifndef XMEMCPY
+    #define XMEMCPY memcpy
 #endif
 
-#ifndef  XSTRNSTR
-#define  XSTRNSTR  strnstr
+#ifndef XMEMFREE
+    #define XMEMFREE free
 #endif
 
-#ifndef  XSTRNCMP
-#define  XSTRNCMP  strncmp
+#ifndef XSTRLEN
+    #define XSTRLEN strlen
+#endif
+
+#ifndef XSTRCHR
+    #define XSTRCHR strchr
+#endif
+
+#ifndef XMEMCHR
+    #define XMEMCHR memchr
+#endif
+
+#ifndef XSTRSTR
+    #define XSTRSTR strstr
+#endif
+
+#ifndef XSTRNSTR
+    #define XSTRNSTR strnstr
+#endif
+
+#ifndef XSTRNCMP
+    #define XSTRNCMP strncmp
 #endif
 
 #ifndef XMEMMOVE
-#define XMEMMOVE memmove
+    #define XMEMMOVE memmove
 #endif
 
-#ifndef  XASSERT
-#define  XASSERT( x ) if((x) == 0) { for(;;); } 
+// clang-format off
+#ifndef XASSERT
+#define XASSERT(x)  if ((x) == 0) { for (;;); }
 #endif
-
-
+// clang-format on
 
 // ----------------------------------------------------------------------------------
 // low-level interfaces for implementation on different operating system / platform
 // ----------------------------------------------------------------------------------
 
-mqttRespStatus  mqttSysInit( void );
+mqttRespStatus mqttSysInit(void);
 
-mqttRespStatus  mqttSysDeInit( void );
+mqttRespStatus mqttSysDeInit(void);
 
-mqttRespStatus  mqttSysThreadCreate( const char* name, mqttSysThreFn thread_fn,  void* const arg,  size_t stack_size,
-                                     uint32_t prio, uint8_t isPrivileged,  mqttSysThre_t *out_thread_ptr );
+mqttRespStatus mqttSysThreadCreate(
+    const char *name, mqttSysThreFn thread_fn, void *const arg, size_t stack_size, uint32_t prio,
+    uint8_t isPrivileged, mqttSysThre_t *out_thread_ptr
+);
 
-mqttRespStatus  mqttSysThreadDelete( mqttSysThre_t *thre_in );
+mqttRespStatus mqttSysThreadDelete(mqttSysThre_t *thre_in);
 
-mqttRespStatus  mqttSysThreadWaitUntilExit( mqttSysThre_t *thre_in, void **return_p );
+mqttRespStatus mqttSysThreadWaitUntilExit(mqttSysThre_t *thre_in, void **return_p);
 
-void  mqttSysDelay(uint32_t ms);
+void mqttSysDelay(uint32_t ms);
 
+mqttRespStatus mqttSysNetconnStart(mqttCtx_t *mctx);
 
-mqttRespStatus  mqttSysNetconnStart( mqttCtx_t *mctx );
-
-mqttRespStatus  mqttSysNetconnStop( mqttCtx_t *mctx );
+mqttRespStatus mqttSysNetconnStop(mqttCtx_t *mctx);
 
 // Here are for packet reading / writing from underlying system implementation
 // meaning of the return value :
-//     positive  integer --> number of bytes read 
+//     positive  integer --> number of bytes read
 //     negative  integer --> error code defined in mqttRespStatus
-// 
-// it's unlikely to return zero value even on transmission timeout 
+//
+// it's unlikely to return zero value even on transmission timeout
 
-int  mqttSysPktRead( void **extsysobjs,  byte *buf, word32 buf_len, int timeout_ms );
+int mqttSysPktRead(void **extsysobjs, byte *buf, word32 buf_len, int timeout_ms);
 
-int  mqttSysPktWrite( void **extsysobjs, byte *buf, word32 buf_len );
+int mqttSysPktWrite(void **extsysobjs, byte *buf, word32 buf_len);
 
-
-// the packet receiving handler is the interface to interrupt service routine &  is 
+// the packet receiving handler is the interface to interrupt service routine &  is
 // supposed to be called by underlying hardware layer functions.
-mqttRespStatus  mqttSysPktRecvHandler( uint8_t* data, uint16_t data_len );
+mqttRespStatus mqttSysPktRecvHandler(uint8_t *data, uint16_t data_len);
 
-
-// Random Number Generator (RNG), the most appropriate way to implement RNG in an embedded application 
-// (especially for MCU-based project) is to setup your hardware input. For example :
+// Random Number Generator (RNG), the most appropriate way to implement RNG in an embedded
+// application (especially for MCU-based project) is to setup your hardware input. For example :
 //     * use analog devices that sense surrounding environment change such as lighting condition,
-//       temperature, humidity, air quality etc... convert these changes to digital random bits in the CPU system.
-//     * design your own RNG circuit e.g. OneRNG, to create noise, convert them into digital random bits.
+//       temperature, humidity, air quality etc... convert these changes to digital random bits in
+//       the CPU system.
+//     * design your own RNG circuit e.g. OneRNG, to create noise, convert them into digital random
+//     bits.
 //
 // these can be reliable sources of random seed value.
 // interface for entropy function
-mqttRespStatus  mqttSysGetEntropy(mqttStr_t *out);
-
+mqttRespStatus mqttSysGetEntropy(mqttStr_t *out);
 
 // return current time in milliseconds modulo 2^32 since OS boot
-word32  mqttSysGetTimeMs(void);
+word32 mqttSysGetTimeMs(void);
 
 // get current year/month/date/time
-mqttRespStatus  mqttSysGetDateTime(mqttDateTime_t *out);
+mqttRespStatus mqttSysGetDateTime(mqttDateTime_t *out);
 
 #ifdef __cplusplus
 }

@@ -5,22 +5,24 @@
 extern "C" {
 #endif
 
-tlsRespStatus  tlsGenEarlySecret(const tlsCipherSpec_t *cs, tlsPSK_t *pskin, tlsOpaque8b_t *out);
+tlsRespStatus tlsGenEarlySecret(const tlsCipherSpec_t *, tlsPSK_t *pskin, tlsOpaque8b_t *out);
 
-tlsRespStatus  tlsDerivePSKbinderKey(tlsPSK_t *pskin, tlsOpaque8b_t *out);
+tlsRespStatus tlsDerivePSKbinderKey(tlsPSK_t *pskin, tlsOpaque8b_t *out);
 
 // derive handshake traffic secret for both client & server
-tlsRespStatus  tlsDeriveHStrafficSecret(tlsSession_t *session,  tlsOpaque8b_t* earlysecret_in);
+tlsRespStatus tlsDeriveHStrafficSecret(tlsSession_t *, tlsOpaque8b_t *earlysecret_in);
 
-tlsRespStatus  tlsDeriveAPPtrafficSecret(tlsSession_t *session);
+tlsRespStatus tlsDeriveAPPtrafficSecret(tlsSession_t *);
 
-// derive encrypt/decrypt keys for both client & server, during handshake process, or application data transmission
-tlsRespStatus  tlsDeriveTraffickey(tlsSecurityElements_t *sec, tlsOpaque8b_t  *in_rd_secret, tlsOpaque8b_t  *in_wr_secret);
+// derive encrypt/decrypt keys for both client & server, during handshake process, or application
+// data transmission
+tlsRespStatus tlsDeriveTraffickey(
+    tlsSecurityElements_t *, tlsOpaque8b_t *in_rd_secret, tlsOpaque8b_t *in_wr_secret
+);
 
-tlsRespStatus  tlsActivateReadKey(tlsSecurityElements_t *sec);
+tlsRespStatus tlsActivateReadKey(tlsSecurityElements_t *);
 
-tlsRespStatus  tlsActivateWriteKey(tlsSecurityElements_t *sec);
-
+tlsRespStatus tlsActivateWriteKey(tlsSecurityElements_t *);
 
 #ifdef __cplusplus
 }

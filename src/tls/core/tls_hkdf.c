@@ -1,30 +1,31 @@
 #include "mqtt_include.h"
 
-tlsRespStatus  tlsHKDFexpand(tlsHashAlgoID hash_id, tlsOpaque8b_t *prk, tlsOpaque16b_t *info, tlsOpaque8b_t *okm)
-{
-    if((prk == NULL) || (info == NULL) || (okm == NULL)) {
+tlsRespStatus
+tlsHKDFexpand(tlsHashAlgoID hash_id, tlsOpaque8b_t *prk, tlsOpaque16b_t *info, tlsOpaque8b_t *okm) {
+    if ((prk == NULL) || (info == NULL) || (okm == NULL)) {
         return TLS_RESP_ERRARGS;
     }
-    if((prk->data == NULL) || (info->data == NULL) || (okm->data == NULL)) {
+    if ((prk->data == NULL) || (info->data == NULL) || (okm->data == NULL)) {
         return TLS_RESP_ERRARGS;
     }
-    if((prk->len == 0) || (info->len == 0) || (okm->len == 0)) {
+    if ((prk->len == 0) || (info->len == 0) || (okm->len == 0)) {
         return TLS_RESP_ERRARGS;
     }
-    word16  hash_sz = mqttHashGetOutlenBytes(hash_id);
+    word16 hash_sz = mqttHashGetOutlenBytes(hash_id);
     // L = okm->len <= 255 * hash_sz , in this implementation , we set L <= (hash_sz << 2) instead
-    if((hash_sz > prk->len) || ((hash_sz << 2) < okm->len) || (TLS_MAX_BYTES_HKDF_EXPAND_INFO < info->len)) {
+    if ((hash_sz > prk->len) || ((hash_sz << 2) < okm->len) ||
+        (TLS_MAX_BYTES_HKDF_EXPAND_INFO < info->len)) {
         return TLS_RESP_ERRARGS;
     }
-    tlsRespStatus  status  = TLS_RESP_OK;
-    byte    *T   = NULL;
-    byte    *buf = NULL;
-    byte    *ptr = NULL; // pointer to somewhere in buf
-    word16   T_len = hash_sz;
-    word16   outlen_copied = 0;
-    byte     idx = 0;
+    tlsRespStatus status = TLS_RESP_OK;
+    byte         *T = NULL;
+    byte         *buf = NULL;
+    byte         *ptr = NULL; // pointer to somewhere in buf
+    word16        T_len = hash_sz;
+    word16        outlen_copied = 0;
+    byte          idx = 0;
 
-    T   = XMALLOC(sizeof(byte) * T_len);
+    T = XMALLOC(sizeof(byte) * T_len);
     buf = XMALLOC(sizeof(byte) * (T_len + info->len + 1));
     // section 2.3, RFC5869, the output OKM is calculated as follows:
     // N = ceil(L/HashLen)
@@ -39,27 +40,27 @@ tlsRespStatus  tlsHKDFexpand(tlsHashAlgoID hash_id, tlsOpaque8b_t *prk, tlsOpaqu
         // T(2) = HMAC-Hash(PRK, T(1) | info | 0x02)
         // ...
         // T(idx) = HMAC-Hash(PRK, T(idx-1) | info | idx)
-        if(idx > 1) {
+        if (idx > 1) {
             XMEMCPY(ptr, T, T_len);
             ptr += T_len;
         }
-        XMEMCPY( ptr, info->data, info->len );
+        XMEMCPY(ptr, info->data, info->len);
         ptr += info->len;
         *ptr++ = idx++;
         // calculate  HMAC-Hash()
         // input buf[0 ..... (buf - ptr - 1)]
-        TLS_CFG_HMAC_MEMBLOCK_FN( status, hash_id,   prk->data, prk->len,
-                                  buf, (ptr - buf),  T, T_len );
+        TLS_CFG_HMAC_MEMBLOCK_FN(status, hash_id, prk->data, prk->len, buf, (ptr - buf), T, T_len);
         /// XASSERT(T_len == hash_sz);
-        if(status < 0) { break; }
-        if((okm->len - outlen_copied) <= T_len) {
-           XMEMCPY(&okm->data[outlen_copied], T, (okm->len - outlen_copied));
-           //// outlen_copied += (okm->len - outlen_copied);
-           break;
+        if (status < 0) {
+            break;
         }
-        else {
-           XMEMCPY(&okm->data[outlen_copied], T, T_len);
-           outlen_copied += T_len;
+        if ((okm->len - outlen_copied) <= T_len) {
+            XMEMCPY(&okm->data[outlen_copied], T, (okm->len - outlen_copied));
+            //// outlen_copied += (okm->len - outlen_copied);
+            break;
+        } else {
+            XMEMCPY(&okm->data[outlen_copied], T, T_len);
+            outlen_copied += T_len;
         }
     } // end of loop
     XMEMFREE((void *)T);
@@ -67,31 +68,31 @@ tlsRespStatus  tlsHKDFexpand(tlsHashAlgoID hash_id, tlsOpaque8b_t *prk, tlsOpaqu
     return status;
 } // end of tlsHKDFexpand
 
-
-
-tlsRespStatus  tlsHKDFextract(tlsHashAlgoID hash_id, word16 hash_sz, tlsOpaque8b_t *out, tlsOpaque8b_t *ikm, tlsOpaque8b_t *salt)
-{
-    if((out == NULL) || (ikm == NULL) || (salt == NULL)) {
+tlsRespStatus tlsHKDFextract(
+    tlsHashAlgoID hash_id, word16 hash_sz, tlsOpaque8b_t *out, tlsOpaque8b_t *ikm,
+    tlsOpaque8b_t *salt
+) {
+    if ((out == NULL) || (ikm == NULL) || (salt == NULL)) {
         return TLS_RESP_ERRARGS;
     }
-    if((out->data == NULL) || (ikm->data == NULL) || (salt->data == NULL)) {
+    if ((out->data == NULL) || (ikm->data == NULL) || (salt->data == NULL)) {
         return TLS_RESP_ERRARGS;
     }
-    if((out->len == 0) || (ikm->len == 0) || (salt->len == 0)) {
+    if ((out->len == 0) || (ikm->len == 0) || (salt->len == 0)) {
         return TLS_RESP_ERRARGS;
     }
-    if(tlsValidateHashAlgoID(hash_id) < 0) {
+    if (tlsValidateHashAlgoID(hash_id) < 0) {
         return TLS_RESP_ERRARGS;
     }
-    if(hash_sz != mqttHashGetOutlenBytes(hash_id)) {
+    if (hash_sz != mqttHashGetOutlenBytes(hash_id)) {
         return TLS_RESP_ERRARGS;
     } // hash output size doesn't match hash algorithm ID
-    tlsRespStatus    status  = TLS_RESP_OK;
-    TLS_CFG_HMAC_MEMBLOCK_FN( status, hash_id,  salt->data, salt->len,
-                          ikm->data, ikm->len,  out->data, out->len );
+    tlsRespStatus status = TLS_RESP_OK;
+    TLS_CFG_HMAC_MEMBLOCK_FN(
+        status, hash_id, salt->data, salt->len, ikm->data, ikm->len, out->data, out->len
+    );
     return status;
 } // end of tlsHKDFextract
-
 
 // section 7.1 , Key Schedule, RFC8446
 //
@@ -109,27 +110,30 @@ tlsRespStatus  tlsHKDFextract(tlsHashAlgoID hash_id, word16 hash_sz, tlsOpaque8b
 //   prepended to the the vector context<0...255>
 // * zero-length hashed context could be appended to HkdfLabel, in such case the
 //   1-byte autual length field is still preserved.
-tlsRespStatus  tlsHKDFexpandLabel(tlsHashAlgoID hash_id, tlsOpaque8b_t *in_secret, tlsOpaque8b_t *label, 
-                                 tlsOpaque8b_t *context, tlsOpaque8b_t *out_secret)
-{
-    if((in_secret == NULL) || (label == NULL) || (out_secret == NULL)) {
+tlsRespStatus tlsHKDFexpandLabel(
+    tlsHashAlgoID hash_id, tlsOpaque8b_t *in_secret, tlsOpaque8b_t *label, tlsOpaque8b_t *context,
+    tlsOpaque8b_t *out_secret
+) {
+    if ((in_secret == NULL) || (label == NULL) || (out_secret == NULL)) {
         return TLS_RESP_ERRARGS;
     }
-    if((in_secret->data == NULL) || (label->data == NULL) || (out_secret->data == NULL)) {
+    if ((in_secret->data == NULL) || (label->data == NULL) || (out_secret->data == NULL)) {
         return TLS_RESP_ERRARGS;
     }
-    if((in_secret->len == 0) || (label->len == 0) || (out_secret->len == 0)) {
+    if ((in_secret->len == 0) || (label->len == 0) || (out_secret->len == 0)) {
         return TLS_RESP_ERRARGS;
     }
-    if(label->len > TLS_MAX_BYTES_HKDF_EXPAND_LABEL) {
+    if (label->len > TLS_MAX_BYTES_HKDF_EXPAND_LABEL) {
         return TLS_RESP_ERRARGS;
     }
-    tlsRespStatus   status    = TLS_RESP_OK;
-    tlsOpaque16b_t  hkdflabel = {0, NULL};
-    byte           *buf       = NULL;
-    const byte   tlslabellen  = sizeof(TLS_HKDF_LABEL_PREFIX) - 1;
-    hkdflabel.len  = 2 + (1 + tlslabellen + label->len) + 1;
-    if(context != NULL) { hkdflabel.len += context->len; }
+    tlsRespStatus  status = TLS_RESP_OK;
+    tlsOpaque16b_t hkdflabel = {0, NULL};
+    byte          *buf = NULL;
+    const byte     tlslabellen = sizeof(TLS_HKDF_LABEL_PREFIX) - 1;
+    hkdflabel.len = 2 + (1 + tlslabellen + label->len) + 1;
+    if (context != NULL) {
+        hkdflabel.len += context->len;
+    }
     hkdflabel.data = XMALLOC(sizeof(byte) * hkdflabel.len);
     buf = hkdflabel.data;
     // encode to HkdfLabel.length
@@ -140,8 +144,8 @@ tlsRespStatus  tlsHKDFexpandLabel(tlsHashAlgoID hash_id, tlsOpaque8b_t *in_secre
     XMEMCPY(&buf[tlslabellen], label->data, label->len);
     buf += (tlslabellen + label->len);
     // encode to HkdfLabel.context
-    *buf++ = (context != NULL) ? context->len: 0;
-    if(context != NULL) {
+    *buf++ = (context != NULL) ? context->len : 0;
+    if (context != NULL) {
         XMEMCPY(&buf[0], context->data, context->len);
         //// buf += context->len;
     }
@@ -149,5 +153,3 @@ tlsRespStatus  tlsHKDFexpandLabel(tlsHashAlgoID hash_id, tlsOpaque8b_t *in_secre
     XMEMFREE((void *)hkdflabel.data);
     return status;
 } // end of tlsHKDFexpandLabel
-
-

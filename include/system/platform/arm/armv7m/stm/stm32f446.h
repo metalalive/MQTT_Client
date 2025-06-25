@@ -10,33 +10,31 @@ extern "C" {
 #include "stm32f4xx_hal_tim.h"
 
 // maximum number of payload bytes that can be stored & handled in the memory of this platform
-#define  MQTT_PLATFORM_PKT_MAXBYTES   3072
+#define MQTT_PLATFORM_PKT_MAXBYTES 3072
 
 // enable function that receives raw bytes in the platform
-mqttRespStatus   mqttPlatformPktRecvEnable( void );
+mqttRespStatus mqttPlatformPktRecvEnable(void);
 
-mqttRespStatus   mqttPlatformPktRecvDisable( void );
+mqttRespStatus mqttPlatformPktRecvDisable(void);
 
 // send packet out
-mqttRespStatus  mqttPlatformPktSend( void* data, size_t len, uint32_t timeout );
+mqttRespStatus mqttPlatformPktSend(void *data, size_t len, uint32_t timeout);
 
 // reset network module in the platform, optional function for those MCU board which
 // externally wires to another network device e.g. ESP wifi module.
-mqttRespStatus  mqttPlatformNetworkModRst( uint8_t state );
+mqttRespStatus mqttPlatformNetworkModRst(uint8_t state);
 
-// entropy externally provided by other hardware device, developers can wire any external device (e.g. sersor)
-// to their target embedded system board generate source of random number
-mqttRespStatus  mqttPlatformGetEntropy(mqttStr_t *out);
+// entropy externally provided by other hardware device, developers can wire any external device
+// (e.g. sersor) to their target embedded system board generate source of random number
+mqttRespStatus mqttPlatformGetEntropy(mqttStr_t *out);
 
-mqttRespStatus  mqttPlatformGetDateTime(mqttDateTime_t *out);
+mqttRespStatus mqttPlatformGetDateTime(mqttDateTime_t *out);
 
-mqttRespStatus  mqttPlatformInit( void );
+mqttRespStatus mqttPlatformInit(void);
 
-mqttRespStatus  mqttPlatformDeInit( void );
-
+mqttRespStatus mqttPlatformDeInit(void);
 
 #ifdef __cplusplus
 }
 #endif
 #endif // end of MQTT_PLATFORM_ARM_V7M_STM32F446_H
-

@@ -2,321 +2,328 @@
 #include "mqtt_include.h"
 static word32 mqtt_sys_init_time_ms;
 
-
-static word32  mqttSysGetCurrTimeMs(void) {
+static word32 mqttSysGetCurrTimeMs(void) {
     // get millisecond time since the application started
-    struct timespec  ts_result;
-    int    return_code = 0;
-    word32 out = 0;
+    struct timespec ts_result;
+    int             return_code = 0;
+    word32          out = 0;
 
     return_code = clock_gettime(CLOCK_REALTIME, &ts_result);
-    if(return_code == 0) {
-        out  = ((ts_result.tv_sec * 1000) & 0xffffffff);
+    if (return_code == 0) {
+        out = ((ts_result.tv_sec * 1000) & 0xffffffff);
         out += ((ts_result.tv_nsec / 1000000) & 0xffffffff);
     } // return 0 for success
     return out;
 } // end of mqttSysGetCurrTimeMs
 
-
-mqttRespStatus  mqttSysInit( void )
-{
+mqttRespStatus mqttSysInit(void) {
     mqtt_sys_init_time_ms = mqttSysGetCurrTimeMs();
-    return  MQTT_RESP_OK ;
+    return MQTT_RESP_OK;
 } // end of mqttSysInit
 
+mqttRespStatus mqttSysDeInit(void) { return MQTT_RESP_OK; } // end of mqttSysDeInit
 
-mqttRespStatus  mqttSysDeInit( void )
-{
-    return  MQTT_RESP_OK ;
-} // end of mqttSysDeInit
-
-
-static  mqttRespStatus  mqttSysSockCreate( int *sockfd_out, struct addrinfo *ainfo )
-{
-    if((sockfd_out == NULL) || (ainfo == NULL)){ return MQTT_RESP_ERRARGS; }
-    int  status  = 0;
-    int  sockfd  = -1;
+static mqttRespStatus mqttSysSockCreate(int *sockfd_out, struct addrinfo *ainfo) {
+    if ((sockfd_out == NULL) || (ainfo == NULL)) {
+        return MQTT_RESP_ERRARGS;
+    }
+    int status = 0;
+    int sockfd = -1;
     // create a socket that uses IPv4 address, set the socket to be stream based (TCP)
     // the second argument is set to zero, which means we use default value.
-    sockfd = socket( ainfo->ai_family, ainfo->ai_socktype, ainfo->ai_protocol );
-    if(sockfd == -1) { return  MQTT_RESP_NO_NET_DEV; }
+    sockfd = socket(ainfo->ai_family, ainfo->ai_socktype, ainfo->ai_protocol);
+    if (sockfd == -1) {
+        return MQTT_RESP_NO_NET_DEV;
+    }
     // set non-blocking flag
-    status = fcntl( sockfd, F_SETFL, O_NONBLOCK );
-    if(status == -1) { return  MQTT_RESP_ERR; }
+    status = fcntl(sockfd, F_SETFL, O_NONBLOCK);
+    if (status == -1) {
+        return MQTT_RESP_ERR;
+    }
     status = connect(sockfd, (const struct sockaddr *)ainfo->ai_addr, ainfo->ai_addrlen);
-    if(status == -1) {
-        if(errno == EINPROGRESS) {
-            int        optval = 0;
-            socklen_t  optlen = 0;
-            while(1) {
-                status = getsockopt( sockfd, SOL_SOCKET, SO_ERROR, (void *)&optval, &optlen );
-                if(status == 0 && optval == 0) { break; }
-                // there would be latency before connect() completes, so the current thread yields & let other threads run
+    if (status == -1) {
+        if (errno == EINPROGRESS) {
+            int       optval = 0;
+            socklen_t optlen = 0;
+            while (1) {
+                status = getsockopt(sockfd, SOL_SOCKET, SO_ERROR, (void *)&optval, &optlen);
+                if (status == 0 && optval == 0) {
+                    break;
+                }
+                // there would be latency before connect() completes, so the current thread yields &
+                // let other threads run
                 sched_yield();
             } // end of while-loop statement
-        }
-        else {
+        } else {
             close(sockfd);
             return MQTT_RESP_ERR_CONN;
         }
     } // connect to MQTT broker
     *sockfd_out = sockfd;
-    return  MQTT_RESP_OK ;
+    return MQTT_RESP_OK;
 } // end of mqttSysSockCreate
 
-
-
-mqttRespStatus  mqttSysNetconnStart( mqttCtx_t *mctx )
-{
-    if(mctx == NULL){ return MQTT_RESP_ERRARGS; }
-    int    sockfd  = -1;
-    int    status  = 0;
-    struct sockaddr_in  serv_addr;
+mqttRespStatus mqttSysNetconnStart(mqttCtx_t *mctx) {
+    if (mctx == NULL) {
+        return MQTT_RESP_ERRARGS;
+    }
+    int                sockfd = -1;
+    int                status = 0;
+    struct sockaddr_in serv_addr;
     // get broker hostname & port
-    mqttAuthGetBrokerHost( &mctx->broker_host, &mctx->broker_port );
-    XMEMSET( &serv_addr, 0x00, sizeof(serv_addr) );
+    mqttAuthGetBrokerHost(&mctx->broker_host, &mctx->broker_port);
+    XMEMSET(&serv_addr, 0x00, sizeof(serv_addr));
     // check whether the given broker_host stores IP address or host name, or malformed char array.
     status = inet_pton(AF_INET, (const char *)&mctx->broker_host->data[0], &serv_addr.sin_addr);
-    if(status == 1) { // success return value, the given broker_host stores IP address
+    if (status == 1) { // success return value, the given broker_host stores IP address
         // prepare address & port number of the broker this client will connect
         serv_addr.sin_family = AF_INET;
-        serv_addr.sin_port   = htons(mctx->broker_port);
-        struct addrinfo *ainfop = (struct addrinfo *) XMALLOC(sizeof(struct addrinfo));
+        serv_addr.sin_port = htons(mctx->broker_port);
+        struct addrinfo *ainfop = (struct addrinfo *)XMALLOC(sizeof(struct addrinfo));
         XMEMSET(ainfop, 0x00, sizeof(struct addrinfo));
-        ainfop->ai_family    = AF_INET;
-        ainfop->ai_socktype  = SOCK_STREAM;
-        ainfop->ai_addr      = (struct sockaddr *)&serv_addr;
-        ainfop->ai_addrlen   = sizeof(struct sockaddr_in);
-        status = mqttSysSockCreate( &sockfd, ainfop );
+        ainfop->ai_family = AF_INET;
+        ainfop->ai_socktype = SOCK_STREAM;
+        ainfop->ai_addr = (struct sockaddr *)&serv_addr;
+        ainfop->ai_addrlen = sizeof(struct sockaddr_in);
+        status = mqttSysSockCreate(&sockfd, ainfop);
         XMEMFREE((void *)ainfop);
-    }
-    else { // the given broker_host stores host name, not IP address, which requires DNS lookup first
+    } else { // the given broker_host stores host name, not IP address, which requires DNS lookup
+             // first
         // TODO: test this part of code
-        struct addrinfo  *dnlu_result = NULL; // result linked list of domain name lookup
-        struct addrinfo  *idx         = NULL;
+        struct addrinfo *dnlu_result = NULL; // result linked list of domain name lookup
+        struct addrinfo *idx = NULL;
         // convert host name to IP address, set service argument to NULL
         status = getaddrinfo((const char *)&mctx->broker_host->data[0], NULL, NULL, &dnlu_result);
-        if(status != 0) { return MQTT_RESP_ERR_CONN; }
-        for(idx = dnlu_result; idx != NULL; idx = idx->ai_next)
-        { // iterate over result address list generated by getaddrinfo() above
+        if (status != 0) {
+            return MQTT_RESP_ERR_CONN;
+        }
+        for (idx = dnlu_result; idx != NULL;
+             idx = idx->ai_next) { // iterate over result address list generated by getaddrinfo()
+                                   // above
             // directly set the port number
             struct sockaddr *ai_addr_p = idx->ai_addr;
-            switch(ai_addr_p->sa_family) { // should ai_addr->sa_family always be the same as idx->ai_family ?
-                case AF_INET6:
-                    ((struct sockaddr_in6 *)ai_addr_p)->sin6_port = htons(mctx->broker_port);
-                    break;
-                case AF_INET:
-                default:
-                    ((struct sockaddr_in *)ai_addr_p)->sin_port = htons(mctx->broker_port);
-                    break;
+            switch (ai_addr_p->sa_family
+            ) { // should ai_addr->sa_family always be the same as idx->ai_family ?
+            case AF_INET6:
+                ((struct sockaddr_in6 *)ai_addr_p)->sin6_port = htons(mctx->broker_port);
+                break;
+            case AF_INET:
+            default:
+                ((struct sockaddr_in *)ai_addr_p)->sin_port = htons(mctx->broker_port);
+                break;
             } // end of switch-case statement
-            status = mqttSysSockCreate( &sockfd, idx );
+            status = mqttSysSockCreate(&sockfd, idx);
             // if connection failure happened, try next IP address (if exists)
             // break as soon as connection success happens
-            if(status == MQTT_RESP_OK) { break; }
+            if (status == MQTT_RESP_OK) {
+                break;
+            }
         } // end of for-loop statement
-        freeaddrinfo(dnlu_result) ; // free the list generated from getaddrinfo() above
-        if(idx == NULL) { return MQTT_RESP_ERR_CONN ; }
+        freeaddrinfo(dnlu_result); // free the list generated from getaddrinfo() above
+        if (idx == NULL) {
+            return MQTT_RESP_ERR_CONN;
+        }
     } // end of host name check
 
-    mctx->ext_sysobjs[0] = (void *) sockfd;
-    return  MQTT_RESP_OK ;
+    mctx->ext_sysobjs[0] = (void *)sockfd;
+    return MQTT_RESP_OK;
 } // end of mqttSysNetconnStart
 
-
-
-mqttRespStatus  mqttSysNetconnStop( mqttCtx_t *mctx )
-{
-    if(mctx == NULL) { return MQTT_RESP_ERRARGS; }
-    int sockfd = (int) mctx->ext_sysobjs[0] ;
+mqttRespStatus mqttSysNetconnStop(mqttCtx_t *mctx) {
+    if (mctx == NULL) {
+        return MQTT_RESP_ERRARGS;
+    }
+    int sockfd = (int)mctx->ext_sysobjs[0];
     mctx->ext_sysobjs[0] = NULL;
-    if(sockfd <= 0){ return MQTT_RESP_ERR; }
-    if(close(sockfd) != 0){ return MQTT_RESP_ERR_CONN; }
-    return  MQTT_RESP_OK ;
+    if (sockfd <= 0) {
+        return MQTT_RESP_ERR;
+    }
+    if (close(sockfd) != 0) {
+        return MQTT_RESP_ERR_CONN;
+    }
+    return MQTT_RESP_OK;
 } // end of mqttSysNetconnStop
 
+static mqttRespStatus mqttSysChkSockfdAvail(int sockfd_in, short evt_in, int poll_timeout_ms) {
+    const nfds_t  nfds = 1;
+    int           status = 0;
+    uint8_t       num_timeout = 0;
+    uint8_t       max_num_timeout = 10;
+    struct pollfd userfds;
 
-
-static mqttRespStatus mqttSysChkSockfdAvail (int sockfd_in, short evt_in, int poll_timeout_ms)
-{
-    const nfds_t nfds = 1;
-    int      status  = 0;
-    uint8_t  num_timeout      = 0;
-    uint8_t  max_num_timeout  = 10;
-    struct pollfd  userfds;
-
-    userfds.fd      = sockfd_in;
-    userfds.events  = evt_in;
+    userfds.fd = sockfd_in;
+    userfds.events = evt_in;
     userfds.revents = 0;
     poll_timeout_ms = poll_timeout_ms / max_num_timeout;
-    while(1) { // TODO: scale this implementation while we have to consider multiple sockets case
-        status = poll( &userfds, nfds, poll_timeout_ms );
-        if(status == 0) {
-            if(num_timeout < max_num_timeout) {
+    while (1) { // TODO: scale this implementation while we have to consider multiple sockets case
+        status = poll(&userfds, nfds, poll_timeout_ms);
+        if (status == 0) {
+            if (num_timeout < max_num_timeout) {
                 num_timeout++;
                 continue;
+            } else {
+                return MQTT_RESP_TIMEOUT;
             }
-            else { return MQTT_RESP_TIMEOUT; }
         } // timeout occured, we might poll again
-        else if(status > 0 && status <= nfds) {
+        else if (status > 0 && status <= nfds) {
             // data is avaiable & user can call recv()
-            if((userfds.revents | evt_in) != 0) { break; } 
-            // other flags are set & stored in revents field 
-            else { return MQTT_RESP_ERR_TRANSMIT; } 
-        }
-        else { return MQTT_RESP_ERR; } // status == -1 
+            if ((userfds.revents | evt_in) != 0) {
+                break;
+            }
+            // other flags are set & stored in revents field
+            else {
+                return MQTT_RESP_ERR_TRANSMIT;
+            }
+        } else {
+            return MQTT_RESP_ERR;
+        } // status == -1
     } // end of while-loop operation
     return MQTT_RESP_OK;
 } // end of mqttSysChkSockfdAvail
 
-
-
-int  mqttSysPktRead( void **extsysobjs, byte *buf, word32 buf_len, int timeout_ms )
-{
-    if((extsysobjs == NULL) || (buf == NULL) || (buf_len == 0)) {
+int mqttSysPktRead(void **extsysobjs, byte *buf, word32 buf_len, int timeout_ms) {
+    if ((extsysobjs == NULL) || (buf == NULL) || (buf_len == 0)) {
         return MQTT_RESP_ERRARGS;
     }
-    int  sockfd  = (int) extsysobjs[0]; //// mctx->ext_sysobjs[0];
-    int  status  = 0;
+    int sockfd = (int)extsysobjs[0]; //// mctx->ext_sysobjs[0];
+    int status = 0;
 
     status = (mqttRespStatus)mqttSysChkSockfdAvail(sockfd, (POLLIN | POLLPRI), timeout_ms);
-    if(status == MQTT_RESP_OK) {
-        status = recv( sockfd, (void *)buf, buf_len, MSG_DONTWAIT );
-        if(status == -1){ status = MQTT_RESP_ERR_TRANSMIT; }
+    if (status == MQTT_RESP_OK) {
+        status = recv(sockfd, (void *)buf, buf_len, MSG_DONTWAIT);
+        if (status == -1) {
+            status = MQTT_RESP_ERR_TRANSMIT;
+        }
         // positive integer returning from recv() means number of bytes we read successfully
     }
     return status;
 } // end of mqttSysPktRead
 
-
-
-int  mqttSysPktWrite( void **extsysobjs, byte *buf, word32 buf_len )
-{
-    if((extsysobjs == NULL) || (buf == NULL) || (buf_len == 0)) {
-        return MQTT_RESP_ERRARGS ;
+int mqttSysPktWrite(void **extsysobjs, byte *buf, word32 buf_len) {
+    if ((extsysobjs == NULL) || (buf == NULL) || (buf_len == 0)) {
+        return MQTT_RESP_ERRARGS;
     }
-    int  sockfd  = (int) extsysobjs[0];
-    int  status  = 0;
+    int sockfd = (int)extsysobjs[0];
+    int status = 0;
 
     status = (mqttRespStatus)mqttSysChkSockfdAvail(sockfd, POLLOUT, 6000);
-    if(status == MQTT_RESP_OK) {
+    if (status == MQTT_RESP_OK) {
         // add MSG_NOSIGNAL flag to ignore SIGPIPE event asserted in the middle of send()
         // when the peer closed network connection abnormally at earlier time.
         // Note send() still returns error (-1) if connection to the peer is broken, in such case
         // errno is set to EPIPE even send() was called with MSG_NOSIGNAL.
-        status = send( sockfd, (const void *)buf, buf_len, (MSG_DONTWAIT | MSG_NOSIGNAL));
-        if(status == -1){ status = MQTT_RESP_ERR_TRANSMIT; }
+        status = send(sockfd, (const void *)buf, buf_len, (MSG_DONTWAIT | MSG_NOSIGNAL));
+        if (status == -1) {
+            status = MQTT_RESP_ERR_TRANSMIT;
+        }
         // positive integer returning from send() means number of bytes we wrote successfully
     }
     return status;
 } // end of mqttSysPktWrite
 
-
-
-mqttRespStatus  mqttSysThreadCreate( const char* name, mqttSysThreFn thread_fn, void* const arg,
-                                     size_t stack_size,  uint32_t prio, uint8_t isPrivileged,
-                                     mqttSysThre_t *out_thread_ptr  )
-{
-    pthread_attr_t  attr;
-    struct sched_param  param;
-    int status = 0;
-    if((name == NULL) || (thread_fn == NULL)) {
+mqttRespStatus mqttSysThreadCreate(
+    const char *name, mqttSysThreFn thread_fn, void *const arg, size_t stack_size, uint32_t prio,
+    uint8_t isPrivileged, mqttSysThre_t *out_thread_ptr
+) {
+    pthread_attr_t     attr;
+    struct sched_param param;
+    int                status = 0;
+    if ((name == NULL) || (thread_fn == NULL)) {
         return MQTT_RESP_ERRARGS;
     }
 
     status = pthread_attr_init(&attr);
-    if(status != 0){ return MQTT_RESP_ERR; }
-    stack_size = XMAX( stack_size, PTHREAD_STACK_MIN );
+    if (status != 0) {
+        return MQTT_RESP_ERR;
+    }
+    stack_size = XMAX(stack_size, PTHREAD_STACK_MIN);
     status = pthread_attr_setstacksize(&attr, stack_size);
-    if(status != 0){ return MQTT_RESP_ERRMEM; }
+    if (status != 0) {
+        return MQTT_RESP_ERRMEM;
+    }
     param.sched_priority = prio;
     status = pthread_attr_setschedparam(&attr, (const struct sched_param *)&param);
-    if(status != 0){ return MQTT_RESP_ERR; }
-    status = pthread_create((pthread_t *)out_thread_ptr, (const pthread_attr_t *)&attr,
-                              thread_fn, arg );
-    if(status != 0){ return MQTT_RESP_ERR; }
+    if (status != 0) {
+        return MQTT_RESP_ERR;
+    }
+    status =
+        pthread_create((pthread_t *)out_thread_ptr, (const pthread_attr_t *)&attr, thread_fn, arg);
+    if (status != 0) {
+        return MQTT_RESP_ERR;
+    }
     status = pthread_setname_np(*out_thread_ptr, name);
     pthread_attr_destroy(&attr);
     (void)isPrivileged;
-    return (status != 0) ? MQTT_RESP_ERR: MQTT_RESP_OK;
+    return (status != 0) ? MQTT_RESP_ERR : MQTT_RESP_OK;
 } // end of mqttSysThreadCreate
 
-
-
-mqttRespStatus  mqttSysThreadDelete( mqttSysThre_t *thre_in )
-{   // dummy function
+mqttRespStatus mqttSysThreadDelete(mqttSysThre_t *thre_in) { // dummy function
     return MQTT_RESP_OK;
 } // end of mqttSysThreadDelete
 
-
-
-mqttRespStatus  mqttSysThreadWaitUntilExit( mqttSysThre_t *thre_in, void **return_p )
-{
+mqttRespStatus mqttSysThreadWaitUntilExit(mqttSysThre_t *thre_in, void **return_p) {
     void *retval = NULL;
     int   status = 0;
-    if(thre_in == NULL) { return MQTT_RESP_ERRARGS; }
-    status = pthread_join(*thre_in, &retval );
-    if(return_p != NULL) {
-        *return_p = retval;
-    }
-    return (status != 0) ? MQTT_RESP_ERR: MQTT_RESP_OK;
-} // end of mqttSysThreadWaitUntilExit
-
-
-
-mqttRespStatus  mqttSysGetEntropy(mqttStr_t *out)
-{
-    if((out==NULL) || (out->data==NULL) || (out->len < 1) || (out->len > MQTT_MAX_BYTES_ENTROPY)) {
+    if (thre_in == NULL) {
         return MQTT_RESP_ERRARGS;
     }
-    byte   *buf     = &out->data[0];
-    size_t  buf_len = out->len;
-    size_t  rd_len  = 0;
-    FILE   *fp      = NULL;
+    status = pthread_join(*thre_in, &retval);
+    if (return_p != NULL) {
+        *return_p = retval;
+    }
+    return (status != 0) ? MQTT_RESP_ERR : MQTT_RESP_OK;
+} // end of mqttSysThreadWaitUntilExit
+
+mqttRespStatus mqttSysGetEntropy(mqttStr_t *out) {
+    if ((out == NULL) || (out->data == NULL) || (out->len < 1) ||
+        (out->len > MQTT_MAX_BYTES_ENTROPY)) {
+        return MQTT_RESP_ERRARGS;
+    }
+    byte  *buf = &out->data[0];
+    size_t buf_len = out->len;
+    size_t rd_len = 0;
+    FILE  *fp = NULL;
 
     fp = fopen("/dev/urandom", "rb");
-    if(fp == NULL) {
+    if (fp == NULL) {
         fp = fopen("/dev/random", "rb");
     }
-    if(fp == NULL) { return MQTT_RESP_ERR; }
+    if (fp == NULL) {
+        return MQTT_RESP_ERR;
+    }
     // disable buffering
-    if(setvbuf(fp, NULL, _IONBF, 0) != 0) {
+    if (setvbuf(fp, NULL, _IONBF, 0) != 0) {
         fclose(fp);
         return MQTT_RESP_ERR;
     }
     do {
-        rd_len   = fread( buf, 1, buf_len, fp );
-        if(rd_len < 1) {
+        rd_len = fread(buf, 1, buf_len, fp);
+        if (rd_len < 1) {
             continue;
-        } //wait & keep polling random device
+        } // wait & keep polling random device
         buf_len -= rd_len;
-        buf     += rd_len;
-    } while(buf_len > 0);
+        buf += rd_len;
+    } while (buf_len > 0);
     fclose(fp);
-    return  MQTT_RESP_OK;
+    return MQTT_RESP_OK;
 } // end of mqttSysGetEntropy
 
-
-mqttRespStatus  mqttSysGetDateTime(mqttDateTime_t *out)
-{
-    time_t     T = time(NULL);
-    struct tm *t = localtime(&T);
+mqttRespStatus mqttSysGetDateTime(mqttDateTime_t *out) {
+    time_t       T = time(NULL);
+    struct tm   *t = localtime(&T);
     unsigned int year = 1900 + t->tm_year;
-    const byte decimal_base = 10;
-    out->hour    = mqttCvtDecimalToBCDbyte(t->tm_hour   , decimal_base);
-    out->minite  = mqttCvtDecimalToBCDbyte(t->tm_min    , decimal_base);
-    out->second  = mqttCvtDecimalToBCDbyte(t->tm_sec    , decimal_base);
-    out->date    = mqttCvtDecimalToBCDbyte(t->tm_mday   , decimal_base);
-    out->month   = mqttCvtDecimalToBCDbyte(t->tm_mon + 1, decimal_base);
+    const byte   decimal_base = 10;
+    out->hour = mqttCvtDecimalToBCDbyte(t->tm_hour, decimal_base);
+    out->minite = mqttCvtDecimalToBCDbyte(t->tm_min, decimal_base);
+    out->second = mqttCvtDecimalToBCDbyte(t->tm_sec, decimal_base);
+    out->date = mqttCvtDecimalToBCDbyte(t->tm_mday, decimal_base);
+    out->month = mqttCvtDecimalToBCDbyte(t->tm_mon + 1, decimal_base);
     out->year[1] = mqttCvtDecimalToBCDbyte((year % 100), decimal_base);
     out->year[0] = mqttCvtDecimalToBCDbyte((year / 100), decimal_base);
-    return  MQTT_RESP_OK;
+    return MQTT_RESP_OK;
 } // end of mqttSysGetDateTime
 
-
-word32  mqttSysGetTimeMs(void) {
-    word32  curr_ms = mqttSysGetCurrTimeMs();
+word32 mqttSysGetTimeMs(void) {
+    word32 curr_ms = mqttSysGetCurrTimeMs();
     return mqttGetInterval(curr_ms, mqtt_sys_init_time_ms);
 } // end of mqttSysGetTimeMs
-
-

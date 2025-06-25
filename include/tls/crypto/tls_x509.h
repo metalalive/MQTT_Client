@@ -13,13 +13,11 @@ typedef enum {
 
 // X509 distinguished name attributes supported & recorded in this implementation
 typedef enum {
-    X509_DN_ATTRI_CN   = 0x3, // common name
-    X509_DN_ATTRI_ORG  = 0xa, // organization
+    X509_DN_ATTRI_CN = 0x3,  // common name
+    X509_DN_ATTRI_ORG = 0xa, // organization
 } tlsX509DNattriOID;
 
-
-tlsRespStatus  tlsDecodeX509cert(tlsCert_t *cert);
-
+tlsRespStatus tlsDecodeX509cert(tlsCert_t *cert);
 
 #ifdef __cplusplus
 }
