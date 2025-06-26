@@ -89,7 +89,7 @@ endif
 
 # code reformat
 REFMT_SRC_DIRS := \
-	./src/system/middleware \
+	./src/system \
 	./include/integration   \
 	./include/mqtt    \
 	./include/system  \
