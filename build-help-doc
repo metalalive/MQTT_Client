@@ -42,6 +42,17 @@ These commands are generally applicable regardless of the chosen middleware or p
     ```
 
 
+4.  make reformat
+    Description:
+        Reformats C source and header files in the project using `clang-format-18` based on the project's style configuration.
+        Note that only core implementation and test cases will be reformatted, the styling of 3rd-party substitution and auto-generated code will remain the same after this command.
+
+    Example:
+    ```
+    make reformat
+    ```
+
+
 --- Linux Middleware Commands ---
 
 These commands are used when middleware is set to Linux in mqttclient.conf.
@@ -241,4 +252,3 @@ Here's a summary of important variables you might need to set on the command lin
 *   mqttclient.conf: This file is the primary configuration source. Ensure it's correctly set up for your desired middleware and crypto library.
 *   `make config`: Remember to run `make config` every time you modify mqttclient.conf.
 *   Unit Tests: The `make utest` command can be used to run the unit tests.
-
