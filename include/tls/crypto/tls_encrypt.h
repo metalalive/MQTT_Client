@@ -5,12 +5,9 @@
 extern "C" {
 #endif
 
+tlsRespStatus tlsEncryptRecordMsg(tlsSession_t *);
 
-
-tlsRespStatus  tlsEncryptRecordMsg(tlsSession_t *session);
-
-tlsRespStatus  tlsDecryptRecordMsg(tlsSession_t *session);
-
+tlsRespStatus tlsDecryptRecordMsg(tlsSession_t *);
 
 #ifdef __cplusplus
 }

@@ -5,32 +5,27 @@
 extern "C" {
 #endif
 
+tlsRespStatus tlsPktSendToPeer(tlsSession_t *, byte flush_flg);
 
-tlsRespStatus tlsPktSendToPeer(tlsSession_t *session, byte flush_flg);
-
-tlsRespStatus tlsPktRecvFromPeer(tlsSession_t *session);
+tlsRespStatus tlsPktRecvFromPeer(tlsSession_t *);
 
 // helper functions for sending message if there are multiple fragments of it
-tlsRespStatus  tlsChkFragStateOutMsg(tlsSession_t *session);
+tlsRespStatus tlsChkFragStateOutMsg(tlsSession_t *);
 
-void  tlsInitFragNumOutMsg(tlsSession_t *session);
+void tlsInitFragNumOutMsg(tlsSession_t *);
 
-void  tlsIncrementFragNumOutMsg(tlsSession_t *session);
+void tlsIncrementFragNumOutMsg(tlsSession_t *);
 
-void  tlsDecrementFragNumOutMsg(tlsSession_t *session);
+void tlsDecrementFragNumOutMsg(tlsSession_t *);
 
 // helper functions for receiving message if there are multiple fragments of it
-tlsRespStatus  tlsChkFragStateInMsg(tlsSession_t *session);
+tlsRespStatus tlsChkFragStateInMsg(tlsSession_t *);
 
-void  tlsInitFragNumInMsg(tlsSession_t *session);
+void tlsInitFragNumInMsg(tlsSession_t *);
 
-void  tlsIncrementFragNumInMsg(tlsSession_t *session);
+void tlsIncrementFragNumInMsg(tlsSession_t *);
 
-void  tlsDecrementFragNumInMsg(tlsSession_t *session);
-
-
-
-
+void tlsDecrementFragNumInMsg(tlsSession_t *);
 
 #ifdef __cplusplus
 }

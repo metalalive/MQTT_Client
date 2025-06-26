@@ -5,15 +5,13 @@
 extern "C" {
 #endif
 
+tlsRespStatus tlsDecodeRecordLayer(tlsSession_t *);
 
-tlsRespStatus  tlsDecodeRecordLayer(tlsSession_t *session);
+tlsRespStatus tlsVerifyDecodeRecordType(tlsContentType rec_type);
 
-tlsRespStatus  tlsVerifyDecodeRecordType( tlsContentType rec_type );
+tlsRespStatus tlsVerifyDecodeVersionCode(const byte *ver_in);
 
-tlsRespStatus  tlsVerifyDecodeVersionCode( const byte *ver_in );
-
-word16         tlsGetUndecodedNumBytes(tlsSession_t *session);
-
+word16 tlsGetUndecodedNumBytes(tlsSession_t *);
 
 #ifdef __cplusplus
 }

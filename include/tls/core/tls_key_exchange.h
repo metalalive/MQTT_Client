@@ -5,27 +5,27 @@
 extern "C" {
 #endif
 
-tlsRespStatus  tlsGenEphemeralKeyPairs(mqttDRBG_t *drbg, tlsKeyEx_t *keyexp);
+tlsRespStatus tlsGenEphemeralKeyPairs(mqttDRBG_t *, tlsKeyEx_t *);
 
-void           tlsFreeEphemeralKeyPairs(tlsKeyEx_t *keyexp);
+void tlsFreeEphemeralKeyPairs(tlsKeyEx_t *);
 
-tlsRespStatus  tlsFreeEphemeralKeyPairByGrp(void *keyout , tlsNamedGrp grp_id);
+tlsRespStatus tlsFreeEphemeralKeyPairByGrp(void *keyout, tlsNamedGrp grp_id);
 
-tlsRespStatus  tlsImportPubValKeyShare( byte *in, word16 inlen, tlsNamedGrp grp_id, void **chosen_key);
+tlsRespStatus
+tlsImportPubValKeyShare(byte *in, word16 inlen, tlsNamedGrp grp_id, void **chosen_key);
 
-tlsRespStatus  tlsExportPubValKeyShare( byte *out, tlsNamedGrp grp_id, void *chosen_key, word16 chosen_key_sz );
+tlsRespStatus
+tlsExportPubValKeyShare(byte *out, tlsNamedGrp grp_id, void *chosen_key, word16 chosen_key_sz);
 
-tlsRespStatus  tlsECDHEgenSharedSecret(tlsSession_t *session, tlsOpaque8b_t *out);
+tlsRespStatus tlsECDHEgenSharedSecret(tlsSession_t *, tlsOpaque8b_t *out);
 
-word16         tlsKeyExGetKeySize( tlsNamedGrp grp_id );
+word16 tlsKeyExGetKeySize(tlsNamedGrp grp_id);
 
-word16         tlsKeyExGetExportKeySize( tlsNamedGrp grp_id );
+word16 tlsKeyExGetExportKeySize(tlsNamedGrp grp_id);
 
+tlsRespStatus tlsEstimatePSKbinders(tlsSession_t *, tlsOpaque8b_t *out); // TODO
 
-tlsRespStatus  tlsEstimatePSKbinders(tlsSession_t *session, tlsOpaque8b_t *out); // TODO
-
-tlsRespStatus  tlsVerifyPSKbinders(tlsSession_t *session); // TODO
-
+tlsRespStatus tlsVerifyPSKbinders(tlsSession_t *); // TODO
 
 #ifdef __cplusplus
 }

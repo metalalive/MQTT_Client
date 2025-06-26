@@ -13,26 +13,27 @@ typedef enum {
 } tlsX509extType;
 
 typedef struct {
-    tlsOpaque8b_t  subjKeyID;   // subject key identifier  // TODO: might not be necessary to store these value ?
-    tlsOpaque8b_t  authKeyID;   // authority key identifier
+    // subject key identifier
+    // TODO: might not be necessary to store these value ?
+    tlsOpaque8b_t subjKeyID;
+    tlsOpaque8b_t authKeyID; // authority key identifier
     struct {
-        byte  is_ca:1; // CA certificate flgs
+        byte is_ca : 1; // CA certificate flgs
         struct {
-            byte  digital_signature:1;
-            byte  non_repudiation:1;
-            byte  key_encipher:1;
-            byte  data_encipher:1;
-            byte  key_agreement:1;
-            byte  key_cert_sign:1;
-            byte  crl_sign:1;
-            byte  encipher_only:1;
-            byte  decipher_only:1;
-        } key_usage;   // flags to store key usage
+            byte digital_signature : 1;
+            byte non_repudiation   : 1;
+            byte key_encipher      : 1;
+            byte data_encipher     : 1;
+            byte key_agreement     : 1;
+            byte key_cert_sign     : 1;
+            byte crl_sign          : 1;
+            byte encipher_only     : 1;
+            byte decipher_only     : 1;
+        } key_usage; // flags to store key usage
     } flgs;
 } tlsX509v3ext_t;
 
-
-tlsRespStatus  tlsX509getExtensions(byte *in, word32 *inlen, tlsX509v3ext_t **ext_out, word32 *datalen);
+tlsRespStatus tlsX509getExtensions(byte *in, word32 *inlen, tlsX509v3ext_t **out, word32 *datalen);
 
 void tlsX509FreeCertExt(tlsX509v3ext_t *in);
 

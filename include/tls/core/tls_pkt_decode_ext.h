@@ -5,16 +5,15 @@
 extern "C" {
 #endif
 
-tlsRespStatus  tlsDecodeExtServerHello(tlsSession_t *session);
+tlsRespStatus tlsDecodeExtServerHello(tlsSession_t *);
 
-tlsRespStatus  tlsDecodeExtEncryptExt(tlsSession_t *session);
+tlsRespStatus tlsDecodeExtEncryptExt(tlsSession_t *);
 
-tlsRespStatus  tlsDecodeExtCertReq(tlsSession_t *session);
+tlsRespStatus tlsDecodeExtCertReq(tlsSession_t *);
 
-tlsRespStatus  tlsDecodeExtCertificate(tlsCert_t *cert, word16 first_ext_unfinished);
+tlsRespStatus tlsDecodeExtCertificate(tlsCert_t *, word16 first_ext_unfinished);
 
-tlsRespStatus  tlsParseExtensions(tlsSession_t *session, tlsExtEntry_t **out);
-
+tlsRespStatus tlsParseExtensions(tlsSession_t *, tlsExtEntry_t **out);
 
 #ifdef __cplusplus
 }

@@ -5,14 +5,12 @@
 extern "C" {
 #endif
 
-
 // get hash ID from given cipher suite
-tlsHashAlgoID  TLScipherSuiteGetHashID( const tlsCipherSpec_t *cs_in );
+tlsHashAlgoID TLScipherSuiteGetHashID(const tlsCipherSpec_t *cs_in);
 
-const tlsCipherSpec_t* tlsGetCipherSuiteByID(word16 idcode);
+const tlsCipherSpec_t *tlsGetCipherSuiteByID(word16 idcode);
 
-byte  tlsGetSupportedCipherSuiteListSize( void );
-
+byte tlsGetSupportedCipherSuiteListSize(void);
 
 #ifdef __cplusplus
 }

@@ -7,20 +7,20 @@ extern "C" {
 
 // perform transcript hash to hankshake message for authentication message
 
-tlsRespStatus  tlsCpyHashEmptyInput(tlsHashAlgoID hash_id ,tlsOpaque8b_t *out);
+tlsRespStatus tlsCpyHashEmptyInput(tlsHashAlgoID hash_id, tlsOpaque8b_t *out);
 
-tlsRespStatus  tlsTranscrptHashHSmsgUpdate(tlsSession_t  *session, tlsOpaque16b_t *buf);
+tlsRespStatus tlsTranscrptHashHSmsgUpdate(tlsSession_t *, tlsOpaque16b_t *buf);
 
-tlsRespStatus  tlsTranscrptHashInit(tlsSecurityElements_t  *sec);
+tlsRespStatus tlsTranscrptHashInit(tlsSecurityElements_t *);
 
-tlsRespStatus  tlsTranscrptHashDeInit(tlsSecurityElements_t *sec);
+tlsRespStatus tlsTranscrptHashDeInit(tlsSecurityElements_t *);
 
-tlsRespStatus  tlsTranscrptHashReInit(tlsSecurityElements_t *sec);
+tlsRespStatus tlsTranscrptHashReInit(tlsSecurityElements_t *);
 
-tlsRespStatus  tlsTransHashTakeSnapshot(tlsSecurityElements_t  *sec, tlsHashAlgoID hash_id, byte *out, word16 outlen);
+tlsRespStatus
+tlsTransHashTakeSnapshot(tlsSecurityElements_t *, tlsHashAlgoID hash_id, byte *out, word16 outlen);
 
-tlsRespStatus  tlsTransHashCleanUnsuedHashHandler(tlsSecurityElements_t *sec);
-
+tlsRespStatus tlsTransHashCleanUnsuedHashHandler(tlsSecurityElements_t *);
 
 #ifdef __cplusplus
 }

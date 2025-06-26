@@ -1,7 +1,8 @@
 #include "mqtt_include.h"
 
-#define  NUM_TEST_CERTS  2
+#define NUM_TEST_CERTS 2
 
+// clang-format off
 static const byte mock_DER_encoded_crt_data[NUM_TEST_CERTS][1700] = {
 { // cert algorithm ID = sha384WithRSAEncryption
   0x30, 0x82, 0x04, 0xeb, 0x30, 0x82, 0x02, 0xd3, 0xa0, 0x03, 0x02, 0x01,
@@ -255,302 +256,298 @@ static const byte mock_DER_encoded_crt_data[NUM_TEST_CERTS][1700] = {
   0x65
 },
 }; // end of mock_DER_encoded_crt_data
-
+// clang-format on
 
 static const word32 mock_DER_encoded_crt_len[NUM_TEST_CERTS] = {1263, 1681};
 
-static  tlsCert_t  *cert_obj;
-static  byte  mock_sys_gettime_year[2];
-static  byte  mock_sys_gettime_month;
-static  byte  mock_sys_gettime_date;
-static  byte  mock_sys_gettime_hour;
-static  byte  mock_sys_gettime_minute;
-static  byte  mock_sys_gettime_second;
+static tlsCert_t *cert_obj;
+static byte       mock_sys_gettime_year[2];
+static byte       mock_sys_gettime_month;
+static byte       mock_sys_gettime_date;
+static byte       mock_sys_gettime_hour;
+static byte       mock_sys_gettime_minute;
+static byte       mock_sys_gettime_second;
 
-
-word32 mqttDecodeWord16( byte *buf , word16 *value )
-{
-    if((buf != NULL) && (value != NULL)) {
-        *value  =  buf[1]; 
-        *value |=  buf[0] << 8 ;
+word32 mqttDecodeWord16(byte *buf, word16 *value) {
+    if ((buf != NULL) && (value != NULL)) {
+        *value = buf[1];
+        *value |= buf[0] << 8;
     }
-    return  (word32)2; 
+    return (word32)2;
 } // end of mqttDecodeWord16
 
-word32  tlsEncodeWord24( byte *buf , word32  value )
-{
-    if(buf != NULL){
+word32 tlsEncodeWord24(byte *buf, word32 value) {
+    if (buf != NULL) {
         buf[0] = (value >> 16) & 0xff;
-        buf[1] = (value >> 8 ) & 0xff;
+        buf[1] = (value >> 8) & 0xff;
         buf[2] = value & 0xff;
     }
     // return number of bytes used to store the encoded value
-    return  (word32)3;
+    return (word32)3;
 } // end of tlsEncodeWord24
 
-word32  tlsDecodeWord24( byte *buf , word32 *value )
-{
-    if((buf != NULL) && (value != NULL)) {
-        *value  = buf[2];
-        *value |= buf[1] << 8 ;
-        *value |= buf[0] << 16 ;
+word32 tlsDecodeWord24(byte *buf, word32 *value) {
+    if ((buf != NULL) && (value != NULL)) {
+        *value = buf[2];
+        *value |= buf[1] << 8;
+        *value |= buf[0] << 16;
     }
-    return  (word32)3;
+    return (word32)3;
 } // end of tlsDecodeWord24
 
-word16  mqttHashGetOutlenBytes(mqttHashLenType type)
-{
+word16 mqttHashGetOutlenBytes(mqttHashLenType type) {
     word16 out = 0;
-    switch(type) {
-        case MQTT_HASH_SHA256:
-            out = 256; // unit: bit(s)
-            break;
-        case MQTT_HASH_SHA384:
-            out = 384; // unit: bit(s)
-            break;
-        default:
-            break;
+    switch (type) {
+    case MQTT_HASH_SHA256:
+        out = 256; // unit: bit(s)
+        break;
+    case MQTT_HASH_SHA384:
+        out = 384; // unit: bit(s)
+        break;
+    default:
+        break;
     }
     out = out >> 3;
     return out;
 } // end of mqttHashGetOutlenBits
 
-tlsRespStatus  tlsRespCvtFromMqttResp(mqttRespStatus in)
-{
-    tlsRespStatus  out;
-    switch(in) {
-        case MQTT_RESP_OK:
-            out = TLS_RESP_OK;    break;
-        case MQTT_RESP_ERRARGS:
-            out = TLS_RESP_ERRARGS; break;
-        case MQTT_RESP_ERRMEM:
-            out = TLS_RESP_ERRMEM; break;
-        case MQTT_RESP_TIMEOUT:
-            out = TLS_RESP_TIMEOUT;   break;
-        case MQTT_RESP_ERR_SECURE_CONN:
-            out = TLS_RESP_PEER_CONN_FAIL; break;
-        case MQTT_RESP_MALFORMED_DATA :
-            out = TLS_RESP_MALFORMED_PKT; break;
-        case MQTT_RESP_ERR_TRANSMIT:
-            out = TLS_RESP_ERR_SYS_SEND_PKT; break;
-        case MQTT_RESP_ERR_EXCEED_PKT_SZ:
-            out = TLS_RESP_ERR_EXCEED_MAX_REC_SZ; break;
-        case MQTT_RESP_ERR:
-        default:
-            out = TLS_RESP_ERR;  break;
+tlsRespStatus tlsRespCvtFromMqttResp(mqttRespStatus in) {
+    tlsRespStatus out;
+    switch (in) {
+    case MQTT_RESP_OK:
+        out = TLS_RESP_OK;
+        break;
+    case MQTT_RESP_ERRARGS:
+        out = TLS_RESP_ERRARGS;
+        break;
+    case MQTT_RESP_ERRMEM:
+        out = TLS_RESP_ERRMEM;
+        break;
+    case MQTT_RESP_TIMEOUT:
+        out = TLS_RESP_TIMEOUT;
+        break;
+    case MQTT_RESP_ERR_SECURE_CONN:
+        out = TLS_RESP_PEER_CONN_FAIL;
+        break;
+    case MQTT_RESP_MALFORMED_DATA:
+        out = TLS_RESP_MALFORMED_PKT;
+        break;
+    case MQTT_RESP_ERR_TRANSMIT:
+        out = TLS_RESP_ERR_SYS_SEND_PKT;
+        break;
+    case MQTT_RESP_ERR_EXCEED_PKT_SZ:
+        out = TLS_RESP_ERR_EXCEED_MAX_REC_SZ;
+        break;
+    case MQTT_RESP_ERR:
+    default:
+        out = TLS_RESP_ERR;
+        break;
     } // end of switch-case statement
     return out;
 } // end of tlsRespCvtToMqttResp
 
-
-static tlsRespStatus  tlsASN1GetOIDsum(const byte *in, word32 *inlen, tlsAlgoOID *oid)
-{
-    word32   obj_idlen_sz = 0;
-    word32   obj_data_sz  = 0;
+static tlsRespStatus tlsASN1GetOIDsum(const byte *in, word32 *inlen, tlsAlgoOID *oid) {
+    word32        obj_idlen_sz = 0;
+    word32        obj_data_sz = 0;
     tlsRespStatus status = TLS_RESP_OK;
 
     obj_idlen_sz = *inlen;
     status = tlsASN1GetIDlen(in, &obj_idlen_sz, (ASN_PRIMDATA_OID), &obj_data_sz);
-    if(status < 0) { goto done; }
-    else if(obj_idlen_sz < (TLS_MIN_BYTES_ASN1_OBJ_ID + TLS_MIN_BYTES_ASN1_OBJ_LEN)) {
-        status = TLS_RESP_ERR_DECODE; goto done;
-    }
-    else if(obj_data_sz < TLS_MIN_BYTES_ASN1_OID) {
-        status = TLS_RESP_ERR_DECODE; goto done;
+    if (status < 0) {
+        goto done;
+    } else if (obj_idlen_sz < (TLS_MIN_BYTES_ASN1_OBJ_ID + TLS_MIN_BYTES_ASN1_OBJ_LEN)) {
+        status = TLS_RESP_ERR_DECODE;
+        goto done;
+    } else if (obj_data_sz < TLS_MIN_BYTES_ASN1_OID) {
+        status = TLS_RESP_ERR_DECODE;
+        goto done;
     }
     *inlen = obj_idlen_sz + obj_data_sz;
-    *oid   = 0;
-    in    += obj_idlen_sz;
-    while(obj_data_sz-- > 0) {
+    *oid = 0;
+    in += obj_idlen_sz;
+    while (obj_data_sz-- > 0) {
         *oid += *in++;
     }
 done:
     return status;
 } // end of tlsASN1GetOIDsum
 
-tlsRespStatus  tlsASN1GetIDlen(const byte *in, word32 *inlen, byte expected_idtag, word32 *datalen)
-{
-    if(in == NULL || inlen == NULL || datalen == NULL) {
+tlsRespStatus tlsASN1GetIDlen(const byte *in, word32 *inlen, byte expected_idtag, word32 *datalen) {
+    if (in == NULL || inlen == NULL || datalen == NULL) {
         return TLS_RESP_ERRARGS;
     }
-    word32    remain_len = 0;
+    word32        remain_len = 0;
     tlsRespStatus status = TLS_RESP_OK;
 
-    if(expected_idtag != *in++) {
+    if (expected_idtag != *in++) {
         status = TLS_RESP_ERR_NOT_SUPPORT;
     } else {
         remain_len = *inlen - 1;
         TLS_CFG_ASN1_GET_LEN_FN(status, in, &remain_len, datalen);
         *inlen = 1 + remain_len;
-        if(*datalen > TLS_MAX_BYTES_CERT_CHAIN) {
+        if (*datalen > TLS_MAX_BYTES_CERT_CHAIN) {
             status = TLS_RESP_ERR_CERT_OVFL;
         }
     }
     return status;
 } // end of tlsASN1GetIDlen
 
-tlsRespStatus  tlsASN1GetAlgoID(const byte *in, word32 *inlen, tlsAlgoOID *out, word32 *datalen)
-{
-    if(*inlen < (TLS_MIN_BYTES_ASN1_OBJ_ID + TLS_MIN_BYTES_ASN1_OBJ_LEN + TLS_MIN_BYTES_ASN1_OID)) {
+tlsRespStatus tlsASN1GetAlgoID(const byte *in, word32 *inlen, tlsAlgoOID *out, word32 *datalen) {
+    if (*inlen <
+        (TLS_MIN_BYTES_ASN1_OBJ_ID + TLS_MIN_BYTES_ASN1_OBJ_LEN + TLS_MIN_BYTES_ASN1_OID)) {
         return TLS_RESP_ERRARGS;
     }
-    word32  obj_idlen_sz = 0;
-    word32  obj_data_sz  = 0;
+    word32        obj_idlen_sz = 0;
+    word32        obj_data_sz = 0;
     tlsRespStatus status = TLS_RESP_OK;
     obj_idlen_sz = *inlen;
-    status = tlsASN1GetIDlen(in, &obj_idlen_sz, (ASN_PRIMDATA_SEQUENCE | ASN_TAG_CONSTRUCTED), &obj_data_sz);
-    if(status < 0) { goto done; }
-    *inlen   = obj_idlen_sz;
+    status = tlsASN1GetIDlen(
+        in, &obj_idlen_sz, (ASN_PRIMDATA_SEQUENCE | ASN_TAG_CONSTRUCTED), &obj_data_sz
+    );
+    if (status < 0) {
+        goto done;
+    }
+    *inlen = obj_idlen_sz;
     *datalen = obj_data_sz;
-    in      += obj_idlen_sz;
+    in += obj_idlen_sz;
     obj_idlen_sz = obj_data_sz;
     status = tlsASN1GetOIDsum(in, &obj_idlen_sz, out);
-    // special case for RSA-PSS , there is extra information immediately following RSA-PSS OID byte sequence
-    // , don't skip these extra bytes because they provide useful information e,g, hash algorithm ID
-    // or salt length
-    if(*out == TLS_ALGO_OID_RSASSA_PSS) {
+    // special case for RSA-PSS , there is extra information immediately following RSA-PSS OID byte
+    // sequence , don't skip these extra bytes because they provide useful information e,g, hash
+    // algorithm ID or salt length
+    if (*out == TLS_ALGO_OID_RSASSA_PSS) {
         *datalen = obj_idlen_sz;
     }
 done:
     return status;
 } // end of tlsASN1GetAlgoID
 
-
-tlsRespStatus  tlsRSAgetPubKey(const byte *in, word32 *inlen, void **pubkey_p, word32 *datalen)
-{
-    word32  obj_idlen_sz = 0;
-    word32  obj_data_sz  = 0;
+tlsRespStatus tlsRSAgetPubKey(const byte *in, word32 *inlen, void **pubkey_p, word32 *datalen) {
+    word32        obj_idlen_sz = 0;
+    word32        obj_data_sz = 0;
     tlsRespStatus status = TLS_RESP_OK;
 
     obj_idlen_sz = *inlen;
     status = tlsASN1GetIDlen(in, &obj_idlen_sz, (ASN_PRIMDATA_BIT_STRING), &obj_data_sz);
-    *inlen   = obj_idlen_sz;
+    *inlen = obj_idlen_sz;
     *datalen = obj_data_sz;
     return status;
 } // end of tlsRSAgetPubKey
 
-tlsRespStatus  tlsX509getExtensions(byte *in, word32 *inlen, tlsX509v3ext_t **ext_out, word32 *datalen)
-{
-    word32  obj_idlen_sz = 0;
-    word32  obj_data_sz  = 0;
-    word32  remain_sz    = *inlen;
+tlsRespStatus
+tlsX509getExtensions(byte *in, word32 *inlen, tlsX509v3ext_t **ext_out, word32 *datalen) {
+    word32        obj_idlen_sz = 0;
+    word32        obj_data_sz = 0;
+    word32        remain_sz = *inlen;
     tlsRespStatus status = TLS_RESP_OK;
 
-    *inlen   = 0;
+    *inlen = 0;
     *datalen = 0;
     // skip implicit subject & issuer ID before we point to x509v3 extensions
     byte idx = 0;
-    for(idx=1; idx<=2; idx++) {
+    for (idx = 1; idx <= 2; idx++) {
         if (in[0] == (ASN_TAG_CONTEXT_SPECIFIC | ASN_TAG_PRIMITIVE | idx)) {
             obj_idlen_sz = remain_sz;
             status = tlsASN1GetIDlen(in, &obj_idlen_sz, in[0], &obj_data_sz);
-            if(status < 0) { goto done; }
-            *inlen   += obj_idlen_sz;
+            if (status < 0) {
+                goto done;
+            }
+            *inlen += obj_idlen_sz;
             *datalen += obj_data_sz;
             remain_sz -= (obj_idlen_sz + obj_data_sz);
-            in        += (obj_idlen_sz + obj_data_sz);
+            in += (obj_idlen_sz + obj_data_sz);
         }
     } // end of for-loop
-    if (in[0] == (ASN_TAG_CONTEXT_SPECIFIC | ASN_TAG_CONSTRUCTED | 0x3))
-    {
-        if(*ext_out == NULL) {
-            *ext_out = (tlsX509v3ext_t *) XCALLOC(0x1, sizeof(tlsX509v3ext_t));
+    if (in[0] == (ASN_TAG_CONTEXT_SPECIFIC | ASN_TAG_CONSTRUCTED | 0x3)) {
+        if (*ext_out == NULL) {
+            *ext_out = (tlsX509v3ext_t *)XCALLOC(0x1, sizeof(tlsX509v3ext_t));
         }
         obj_idlen_sz = remain_sz;
         status = tlsASN1GetIDlen(in, &obj_idlen_sz, in[0], &obj_data_sz);
-        *inlen    += obj_idlen_sz;
-        *datalen  += obj_data_sz;
+        *inlen += obj_idlen_sz;
+        *datalen += obj_data_sz;
     }
 done:
     return status;
 } // end of tlsX509getExtensions
 
-static void  tlsFreeX509Cert(tlsCert_t *in)
-{
+static void tlsFreeX509Cert(tlsCert_t *in) {
     tlsCert_t *curr_cert = in;
-    if(curr_cert != NULL)
-    {
-        if(curr_cert->signature.data != NULL) {
+    if (curr_cert != NULL) {
+        if (curr_cert->signature.data != NULL) {
             XMEMFREE((void *)curr_cert->signature.data);
             curr_cert->signature.data = NULL;
         }
-        if(curr_cert->subject.common_name != NULL) {
+        if (curr_cert->subject.common_name != NULL) {
             XMEMFREE((void *)curr_cert->subject.common_name);
             curr_cert->subject.common_name = NULL;
         }
-        if(curr_cert->issuer.common_name != NULL) {
+        if (curr_cert->issuer.common_name != NULL) {
             XMEMFREE((void *)curr_cert->issuer.common_name);
             curr_cert->issuer.common_name = NULL;
         }
-        if(curr_cert->subject.org_name != NULL) {
+        if (curr_cert->subject.org_name != NULL) {
             XMEMFREE((void *)curr_cert->subject.org_name);
             curr_cert->subject.org_name = NULL;
         }
-        if(curr_cert->issuer.org_name != NULL) {
+        if (curr_cert->issuer.org_name != NULL) {
             XMEMFREE((void *)curr_cert->issuer.org_name);
             curr_cert->issuer.org_name = NULL;
         }
         // deallocate certificate extensions
-        if(curr_cert->cert_exts != NULL) {
+        if (curr_cert->cert_exts != NULL) {
             XMEMFREE(curr_cert->cert_exts);
             curr_cert->cert_exts = NULL;
         }
         // deallocate entire extension list
-        if(curr_cert->hashed_holder_info.data != NULL) {
+        if (curr_cert->hashed_holder_info.data != NULL) {
             XMEMFREE((void *)curr_cert->hashed_holder_info.data);
             curr_cert->hashed_holder_info.data = NULL;
         }
-        if(curr_cert->issuer.hashed_dn != NULL) {
-            XMEMFREE((void *) curr_cert->issuer.hashed_dn);
+        if (curr_cert->issuer.hashed_dn != NULL) {
+            XMEMFREE((void *)curr_cert->issuer.hashed_dn);
             curr_cert->issuer.hashed_dn = NULL;
         }
-        if(curr_cert->subject.hashed_dn != NULL) {
-            XMEMFREE((void *) curr_cert->subject.hashed_dn);
+        if (curr_cert->subject.hashed_dn != NULL) {
+            XMEMFREE((void *)curr_cert->subject.hashed_dn);
             curr_cert->subject.hashed_dn = NULL;
         }
         // deallocate public key, public key of CA cert must be kpet until the end of application
-        if(curr_cert->pubkey_algo == TLS_ALGO_OID_RSA_KEY) {
+        if (curr_cert->pubkey_algo == TLS_ALGO_OID_RSA_KEY) {
             curr_cert->pubkey = NULL;
         }
     } // end of while loop
 } // end of tlsFreeX509Cert
 
-mqttRespStatus  mqttSysGetDateTime(mqttDateTime_t *out)
-{
+mqttRespStatus mqttSysGetDateTime(mqttDateTime_t *out) {
     out->year[0] = mock_sys_gettime_year[0];
     out->year[1] = mock_sys_gettime_year[1];
     out->month = mock_sys_gettime_month;
-    out->date  = mock_sys_gettime_date;
-    out->hour  = mock_sys_gettime_hour;
+    out->date = mock_sys_gettime_date;
+    out->hour = mock_sys_gettime_hour;
     out->minite = mock_sys_gettime_minute;
     out->second = mock_sys_gettime_second;
-    return  TLS_RESP_OK;
+    return TLS_RESP_OK;
 } // end of mqttSysGetDateTime
-
 
 // ----------------------------------------------------------------
 
 TEST_GROUP(tlsDecodeX509cert);
 
-TEST_SETUP(tlsDecodeX509cert)
-{}
+TEST_SETUP(tlsDecodeX509cert) {}
 
-TEST_TEAR_DOWN(tlsDecodeX509cert)
-{}
+TEST_TEAR_DOWN(tlsDecodeX509cert) {}
 
-TEST_GROUP_RUNNER(tlsDecodeX509cert)
-{
+TEST_GROUP_RUNNER(tlsDecodeX509cert) {
     RUN_TEST_CASE(tlsDecodeX509cert, cert_algo_rsa);
     RUN_TEST_CASE(tlsDecodeX509cert, invalid_time_chk);
     RUN_TEST_CASE(tlsDecodeX509cert, cert_algo_rsapss);
 }
 
-
-TEST(tlsDecodeX509cert, cert_algo_rsa)
-{
-    const byte  *expect_signature_data = NULL;
-    word16       expect_signature_len  = 0;
-    const byte   chosen_cert_idx = 0;
+TEST(tlsDecodeX509cert, cert_algo_rsa) {
+    const byte   *expect_signature_data = NULL;
+    word16        expect_signature_len = 0;
+    const byte    chosen_cert_idx = 0;
     tlsRespStatus status = TLS_RESP_OK;
 
     tlsEncodeWord24(&cert_obj->rawbytes.len[0], (word32)mock_DER_encoded_crt_len[chosen_cert_idx]);
@@ -559,8 +556,8 @@ TEST(tlsDecodeX509cert, cert_algo_rsa)
     mock_sys_gettime_year[0] = 0x20;
     mock_sys_gettime_year[1] = 0x20;
     mock_sys_gettime_month = 0x02;
-    mock_sys_gettime_date  = 0x17;
-    mock_sys_gettime_hour  = 0x07;
+    mock_sys_gettime_date = 0x17;
+    mock_sys_gettime_hour = 0x07;
     mock_sys_gettime_minute = 0x28;
     mock_sys_gettime_second = 0x22;
 
@@ -568,22 +565,24 @@ TEST(tlsDecodeX509cert, cert_algo_rsa)
     TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
     TEST_ASSERT_EQUAL_UINT16(TLS_ALGO_OID_SHA384_RSA_SIG, cert_obj->cert_algo);
     TEST_ASSERT_EQUAL_UINT16(TLS_ALGO_OID_SHA384_RSA_SIG, cert_obj->sign_algo);
-    TEST_ASSERT_EQUAL_UINT16(TLS_ALGO_OID_RSA_KEY,        cert_obj->pubkey_algo);
+    TEST_ASSERT_EQUAL_UINT16(TLS_ALGO_OID_RSA_KEY, cert_obj->pubkey_algo);
     TEST_ASSERT_EQUAL_STRING_LEN("101.3.253.95", cert_obj->issuer.common_name, 12);
-    TEST_ASSERT_EQUAL_STRING_LEN("Test Inc",     cert_obj->issuer.org_name, 8);
-    TEST_ASSERT_EQUAL_STRING_LEN("123.45.6.78",  cert_obj->subject.common_name, 11);
+    TEST_ASSERT_EQUAL_STRING_LEN("Test Inc", cert_obj->issuer.org_name, 8);
+    TEST_ASSERT_EQUAL_STRING_LEN("123.45.6.78", cert_obj->subject.common_name, 11);
     TEST_ASSERT_EQUAL_STRING_LEN("Some random company", cert_obj->subject.org_name, 19);
-    expect_signature_len  = 4096 >> 3; // due to 4096-bit RSA key in CA key file
-    expect_signature_data = &mock_DER_encoded_crt_data[chosen_cert_idx][mock_DER_encoded_crt_len[chosen_cert_idx] - expect_signature_len];
+    expect_signature_len = 4096 >> 3; // due to 4096-bit RSA key in CA key file
+    expect_signature_data = &mock_DER_encoded_crt_data[chosen_cert_idx]
+                                                      [mock_DER_encoded_crt_len[chosen_cert_idx] -
+                                                       expect_signature_len];
     TEST_ASSERT_EQUAL_UINT16(expect_signature_len, cert_obj->signature.len);
-    TEST_ASSERT_EQUAL_STRING_LEN(expect_signature_data, cert_obj->signature.data, cert_obj->signature.len);
+    TEST_ASSERT_EQUAL_STRING_LEN(
+        expect_signature_data, cert_obj->signature.data, cert_obj->signature.len
+    );
     tlsFreeX509Cert(cert_obj);
 } // end of TEST(tlsDecodeX509cert, cert_algo_rsa)
 
-
-TEST(tlsDecodeX509cert, invalid_time_chk)
-{
-    const byte   chosen_cert_idx = 0;
+TEST(tlsDecodeX509cert, invalid_time_chk) {
+    const byte    chosen_cert_idx = 0;
     tlsRespStatus status = TLS_RESP_OK;
 
     tlsEncodeWord24(&cert_obj->rawbytes.len[0], (word32)mock_DER_encoded_crt_len[chosen_cert_idx]);
@@ -592,25 +591,24 @@ TEST(tlsDecodeX509cert, invalid_time_chk)
     mock_sys_gettime_year[0] = 0x20;
     mock_sys_gettime_year[1] = 0x20;
     mock_sys_gettime_month = 0x02;
-    mock_sys_gettime_date  = 0x17;
-    mock_sys_gettime_hour  = 0x07;
-    mock_sys_gettime_minute = 0x27; // assume current time is one minute before the certificate can be used (Not Before)
+    mock_sys_gettime_date = 0x17;
+    mock_sys_gettime_hour = 0x07;
+    mock_sys_gettime_minute =
+        0x27; // assume current time is one minute before the certificate can be used (Not Before)
     mock_sys_gettime_second = 0x21;
     status = tlsDecodeX509cert(cert_obj);
     TEST_ASSERT_EQUAL_INT(TLS_RESP_CERT_AUTH_FAIL, status);
     TEST_ASSERT_EQUAL_STRING_LEN("101.3.253.95", cert_obj->issuer.common_name, 12);
-    TEST_ASSERT_EQUAL_STRING_LEN("Test Inc",     cert_obj->issuer.org_name, 8);
+    TEST_ASSERT_EQUAL_STRING_LEN("Test Inc", cert_obj->issuer.org_name, 8);
     TEST_ASSERT_EQUAL_UINT(NULL, cert_obj->subject.common_name);
     TEST_ASSERT_EQUAL_UINT(NULL, cert_obj->subject.org_name);
     tlsFreeX509Cert(cert_obj);
 } // end of TEST(tlsDecodeX509cert, invalid_time_chk)
 
-
-TEST(tlsDecodeX509cert, cert_algo_rsapss)
-{
-    const byte  *expect_signature_data = NULL;
-    word16       expect_signature_len  = 0;
-    const byte   chosen_cert_idx = 1;
+TEST(tlsDecodeX509cert, cert_algo_rsapss) {
+    const byte   *expect_signature_data = NULL;
+    word16        expect_signature_len = 0;
+    const byte    chosen_cert_idx = 1;
     tlsRespStatus status = TLS_RESP_OK;
 
     tlsEncodeWord24(&cert_obj->rawbytes.len[0], (word32)mock_DER_encoded_crt_len[chosen_cert_idx]);
@@ -619,8 +617,8 @@ TEST(tlsDecodeX509cert, cert_algo_rsapss)
     mock_sys_gettime_year[0] = 0x20;
     mock_sys_gettime_year[1] = 0x20;
     mock_sys_gettime_month = 0x02;
-    mock_sys_gettime_date  = 0x17;
-    mock_sys_gettime_hour  = 0x08;
+    mock_sys_gettime_date = 0x17;
+    mock_sys_gettime_hour = 0x08;
     mock_sys_gettime_minute = 0x28;
     mock_sys_gettime_second = 0x07;
 
@@ -628,25 +626,26 @@ TEST(tlsDecodeX509cert, cert_algo_rsapss)
     TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
     TEST_ASSERT_EQUAL_UINT16(TLS_ALGO_OID_RSASSA_PSS, cert_obj->cert_algo);
     TEST_ASSERT_EQUAL_UINT16(TLS_ALGO_OID_RSASSA_PSS, cert_obj->sign_algo);
-    TEST_ASSERT_EQUAL_UINT16(TLS_ALGO_OID_RSA_KEY,    cert_obj->pubkey_algo);
+    TEST_ASSERT_EQUAL_UINT16(TLS_ALGO_OID_RSA_KEY, cert_obj->pubkey_algo);
     TEST_ASSERT_EQUAL_UINT16(TLS_HASH_ALGO_SHA384, cert_obj->rsapss.hash_id);
     TEST_ASSERT_GREATER_THAN_UINT16(0, cert_obj->rsapss.salt_len);
     TEST_ASSERT_EQUAL_STRING_LEN("133.45.77.3", cert_obj->issuer.common_name, 11);
     TEST_ASSERT_EQUAL_STRING_LEN("Test research institution", cert_obj->issuer.org_name, 25);
     TEST_ASSERT_EQUAL_STRING_LEN("133.45.77.3", cert_obj->subject.common_name, 11);
     TEST_ASSERT_EQUAL_STRING_LEN("Test research institution", cert_obj->subject.org_name, 25);
-    expect_signature_len  = 4096 >> 3; // due to 4096-bit RSA key in CA key file
-    expect_signature_data = &mock_DER_encoded_crt_data[chosen_cert_idx][mock_DER_encoded_crt_len[chosen_cert_idx] - expect_signature_len];
+    expect_signature_len = 4096 >> 3; // due to 4096-bit RSA key in CA key file
+    expect_signature_data = &mock_DER_encoded_crt_data[chosen_cert_idx]
+                                                      [mock_DER_encoded_crt_len[chosen_cert_idx] -
+                                                       expect_signature_len];
     TEST_ASSERT_EQUAL_UINT16(expect_signature_len, cert_obj->signature.len);
-    TEST_ASSERT_EQUAL_STRING_LEN(expect_signature_data, cert_obj->signature.data, cert_obj->signature.len);
+    TEST_ASSERT_EQUAL_STRING_LEN(
+        expect_signature_data, cert_obj->signature.data, cert_obj->signature.len
+    );
     tlsFreeX509Cert(cert_obj);
 } // end of TEST(tlsDecodeX509cert, cert_algo_rsapss)
 
-
-
-static void RunAllTestGroups(void)
-{
-    cert_obj = (tlsCert_t *) XMALLOC(sizeof(tlsCert_t));
+static void RunAllTestGroups(void) {
+    cert_obj = (tlsCert_t *)XMALLOC(sizeof(tlsCert_t));
     XMEMSET(cert_obj, 0x00, sizeof(tlsCert_t));
 
     RUN_TEST_GROUP(tlsDecodeX509cert);
@@ -655,10 +654,6 @@ static void RunAllTestGroups(void)
     cert_obj = NULL;
 } // end of RunAllTestGroups
 
-
-int main(int argc, const char *argv[])
-{
+int main(int argc, const char *argv[]) {
     return UnityMain(argc, argv, RunAllTestGroups);
 } // end of main
-
-

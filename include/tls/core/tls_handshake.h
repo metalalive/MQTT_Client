@@ -5,17 +5,15 @@
 extern "C" {
 #endif
 
+tlsHandshakeType tlsGetHSexpectedState(tlsSession_t *);
 
-tlsHandshakeType  tlsGetHSexpectedState(tlsSession_t *session);
+void tlsHSstateTransition(tlsSession_t *);
 
-void   tlsHSstateTransition(tlsSession_t *session);
+tlsRespStatus tlsClientStartHandshake(tlsSession_t *);
 
-tlsRespStatus  tlsClientStartHandshake(tlsSession_t *session);
+void tlsCleanSpaceOnClientCertSent(tlsSession_t *);
 
-void tlsCleanSpaceOnClientCertSent(tlsSession_t *session);
-
-tlsRespStatus  tlsChkHSfinished(tlsSession_t  *session);
-
+tlsRespStatus tlsChkHSfinished(tlsSession_t *);
 
 #ifdef __cplusplus
 }

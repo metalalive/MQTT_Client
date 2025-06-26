@@ -5,12 +5,12 @@
 extern "C" {
 #endif
 
-void  tlsEncodeHandshakeHeader(tlsSession_t *session);
+void tlsEncodeHandshakeHeader(tlsSession_t *);
 
-tlsRespStatus  tlsGenFinishedVerifyData(tlsSecurityElements_t *sec, tlsOpaque8b_t *base_key, tlsOpaque8b_t *out);
+tlsRespStatus
+tlsGenFinishedVerifyData(tlsSecurityElements_t *, tlsOpaque8b_t *base_key, tlsOpaque8b_t *out);
 
-tlsRespStatus  tlsEncodeRecordLayer(tlsSession_t *session);
-
+tlsRespStatus tlsEncodeRecordLayer(tlsSession_t *);
 
 #ifdef __cplusplus
 }
