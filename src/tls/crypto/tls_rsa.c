@@ -1,13 +1,10 @@
 #include "mqtt_include.h"
 
 tlsRespStatus tlsRSAgetPubKey(const byte *in, word32 *inlen, void **pubkey_p, word32 *datalen) {
-    word32        obj_idlen_sz = 0;
-    word32        obj_data_sz = 0;
-    word32        remain_sz = *inlen;
-    const byte   *N_start = NULL;
-    const byte   *e_start = NULL;
-    word16        N_len = 0;
-    word16        e_len = 0;
+    word32 obj_idlen_sz = 0, obj_data_sz = 0, remain_sz = *inlen;
+    word16 N_len = 0, e_len = 0;
+
+    const byte   *N_start = NULL, *e_start = NULL;
     tlsRespStatus status = TLS_RESP_OK;
 
     obj_idlen_sz = remain_sz;
@@ -63,6 +60,32 @@ done:
     return status;
 } // end of tlsRSAgetPubKey
 
+static tlsRespStatus tlsRSAparsePKCS8version(const byte **in_ptr, word16 *remain_sz_ptr) {
+    word32 obj_idlen_sz = *remain_sz_ptr, obj_data_sz = 0;
+    // the field `Version` no longer means whether it's two-prime or multi-prime
+    //
+    //     Version ::= INTEGER { v1(0), v2(1) }
+    //
+    // for decoding detail of the field `version`, please refer to RFC5958
+    // , RFC5208, RFC3447 (for `RSAPrivateKey`)
+    //
+    // Also, note this application accepts only bi-prime version of RSA key,
+    // and does not process multi-prime key, TODO / FIXME: should return error
+    tlsRespStatus status =
+        tlsASN1GetIDlen(*in_ptr, &obj_idlen_sz, ASN_PRIMDATA_INTEGER, &obj_data_sz);
+    if (status < 0) {
+        return status;
+    }
+    *remain_sz_ptr -= obj_idlen_sz - 1;
+    *in_ptr += obj_idlen_sz;
+#define ASYM_KEY_SUPPORTED_VERSION 0x0
+    if (obj_data_sz != 1 || *(*in_ptr)++ != ASYM_KEY_SUPPORTED_VERSION) {
+        return TLS_RESP_ERR_NOT_SUPPORT;
+    }
+#undef ASYM_KEY_SUPPORTED_VERSION
+    return TLS_RESP_OK;
+}
+
 //    Parse a a private key structure in DER-encoded ASN.1 memory buffer
 //
 //    RSAPrivateKey ::= SEQUENCE {
@@ -79,9 +102,11 @@ done:
 //    }
 
 tlsRespStatus tlsRSAgetPrivKey(const byte *in, word16 inlen, void **privkey_p) {
-    word32 obj_idlen_sz = 0;
-    word32 obj_data_sz = 0;
+    tlsRespStatus status = TLS_RESP_OK;
+#define NUM_PKEY_ELMS 8
+    word32 obj_idlen_sz = 0, obj_data_sz = 0;
     word16 remain_sz = inlen;
+    byte   idx = 0;
     // 1. (N)  The modulus
     // 2. (e)  The public exponent
     // 3. (d)  The private exponent
@@ -90,10 +115,8 @@ tlsRespStatus tlsRSAgetPrivKey(const byte *in, word16 inlen, void **privkey_p) {
     // 6. (dP) The d mod (p - 1) CRT param
     // 7. (dQ) The d mod (q - 1) CRT param
     // 8. (qP) The 1/q mod p CRT param
-    const byte   *element_offset[8];
-    word16        element_sz[8];
-    tlsRespStatus status = TLS_RESP_OK;
-    byte          idx = 0;
+    const byte *element_offset[NUM_PKEY_ELMS];
+    word16      element_sz[NUM_PKEY_ELMS];
 
     obj_idlen_sz = remain_sz;
     status = tlsASN1GetIDlen(
@@ -105,21 +128,61 @@ tlsRespStatus tlsRSAgetPrivKey(const byte *in, word16 inlen, void **privkey_p) {
     remain_sz -= obj_idlen_sz;
     in += obj_idlen_sz;
 
-    // Version ::= INTEGER { two-prime(0), multi(1) }
-    obj_idlen_sz = remain_sz;
-    status = tlsASN1GetIDlen(in, &obj_idlen_sz, (ASN_PRIMDATA_INTEGER), &obj_data_sz);
+    status = tlsRSAparsePKCS8version(&in, &remain_sz);
     if (status < 0) {
         goto done;
     }
-    remain_sz -= obj_idlen_sz - 1;
-    in += obj_idlen_sz;
-    if (obj_data_sz != 1 || *in++ > 0x1) {
-        status = TLS_RESP_ERR_PARSE;
+    // ----- only for parsing PKCS#8 -----
+    // Parse privateKeyAlgorithm SEQUENCE (OID for RSA)
+    // privateKeyAlgorithm PrivateKeyAlgorithmIdentifier,
+    // PrivateKeyAlgorithmIdentifier ::= SEQUENCE {
+    //     algorithm OBJECT IDENTIFIER, parameters ANY OPTIONAL
+    // }
+    tlsAlgoOID algo_oid = 0;
+    obj_idlen_sz = remain_sz;
+    // Use tlsASN1GetAlgoID to parse the algorithm identifier sequence
+    status = tlsASN1GetAlgoID(in, &obj_idlen_sz, &algo_oid, &obj_data_sz);
+    if (status < 0) {
         goto done;
     }
+    if (algo_oid != TLS_ALGO_OID_RSA_KEY) { // Ensure it's an RSA key
+        status = TLS_RESP_ERR_NOT_SUPPORT;
+        goto done;
+    }
+    // obj_data_sz here is the length of the OID and its parameters (e.g., NULL for RSA)
+    remain_sz -= (obj_idlen_sz + obj_data_sz);
+    in += (obj_idlen_sz + obj_data_sz);
 
-    // loop through each element of the private key
-    for (idx = 0; idx < 8; idx++) {
+    // Parse privateKey OCTET STRING
+    obj_idlen_sz = remain_sz;
+    status = tlsASN1GetIDlen(in, &obj_idlen_sz, ASN_PRIMDATA_OCTET_STRING, &obj_data_sz);
+    if (status < 0) {
+        goto done;
+    }
+    remain_sz -= obj_idlen_sz;
+    // `in` now points to the start of the raw RSAPrivateKey bytes
+    in += obj_idlen_sz;
+    // This is the length of the raw RSAPrivateKey bytes
+    word16 raw_rsa_elms_len = obj_data_sz;
+
+    // Expect the input to start with the RSAPrivateKey SEQUENCE
+    obj_idlen_sz = raw_rsa_elms_len;
+    status = tlsASN1GetIDlen(
+        in, &obj_idlen_sz, (ASN_PRIMDATA_SEQUENCE | ASN_TAG_CONSTRUCTED), &obj_data_sz
+    );
+    if (status < 0) {
+        goto done;
+    }
+    remain_sz = raw_rsa_elms_len;
+    in += obj_idlen_sz;
+
+    status = tlsRSAparsePKCS8version(&in, &remain_sz);
+    if (status < 0) {
+        goto done;
+    }
+    // ----- common part for both PKCS#1 and PKCS#8 -----
+    // iterate over each element of the private key
+    for (idx = 0; idx < NUM_PKEY_ELMS; idx++) {
         obj_idlen_sz = remain_sz;
         status = tlsASN1GetIDlen(in, &obj_idlen_sz, (ASN_PRIMDATA_INTEGER), &obj_data_sz);
         if (status < 0) {
@@ -129,8 +192,7 @@ tlsRespStatus tlsRSAgetPrivKey(const byte *in, word16 inlen, void **privkey_p) {
         element_sz[idx] = obj_data_sz;
         remain_sz -= obj_idlen_sz + obj_data_sz;
         in += obj_idlen_sz + obj_data_sz;
-    } // end of loop
-
+    }
     // init RSA private key
     if (*privkey_p == NULL) {
         *privkey_p = XCALLOC(0x1, sizeof(tlsRSAkey_t));
@@ -147,6 +209,7 @@ tlsRespStatus tlsRSAgetPrivKey(const byte *in, word16 inlen, void **privkey_p) {
     );
 done:
     return status;
+#undef NUM_PKEY_ELMS
 } // end of tlsRSAgetPrivKey
 
 void tlsRSAfreePubKey(void *pubkey_p) {
