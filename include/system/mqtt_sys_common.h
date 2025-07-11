@@ -78,15 +78,16 @@ mqttRespStatus mqttSysThreadCreate(
     uint8_t isPrivileged, mqttSysThre_t *out_thread_ptr
 );
 
-mqttRespStatus mqttSysThreadDelete(mqttSysThre_t *thre_in);
+mqttRespStatus mqttSysThreadDelete(mqttSysThre_t *);
 
-mqttRespStatus mqttSysThreadWaitUntilExit(mqttSysThre_t *thre_in, void **return_p);
+mqttRespStatus mqttSysThreadWaitUntilExit(mqttSysThre_t *, void **return_p);
 
 void mqttSysDelay(uint32_t ms);
 
-mqttRespStatus mqttSysNetconnStart(mqttCtx_t *mctx);
-
-mqttRespStatus mqttSysNetconnStop(mqttCtx_t *mctx);
+mqttRespStatus mqttSysNetInit(void);
+mqttRespStatus mqttSysNetDeInit(void);
+mqttRespStatus mqttSysNetconnStart(mqttCtx_t *);
+mqttRespStatus mqttSysNetconnStop(mqttCtx_t *);
 
 // Here are for packet reading / writing from underlying system implementation
 // meaning of the return value :
