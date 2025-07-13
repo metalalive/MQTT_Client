@@ -147,24 +147,22 @@ encode_failure:
 //     CertificateEntry certificate_list<0..2^24-1>;
 // } Certificate;
 static tlsRespStatus tlsEncodeHScertificate(tlsSession_t *session) {
+    tlsRespStatus status = TLS_RESP_OK;
+    const byte    empty_ext_sz = 2; // this implementation will NOT send extension at here
     if (session == NULL) {
         return TLS_RESP_ERRARGS;
     }
-    tlsRespStatus status = TLS_RESP_OK;
-    byte         *outbuf = &session->outbuf.data[0];
-    word16        outlen_encoded = session->outlen_encoded;
-    word32        cert_sz = 0;
-    word16        rdy_cpy_sz = 0;
-    word16        copied_sz = 0;
-    const byte    empty_ext_sz = 2; // this implementation will NOT send extension at here
+    byte  *outbuf = &session->outbuf.data[0];
+    word16 outlen_encoded = session->outlen_encoded;
+    word32 cert_sz = 0;
+    word16 rdy_cpy_sz = 0, copied_sz = 0;
 
     // get size field of cert chain
-    tlsDecodeWord24(&session->CA_cert->rawbytes.len[0], &cert_sz);
+    tlsDecodeWord24(&session->client_cert->rawbytes.len[0], &cert_sz);
     if (cert_sz == 0) {
         status = TLS_RESP_ERR_ENCODE;
         goto done;
     }
-
     if (tlsChkFragStateOutMsg(session) == TLS_RESP_REQ_REINIT) {
         // copy certificate_request_context we previously recieved from the peer (page 61, RFC 8446)
         rdy_cpy_sz = session->tmpbuf.cert_req_ctx.len;
@@ -179,13 +177,15 @@ static tlsRespStatus tlsEncodeHScertificate(tlsSession_t *session) {
             outlen_encoded - session->curr_outmsg_start + cert_sz + empty_ext_sz;
         session->nbytes.remaining_to_send = cert_sz;
         session->ext_enc_total_len = 0x0; // no extension entry
-        session->last_ext_entry_enc_len =
-            0x1 << 15; // reset this value every time before we encode extension lists
+        // reset this value every time before we encode extension lists
+        session->last_ext_entry_enc_len = 0x1 << 15;
     }
     if (session->nbytes.remaining_to_send > 0) {
         copied_sz = cert_sz - session->nbytes.remaining_to_send;
         rdy_cpy_sz = XMIN(session->outbuf.len - outlen_encoded, session->nbytes.remaining_to_send);
-        XMEMCPY(&outbuf[outlen_encoded], &session->CA_cert->rawbytes.data[copied_sz], rdy_cpy_sz);
+        XMEMCPY(
+            &outbuf[outlen_encoded], &session->client_cert->rawbytes.data[copied_sz], rdy_cpy_sz
+        );
         outlen_encoded += rdy_cpy_sz;
         session->nbytes.remaining_to_send -= rdy_cpy_sz;
         if (outlen_encoded == session->outbuf.len) {
@@ -238,7 +238,7 @@ static tlsRespStatus tlsEncodeHScertificateVerify(tlsSession_t *session) {
         session->client_signed_sig.len = (rsapssSig.salt_len << 3);
         session->client_signed_sig.data = XMALLOC(sizeof(byte) * session->client_signed_sig.len);
         status = tlsSignCertSignature(
-            session->CA_priv_key, session->drbg, &digiSig, &session->client_signed_sig,
+            session->client_privkey, session->drbg, &digiSig, &session->client_signed_sig,
             TLS_ALGO_OID_RSASSA_PSS, &rsapssSig
         );
         if (status < 0) {

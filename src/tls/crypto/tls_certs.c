@@ -71,13 +71,12 @@ tlsRespStatus tlsVerifyCertSignature(
 } // end of tlsVerifyCertSignature
 
 // In any TLS version, end-entity certificate (server certificate) must be the first item of the
-// cert chain, ideally each cert in the chain list can be certified by the one immediately proceding
-// it (in the same chain) however many implementations don't work that way. This funcion reorders
-// the cert chain with the consideration above.
+// cert chain. Accroding to RFC8446 , each cert in the chain list should be verified by the one
+// immediately after itself (in the same chain). However some implementations don't follow the
+// suggestion. This funcion reorders the cert chain with respect to issuer-subject relationship
+// as mentioned above.
 static void tlsReorderCertChain(tlsCert_t *cert_list) {
-    tlsCert_t *curr_cert = cert_list;
-    tlsCert_t *prev_cert = NULL;
-    tlsCert_t *next_cert = NULL;
+    tlsCert_t *curr_cert = cert_list, *prev_cert = NULL, *next_cert = NULL;
     // always use SHA256 to hash distinguished name section in this implementation
     word16 hash_sz = mqttHashGetOutlenBytes(MQTT_HASH_SHA256);
     while (curr_cert != NULL) {
@@ -89,8 +88,8 @@ static void tlsReorderCertChain(tlsCert_t *cert_list) {
                     (const char *)&curr_cert->issuer.hashed_dn[0],
                     (const char *)&next_cert->subject.hashed_dn[0], hash_sz
                 ) == 0) {
-                if (prev_cert !=
-                    NULL) { // current item finds out its successor but doesn't point to it
+                if (prev_cert != NULL) {
+                    // current item finds out its successor but doesn't point to it
                     // BEFORE: curr_cert -> ... -> prev_cert -> next_cert -> ...
                     // AFTER : curr_cert -> next_cert -> ... -> prev_cert -> ...
                     prev_cert->next = next_cert->next;
@@ -99,8 +98,8 @@ static void tlsReorderCertChain(tlsCert_t *cert_list) {
                     prev_cert = NULL;
                 }
                 break;
-            } else { // current item doesn't match its successor, advance to next item & compare
-                     // again.
+            } else {
+                // current item doesn't match its successor, advance to next item & compare again.
                 prev_cert = next_cert;
                 next_cert = next_cert->next;
             }
@@ -131,7 +130,6 @@ done:
     return status;
 } // end of tlsVerifyCert
 
-// * this routine is called everytime when new fragment of Certificate message is received
 tlsRespStatus tlsVerifyCertChain(tlsCert_t *issuer_cert, tlsCert_t *subject_cert) {
     tlsRespStatus status = TLS_RESP_OK;
     tlsCert_t    *curr_cert = NULL;
@@ -166,8 +164,8 @@ tlsRespStatus tlsVerifyCertChain(tlsCert_t *issuer_cert, tlsCert_t *subject_cert
             curr_cert->flgs.self_signed = 1;
         } // authentication succeeded, this is self-signed cert
     } else {
-        // step #2-2, check whether any of cert from issuer chain can verify server cert (in subject
-        // chain)
+        // step #2-2, check whether any of cert from issuer chain can verify the final
+        // cert of the subject chain
         tlsCert_t *final_subj_cert = curr_cert;
         curr_cert = issuer_cert;
         while (curr_cert != NULL) {

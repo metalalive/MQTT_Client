@@ -191,6 +191,7 @@ config:
 dbg_server:
 	@$(DBG_SERVER_CMD)
 
+dbg_client: export RTOS_HW_BUILD_PATH := $(RTOS_HW_BUILD_PATH)
 dbg_client:
 	@$(DBG_CLIENT_CMD)
 

@@ -1,16 +1,55 @@
 #include "mqtt_include.h"
 
-extern tlsPSK_t  *tls_PSKs_rdy_list;
-extern tlsCert_t *tls_CA_cert;
-extern void      *tls_CA_priv_key;
+// CA certificate which signed remote broker's certificate for this TLS client
+// this MQTT/TLS implementation is supposed to run on microcontroller-based platform
+// (with limited memory), not consume huge space to store long CA certificate chain,
+// so I only store a single CA certificate for verifying broker. User applications
+// SHOULD avoid long CA certificate chain.
+static tlsCert_t *inner_broker_cacert;
+
+// client's private key and certificate for 2-way authentication, used only when server requests
+// client authentication via Certificate, in that case, client has to send certificate (in
+// Certificate message), and signature (in CertificateVerify) to server.
+// Note the client's certificate does not have to be CA.
+static void      *inner_client_privkey;
+static tlsCert_t *inner_client_cert;
+
+// a ready list of PSKs contains :
+// * a preserved pre-shared key from NewSessionTicket of previous secure connection (if exists),
+// * PSKs that are explicitly established by user applications.
+// Note that PSK is useful to make future connection more effecient, see section 2-2 in RFC8446.
+static tlsPSK_t *tls_PSKs_rdy_list;
 
 // set up RNG function, hash, and encryption functions in third-party library if necessary.
 TLS_CFG_REG_3PARTY_CRYPTO_FN(tlsRegister3partyCryptoFn);
 
+static tlsRespStatus
+tlsInitCertHelper(tlsCert_t **cp, mqttRespStatus (*get_raw_data)(byte **, word16 *)) {
+    word32     cert_len = 0;
+    const byte final_item_rdy = 0x1;
+    tlsCert_t *c = (tlsCert_t *)XMALLOC(sizeof(tlsCert_t));
+    *cp = c;
+    XMEMSET(c, 0x0, sizeof(tlsCert_t));
+    get_raw_data(&c->rawbytes.data, (word16 *)&cert_len);
+    XASSERT((cert_len > 0xff) && (cert_len <= TLS_MAX_BYTES_CERT_CHAIN));
+    XASSERT(c->rawbytes.data != NULL);
+    tlsEncodeWord24(&c->rawbytes.len[0], cert_len);
+    return tlsDecodeCerts(c, final_item_rdy);
+}
+
+static void tlsFreeCertHelper(tlsCert_t **cp) {
+    // raw bytes of given cert should be placed in .rodata section, which means
+    // the memory cannot be deallocted , so simply set rawbytes to NULL.
+    tlsCert_t *c = *cp;
+    if (c != NULL) {
+        c->rawbytes.data = NULL;
+        tlsFreeCertChain(c, TLS_FREE_CERT_ENTRY_ALL);
+        *cp = NULL;
+    }
+}
+
 tlsRespStatus tlsClientInit(mqttCtx_t *mctx) {
-    word32        cert_len = 0;
     tlsRespStatus status = TLS_RESP_OK;
-    const byte    final_item_rdy = 0x1;
     // register RNG (Random Number Generator) associated functions to third-party crypto library
     tlsRegister3partyCryptoFn(mctx);
     // will add new PSK as soon as this client receives NewSessionTicket handshaking message
@@ -20,44 +59,40 @@ tlsRespStatus tlsClientInit(mqttCtx_t *mctx) {
     // key
     const byte *priv_key_raw_data = NULL;
     word16      priv_key_raw_len = 0;
-    mqttAuthGetCAprivKeyRawBytes(&priv_key_raw_data, &priv_key_raw_len);
+    mqttAuthClientPrivKeyRaw(&priv_key_raw_data, &priv_key_raw_len);
     if (priv_key_raw_data == NULL || priv_key_raw_len == 0) {
         status = TLS_RESP_ERRMEM;
         goto fail;
     }
-    tls_CA_priv_key = NULL;
-    status = tlsRSAgetPrivKey(priv_key_raw_data, priv_key_raw_len, &tls_CA_priv_key);
-    if ((status < 0) || (tls_CA_priv_key == NULL)) {
+    // this project forces 2-way authentication
+    inner_client_privkey = NULL;
+    status = tlsRSAgetPrivKey(priv_key_raw_data, priv_key_raw_len, &inner_client_privkey);
+    if ((status < 0) || (inner_client_privkey == NULL)) {
         goto fail;
     }
-    // load essential elements from CA certificate.
-    tls_CA_cert = (tlsCert_t *)XMALLOC(sizeof(tlsCert_t));
-    XMEMSET(tls_CA_cert, 0x0, sizeof(tlsCert_t));
-    mqttAuthGetCertRawBytes(&tls_CA_cert->rawbytes.data, (word16 *)&cert_len);
-    XASSERT((cert_len > 0xff) && (cert_len <= TLS_MAX_BYTES_CERT_CHAIN));
-    XASSERT(tls_CA_cert->rawbytes.data != NULL);
-    tlsEncodeWord24(&tls_CA_cert->rawbytes.len[0], cert_len);
-    status = tlsDecodeCerts(tls_CA_cert, final_item_rdy);
+    // load essential elements from external certificates.
+    inner_broker_cacert = inner_client_cert = NULL;
+    // note there's no way to verify client's cert in this project
+    status = tlsInitCertHelper(&inner_client_cert, mqttAuthClientCertRaw);
+    if (status < 0) {
+        goto fail;
+    }
+    status = tlsInitCertHelper(&inner_broker_cacert, mqttAuthCACertBrokerRaw);
     if (status < 0) {
         goto fail;
     }
     // verify self-signed cert (the decoded CA cert) at here
-    status = tlsVerifyCertChain(NULL, tls_CA_cert);
+    status = tlsVerifyCertChain(NULL, inner_broker_cacert);
     if (status < 0) {
         goto fail;
     }
-    tlsFreeCertChain(tls_CA_cert, TLS_FREE_CERT_ENTRY_SIGNATURE);
+    tlsFreeCertChain(inner_broker_cacert, TLS_FREE_CERT_ENTRY_SIGNATURE);
     goto done;
 fail:
-    tlsRSAfreePrivKey(tls_CA_priv_key);
-    tls_CA_priv_key = NULL;
-    // raw bytes of CA cert will be placed in .rodata section, which means the memory cannot be
-    // deallocted , so simply set rawbytes to NULL.
-    if (tls_CA_cert != NULL) {
-        tls_CA_cert->rawbytes.data = NULL;
-        tlsFreeCertChain(tls_CA_cert, TLS_FREE_CERT_ENTRY_ALL);
-        tls_CA_cert = NULL;
-    }
+    tlsRSAfreePrivKey(inner_client_privkey);
+    inner_client_privkey = NULL;
+    tlsFreeCertHelper(&inner_broker_cacert);
+    tlsFreeCertHelper(&inner_client_cert);
 done:
     return status;
 } // end of tlsClientInit
@@ -74,20 +109,17 @@ void tlsClientDeInit(mqttCtx_t *mctx) {
         mqttDRBGdeinit(mctx->drbg);
         mctx->drbg = NULL;
     }
-    if (tls_CA_cert != NULL) {
-        tls_CA_cert->rawbytes.data = NULL;
-        tlsFreeCertChain(tls_CA_cert, TLS_FREE_CERT_ENTRY_ALL);
-        tls_CA_cert = NULL;
-    }
-    tlsRSAfreePrivKey(tls_CA_priv_key);
-    tls_CA_priv_key = NULL;
-} // end of tlsClientDeInit
+    tlsFreeCertHelper(&inner_broker_cacert);
+    tlsFreeCertHelper(&inner_client_cert);
+    tlsRSAfreePrivKey(inner_client_privkey);
+    inner_client_privkey = NULL;
+}
 
 static tlsRespStatus tlsClientSessionCreate(tlsSession_t **session) {
     if (session == NULL) {
         return TLS_RESP_ERRARGS;
     }
-    if (tls_CA_cert == NULL) {
+    if (inner_broker_cacert == NULL) {
         return TLS_RESP_ERR;
     }
     tlsSession_t *s = NULL;
@@ -115,8 +147,9 @@ static tlsRespStatus tlsClientSessionCreate(tlsSession_t **session) {
     // and both client and server start sending application-level message.
     s->record_type = TLS_CONTENT_TYPE_HANDSHAKE;
     // pass CA certificate & (optional) corresponding private key to currently established session
-    s->CA_cert = tls_CA_cert;
-    s->CA_priv_key = tls_CA_priv_key;
+    s->broker_cacert = inner_broker_cacert;
+    s->client_cert = inner_client_cert;
+    s->client_privkey = inner_client_privkey;
     *session = s;
     return TLS_RESP_OK;
 } // end of tlsClientSessionCreate

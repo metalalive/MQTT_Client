@@ -17,16 +17,22 @@ const byte   mqttAuthInitDate    = {{{sysinitdate.value@numToStr@convertBCD   }}
 const word16 mqttAuthInitYear    = {{{ sysinityear.value@numToStr@convertBCD  }}};
  
 #ifdef    MQTT_CFG_USE_TLS
-const byte   mqtt_auth_ca_cert_rawbyte[] = {
-{{{ pathcert.value@filedumphex@genCcharArray }}}
-}; // end of mqtt_auth_ca_cert_rawbyte
+const byte   mqtt_auth_cacert4broker_rawbyte[] = {
+    {{{ path_cacert_broker.value@filedumphex@genCcharArray }}}
+};
 
-unsigned int mqtt_auth_ca_cert_rawbyte_len = {{{ pathcert.value@filelen }}};
+unsigned int mqtt_auth_cacert4broker_nbytes = {{{ path_cacert_broker.value@filelen }}};
 
-const byte   mqtt_auth_ca_priv_key_rawbyte[] = {
- {{{ pathprivkey.value@filedumphex@genCcharArray }}}
-}; // end of mqtt_auth_ca_priv_key_rawbyte
+const byte   mqtt_auth_clientcert_rawbyte[] = {
+    {{{ path_client_cert.value@filedumphex@genCcharArray }}}
+};
 
-unsigned int mqtt_auth_ca_priv_key_rawbyte_len = {{{ pathprivkey.value@filelen }}};
+unsigned int mqtt_auth_clientcert_nbytes = {{{ path_client_cert.value@filelen }}};
+
+const byte   mqtt_auth_client_privkey_rawbyte[] = {
+    {{{ path_client_privkey.value@filedumphex@genCcharArray }}}
+};
+
+unsigned int mqtt_auth_client_privkey_nbytes = {{{ path_client_privkey.value@filelen }}};
 
 #endif // end of MQTT_CFG_USE_TLS
