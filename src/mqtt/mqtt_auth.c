@@ -8,11 +8,13 @@ extern mqttStr_t mqttAuthBrokerUsername;
 extern mqttStr_t mqttAuthBrokerPasswd;
 
 #if defined(MQTT_CFG_USE_TLS)
-extern const byte   mqtt_auth_ca_cert_rawbyte[];
-extern unsigned int mqtt_auth_ca_cert_rawbyte_len;
-extern const byte   mqtt_auth_ca_priv_key_rawbyte[];
-extern unsigned int mqtt_auth_ca_priv_key_rawbyte_len;
-#endif // end of MQTT_CFG_USE_TLS
+extern const byte   mqtt_auth_cacert4broker_rawbyte[];
+extern unsigned int mqtt_auth_cacert4broker_nbytes;
+extern const byte   mqtt_auth_client_privkey_rawbyte[];
+extern unsigned int mqtt_auth_client_privkey_nbytes;
+extern const byte   mqtt_auth_clientcert_rawbyte[];
+extern unsigned int mqtt_auth_clientcert_nbytes;
+#endif
 
 mqttRespStatus mqttAuthGetWifiLoginInfo(mqttStr_t **ssid, mqttStr_t **passwd) {
     if (ssid == NULL || passwd == NULL) {
@@ -21,7 +23,7 @@ mqttRespStatus mqttAuthGetWifiLoginInfo(mqttStr_t **ssid, mqttStr_t **passwd) {
     *ssid = &mqttAuthWifiSSID;
     *passwd = &mqttAuthWifiPasswd;
     return MQTT_RESP_OK;
-} // end of mqttAuthGetWifiLoginInfo
+}
 
 mqttRespStatus mqttAuthGetBrokerHost(mqttStr_t **hostname, word16 *port) {
     if (hostname == NULL || port == NULL) {
@@ -30,7 +32,7 @@ mqttRespStatus mqttAuthGetBrokerHost(mqttStr_t **hostname, word16 *port) {
     *hostname = &mqttAuthBrokerHostname;
     *port = mqttAuthBrokerPort;
     return MQTT_RESP_OK;
-} // end of mqttAuthGetBrokerHost
+}
 
 mqttRespStatus mqttAuthGetBrokerLoginInfo(mqttStr_t **username, mqttStr_t **passwd) {
     if (username == NULL || passwd == NULL) {
@@ -39,24 +41,33 @@ mqttRespStatus mqttAuthGetBrokerLoginInfo(mqttStr_t **username, mqttStr_t **pass
     *username = &mqttAuthBrokerUsername;
     *passwd = &mqttAuthBrokerPasswd;
     return MQTT_RESP_OK;
-} // end of mqttAuthGetBrokerLoginInfo
+}
 
 #if defined(MQTT_CFG_USE_TLS)
-mqttRespStatus mqttAuthGetCertRawBytes(byte **out, word16 *len) {
+mqttRespStatus mqttAuthCACertBrokerRaw(byte **out, word16 *len) {
     if (out == NULL || len == NULL) {
         return MQTT_RESP_ERRARGS;
     }
-    *out = (const byte *)&mqtt_auth_ca_cert_rawbyte[0];
-    *len = (word16)mqtt_auth_ca_cert_rawbyte_len;
+    *out = (const byte *)&mqtt_auth_cacert4broker_rawbyte[0];
+    *len = (word16)mqtt_auth_cacert4broker_nbytes;
     return MQTT_RESP_OK;
-} // end of mqttAuthGetCertRawBytes
+}
 
-mqttRespStatus mqttAuthGetCAprivKeyRawBytes(const byte **out, word16 *len) {
+mqttRespStatus mqttAuthClientPrivKeyRaw(const byte **out, word16 *len) {
     if (out == NULL || len == NULL) {
         return MQTT_RESP_ERRARGS;
     }
-    *out = (const byte *)&mqtt_auth_ca_priv_key_rawbyte[0];
-    *len = (word16)mqtt_auth_ca_priv_key_rawbyte_len;
+    *out = (const byte *)&mqtt_auth_client_privkey_rawbyte[0];
+    *len = (word16)mqtt_auth_client_privkey_nbytes;
     return MQTT_RESP_OK;
-} // end of mqttAuthGetCAprivKeyRawBytes
+}
+
+mqttRespStatus mqttAuthClientCertRaw(byte **out, word16 *len) {
+    if (out == NULL || len == NULL) {
+        return MQTT_RESP_ERRARGS;
+    }
+    *out = (const byte *)&mqtt_auth_clientcert_rawbyte[0];
+    *len = (word16)mqtt_auth_clientcert_nbytes;
+    return MQTT_RESP_OK;
+}
 #endif // end of MQTT_CFG_USE_TLS

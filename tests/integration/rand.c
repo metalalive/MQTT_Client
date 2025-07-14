@@ -6,7 +6,6 @@
 #define MQTT_TEST_RND_HISTO_LIST_LEN  8
 #define MQTT_TEST_RND_BYTE_SEQ_MAXLEN 0xff
 
-static mqttCtx_t            *m_client;
 static volatile word32       rand_history_list[MQTT_TEST_RND_HISTO_LIST_LEN];
 static volatile const word32 rand_maxval_list[MQTT_TEST_RND_HISTO_LIST_LEN] = {
     0x5, 0xff, 0x100, 0xffff, 0x10000, 0xffffff, 0x1000000, 0xfffffffe
@@ -14,12 +13,10 @@ static volatile const word32 rand_maxval_list[MQTT_TEST_RND_HISTO_LIST_LEN] = {
 static volatile byte rand_byte_seq[MQTT_TEST_RND_BYTE_SEQ_MAXLEN];
 
 static void mqttTestStartFn(void *params) {
-    mqttRespStatus status = MQTT_RESP_ERR;
-    word16         rand_byte_seq_len = 0;
-    word16         num_iter = 0;
-    word16         idx = 0;
+    mqttCtx_t *m_client = params;
+    word16     rand_byte_seq_len = 0, num_iter = 0, idx = 0;
 
-    status = mqttDRBGinit(&m_client->drbg);
+    mqttRespStatus status = mqttDRBGinit(&m_client->drbg);
     if (status != MQTT_RESP_OK) {
         goto end_of_main_test;
     }
@@ -44,16 +41,15 @@ end_of_main_test:
 } // end of mqttTestStartFn
 
 int main(int argc, char **argv) {
-    mqttRespStatus status = MQTT_RESP_ERR;
-    m_client = NULL;
-    status = mqttClientInit(&m_client, MQTT_TEST_CMD_TIMEOUT_MS);
+    mqttCtx_t     *m_client = NULL;
+    mqttRespStatus status = mqttClientInit(&m_client, MQTT_TEST_CMD_TIMEOUT_MS);
     if (status == MQTT_RESP_OK) {
 #ifdef MQTT_CFG_RUN_TEST_THREAD
         uint8_t       isPrivileged = 0x1;
         mqttSysThre_t new_thread;
         mqttSysThreadCreate(
-            "mqttTestStartFn", (mqttSysThreFn)mqttTestStartFn, NULL, MQTT_TEST_THREAD_STACK_SIZE,
-            MQTT_APPS_THREAD_PRIO_MIN, isPrivileged, &new_thread
+            "mqttTestStartFn", (mqttSysThreFn)mqttTestStartFn, m_client,
+            MQTT_TEST_THREAD_STACK_SIZE, MQTT_APPS_THREAD_PRIO_MIN, isPrivileged, &new_thread
         );
         mqttSysThreadWaitUntilExit(&new_thread, NULL);
 #else
@@ -61,4 +57,4 @@ int main(int argc, char **argv) {
 #endif
     }
     return 0;
-} // end of main()
+}

@@ -48,7 +48,15 @@ extern "C" {
      * @brief This is the list of modules to be used in the HAL driver
      */
     #define HAL_MODULE_ENABLED
-
+    // application-specific parameters
+    // Configure GPIO pin for sonar sensor : PC8 , PC9
+    #define ENTROPY_HCSR04_IN_GRP     GPIOC
+    #define ENTROPY_HCSR04_IN_PINNUM  GPIO_PIN_9
+    #define ENTROPY_HCSR04_OUT_GRP    GPIOC
+    #define ENTROPY_HCSR04_OUT_PINNUM GPIO_PIN_8
+    // PB9 as network device RST pin
+    #define ESP8266_RST_PINGRP GPIOB
+    #define ESP8266_RST_PINNUM GPIO_PIN_9
     /* #define HAL_ADC_MODULE_ENABLED   */
     /* #define HAL_CRYP_MODULE_ENABLED   */
     /* #define HAL_CAN_MODULE_ENABLED   */

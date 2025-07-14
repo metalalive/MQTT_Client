@@ -9,10 +9,9 @@ extern void STM32_generic_DMAstream_IRQHandler(DMA_HandleTypeDef *);
 static UART_HandleTypeDef haluart3;
 // the DMA module used with UART3 (STM32F4xx board)
 static DMA_HandleTypeDef haldma_usart3_rx;
-/**
- * @brief System Clock Configuration
- * @retval None
- */
+// timer for estimating entropy in cryptography algorithm in the TLS library
+static TIM_HandleTypeDef htim2;
+
 HAL_StatusTypeDef SystemClock_Config(void) {
     HAL_StatusTypeDef        status = HAL_OK;
     RCC_OscInitTypeDef       RCC_OscInitStruct = {0};
@@ -57,6 +56,35 @@ HAL_StatusTypeDef SystemClock_Config(void) {
 done:
     return status;
 } // end of SystemClock_Config
+
+HAL_StatusTypeDef STM32_HAL_GeneralTimer_Init(uint32_t TickPriority) {
+    RCC_ClkInitTypeDef clkconfig = {0};
+
+    uint32_t uwTimclock = 0, uwPrescalerValue = 0, pFLatency = 0;
+
+    __HAL_RCC_TIM2_CLK_ENABLE();
+    HAL_RCC_GetClockConfig(&clkconfig, &pFLatency);
+    uwTimclock = HAL_RCC_GetPCLK1Freq();
+    /* Compute the prescaler value to have TIM2 counter clock equal to 1MHz */
+    uwPrescalerValue = (uint32_t)((uwTimclock / 1000000) - 1);
+    htim2.Instance = TIM2;
+    /* Initialize TIMx peripheral as follow:
+    + Period = [(TIM2CLK/1000) - 1]. to have a (1/1000) s time base.
+    + Prescaler = (uwTimclock/1000000 - 1) to have a 1MHz counter clock.
+    + ClockDivision = 0
+    + Counter direction = Up
+    */
+    htim2.Init.Period = (1000000 / 1000) - 1;
+    htim2.Init.Prescaler = uwPrescalerValue;
+    htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+    htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+    if (HAL_TIM_Base_Init(&htim2) == HAL_OK) {
+        HAL_NVIC_SetPriority(TIM2_IRQn, TickPriority, 0);
+        /* Start the TIM time Base generation in interrupt mode */
+        return HAL_TIM_Base_Start_IT(&htim2);
+    }
+    return HAL_ERROR;
+} // end of STM32_HAL_GeneralTimer_Init
 
 HAL_StatusTypeDef STM32_HAL_UART_Init(void) {
     haluart3.Instance = USART3;
@@ -111,6 +139,28 @@ HAL_StatusTypeDef STM32_HAL_UART_DeInit(void) {
 
 UART_HandleTypeDef *STM32_config_UART(void) { return &haluart3; }
 DMA_HandleTypeDef  *STM32_config_DMA4UART(void) { return &haldma_usart3_rx; }
+TIM_HandleTypeDef  *STM32_config_GeneralTimer(void) { return &htim2; }
+
+// brief This function handles Non maskable interrupt.
+void NMI_Handler(void) {}
+
+// brief This function handles Debug monitor.
+void DebugMon_Handler(void) {}
+
+// brief This function handles Pre-fetch fault, memory access fault.
+void BusFault_Handler(void) { configASSERT(0); }
+
+// brief This function handles Undefined instruction or illegal state.
+void UsageFault_Handler(void) { configASSERT(0); }
+
+void vTestAppHardFaultHandler(UBaseType_t *sp) {
+    BaseType_t done = vPortTryRecoverHardFault(sp);
+    configASSERT(done);
+}
+
+void SysTick_Handler(void) { vPortSysTickHandler(); }
+
+void TIM2_IRQHandler(void) { HAL_TIM_IRQHandler(&htim2); }
 
 void USART3_IRQHandler(void) { STM32_generic_USART_IRQHandler(&haluart3); }
 
@@ -157,25 +207,33 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef *huart) {
 HAL_StatusTypeDef STM32_HAL_GPIO_Init(void) {
     //  ---------- initialize GPIO pins  for ESP device ----------
     GPIO_InitTypeDef GPIO_InitStruct = {0};
-    // Configure GPIO pin Output Level
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
-    // Configure GPIO pins : PB9 as network device RST pin
-    GPIO_InitStruct.Pin = GPIO_PIN_9;
+    // `PH0` on STM32 board is always pulled HIGH and connected to `CH_PD` and `GPIO0`
+    // pin of ESP device, for now they are hardcoded here they don't need to be
+    // shared in core library implementation
+    __HAL_RCC_GPIOH_CLK_ENABLE();
+    GPIO_InitStruct.Pin = GPIO_PIN_0;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
+    // configure network device RST pin
+    GPIO_InitStruct.Pin = ESP8266_RST_PINNUM;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-    // Configure GPIO pin : PC8
-    GPIO_InitStruct.Pin = GPIO_PIN_8;
+    HAL_GPIO_Init(ESP8266_RST_PINGRP, &GPIO_InitStruct);
+    // Configure GPIO pin for sonar sensor
+    GPIO_InitStruct.Pin = ENTROPY_HCSR04_OUT_PINNUM;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-    // Configure GPIO pin : PC9
-    GPIO_InitStruct.Pin = GPIO_PIN_9;
+    HAL_GPIO_Init(ENTROPY_HCSR04_OUT_GRP, &GPIO_InitStruct);
+    GPIO_InitStruct.Pin = ENTROPY_HCSR04_IN_PINNUM;
     GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+    HAL_GPIO_Init(ENTROPY_HCSR04_IN_GRP, &GPIO_InitStruct);
+    HAL_GPIO_WritePin(GPIOH, GPIO_PIN_0, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(ESP8266_RST_PINGRP, ESP8266_RST_PINNUM, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(ENTROPY_HCSR04_OUT_GRP, ENTROPY_HCSR04_OUT_PINNUM, GPIO_PIN_RESET);
     return HAL_OK;
 }

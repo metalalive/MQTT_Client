@@ -517,10 +517,12 @@ typedef struct {
     void *ext_sysobjs[MQTT_MAX_NUM_EXT_SYSOBJS];
     // for storing everything about key material at key-exchange phase
     tlsKeyEx_t keyex;
-    // for decoding certificate chain
-    void      *CA_priv_key; // point to CA private key structure
-    tlsCert_t *CA_cert;     // CA certificate for this TLS client
-    tlsCert_t *peer_certs;  // certificates received from peer
+    // --- for decoding certificate chain ---
+    // client's private key and certificate for 2-way authentication
+    void      *client_privkey;
+    tlsCert_t *client_cert;
+    tlsCert_t *broker_cacert; // CA certificate which signed broker's certificate
+    tlsCert_t *peer_certs;    // certificates received from peer
     union {
         // in this TLS implementation, only 24-bit LSB of total_certs is used, 8-bit MSB is reserved
         word32 total_certs;       // number of bytes in peer's certificate chain

@@ -89,7 +89,7 @@ endif
 
 # code reformat
 REFMT_SRC_DIRS := \
-	./src/system/middleware \
+	./src/system \
 	./include/integration   \
 	./include/mqtt    \
 	./include/system  \
@@ -191,6 +191,7 @@ config:
 dbg_server:
 	@$(DBG_SERVER_CMD)
 
+dbg_client: export RTOS_HW_BUILD_PATH := $(RTOS_HW_BUILD_PATH)
 dbg_client:
 	@$(DBG_CLIENT_CMD)
 

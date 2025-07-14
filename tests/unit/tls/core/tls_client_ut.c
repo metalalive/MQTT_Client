@@ -53,21 +53,21 @@ mqttRespStatus mqttUtilRandByteSeq(mqttDRBG_t *drbg, byte *out, word16 outlen) {
     return MQTT_RESP_OK;
 }
 
-mqttRespStatus mqttAuthGetCAprivKeyRawBytes(const byte **out, word16 *len) {
+mqttRespStatus mqttAuthClientPrivKeyRaw(const byte **out, word16 *len) {
     if (mock_auth_getprivkey_return_val == MQTT_RESP_OK) {
         *out = (const byte *)&mock_mqtt_auth_ca_priv_key_rawbyte[0];
         *len = (word16)mock_mqtt_auth_ca_priv_key_rawbyte_len;
     }
     return mock_auth_getprivkey_return_val;
-} // end of mqttAuthGetCAprivKeyRawBytes
+} // end of mqttAuthClientPrivKeyRaw
 
-mqttRespStatus mqttAuthGetCertRawBytes(byte **out, word16 *len) {
+mqttRespStatus mqttAuthCACertBrokerRaw(byte **out, word16 *len) {
     if (mock_auth_getcacert_return_val == MQTT_RESP_OK) {
         *out = (const byte *)&mock_mqtt_auth_ca_cert_rawbyte[0];
         *len = (word16)mock_mqtt_auth_ca_cert_rawbyte_len;
     }
     return mock_auth_getcacert_return_val;
-} // end of mqttAuthGetCertRawBytes
+} // end of mqttAuthCACertBrokerRaw
 
 tlsRespStatus tlsRemoveItemFromList(tlsListItem_t **list, tlsListItem_t *removing_item) {
     if ((list == NULL) && (removing_item == NULL)) {

@@ -10,6 +10,12 @@ ifeq ($(MAKECMDGOALS), gen_lib)
 	LIB_C_SRCS += ./src/system/middleware/ESP_AT_parser/mqtt_sys.c
 endif
 
+ifeq ($(DEBUG), yes)
+_DBG_FLG_RTOS_HW_PLATFORM = 1
+else
+_DBG_FLG_RTOS_HW_PLATFORM = 0
+endif
+
 # $(info ----- MQTT ESP8266-AT-parser integration start -----)
 # $(info HW_PLATFORM : $(HW_PLATFORM))
 # $(info OS : $(OS))
@@ -35,7 +41,8 @@ demo:
 	@for appn in $(DEMO_APPS_NAME); do \
 		echo "--- Building $$app ---"; \
 		$(MAKE) buildapp \
-			DEBUG=$(DEBUG) OS=$(OS)  HW_PLATFORM=$(HW_PLATFORM) \
+			DEBUG=$(_DBG_FLG_RTOS_HW_PLATFORM) \
+			OS=$(OS)  HW_PLATFORM=$(HW_PLATFORM) \
 			RTOS_HW_BUILD_PATH=$(RTOS_HW_BUILD_PATH) \
 			TOOLCHAIN_BASEPATH=$(TOOLCHAIN_BASEPATH) \
 			ESP_PROJ_HOME=$(ESP_PROJ_HOME) \
@@ -50,8 +57,11 @@ buildapp: export APP_REQUIRED_C_HEADER_PATHS := $(C_HEADERS_PATHS)
 buildapp: export APP_REQUIRED_C_SOURCE_FILES := $(ESP_C_SOURCES)
 buildapp:
 	@make -C $(RTOS_HW_BUILD_PATH)  startbuild \
-          DEBUG=$(DEBUG)  BUILD_DIR=$(MQC_PROJ_HOME)/$(BUILD_DIR) OS=$(OS) \
-		  HW_PLATFORM=$(HW_PLATFORM) APP_NAME=$(APP_NAME) APPCFG_PATH=$(APP_BASEPATH) \
+          DEBUG=$(_DBG_FLG_RTOS_HW_PLATFORM) \
+		  BUILD_DIR=$(MQC_PROJ_HOME)/$(BUILD_DIR) \
+		  OS=$(OS)  HW_PLATFORM=$(HW_PLATFORM) \
+		  APP_NAME=$(APP_NAME) APPCFG_PATH=$(APP_BASEPATH) \
 		  TOOLCHAIN_BASEPATH=$(TOOLCHAIN_BASEPATH) \
-		  APPCFG_LIBS_PATHS="$(_APPCFG_LIBS_PATHS)"
+		  APPCFG_LIBS_PATHS="$(_APPCFG_LIBS_PATHS)" \
+		  APPCFG_C_DEFS="$(EXTRA_C_DEFS)"
 

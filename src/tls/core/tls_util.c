@@ -25,24 +25,6 @@ const tlsSignScheme tls_supported_sign_scheme[] = {
     TLS_SIGNATURE_RSA_PSS_RSAE_SHA384,
 };
 
-// a ready list of PSKs contains :
-// * a preserved pre-shared key from NewSessionTicket of previous secure connection (if exists),
-// * PSKs that are explicitly established by user applications.
-// Note that PSK is useful to make future connection more effecient, see section 2-2 in RFC8446.
-tlsPSK_t *tls_PSKs_rdy_list;
-
-// CA certificate for this TLS client
-// in this MQTT/TLS implementation, we don't exepct to consume huge space to store long CA (root)
-// certificate chain ,since this implementation also considers of running on microcontroller-based
-// platform (with very limited memory), , so we only store a single CA certificate. User
-// applications SHOULD avoid long CA (root) certificate chain.
-tlsCert_t *tls_CA_cert;
-
-// private key corresponding to CA certificate above
-// used only when server requests client authentication via Certificate, in that case, client has to
-// send certificate (in Certificate message), and signature (in CertificateVerify) to server.
-void *tls_CA_priv_key;
-
 word32 tlsEncodeWord24(byte *buf, word32 value) {
     if (buf != NULL) {
         buf[0] = (value >> 16) & 0xff;

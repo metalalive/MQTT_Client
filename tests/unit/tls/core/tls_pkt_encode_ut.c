@@ -573,11 +573,11 @@ TEST(tlsEncodeRecordLayer, certificate_fragments) {
     cert_req_sz = 32;
     cert_sz = tls_session->outbuf.len << 1;
     buf = XMALLOC(sizeof(byte) * (cert_sz + cert_req_sz));
-    tls_session->CA_cert = XMALLOC(sizeof(tlsCert_t));
-    tls_session->CA_cert->rawbytes.data = &buf[0];
+    tls_session->broker_cacert = XMALLOC(sizeof(tlsCert_t));
+    tls_session->broker_cacert->rawbytes.data = &buf[0];
     tls_session->tmpbuf.cert_req_ctx.data = &buf[cert_sz];
     tls_session->tmpbuf.cert_req_ctx.len = cert_req_sz;
-    tlsEncodeWord24(&tls_session->CA_cert->rawbytes.len[0], cert_sz);
+    tlsEncodeWord24(&tls_session->broker_cacert->rawbytes.len[0], cert_sz);
     tls_session->sec.chosen_ciphersuite = &tls_supported_cipher_suites[1];
     // start encoding first fragment of Certificate
     status = tlsEncodeRecordLayer(tls_session);
@@ -617,11 +617,11 @@ TEST(tlsEncodeRecordLayer, certificate_fragments) {
     encoded_idx += 1 + tls_session->sec.chosen_ciphersuite->tagSize;
     TEST_ASSERT_EQUAL_UINT16(encoded_idx, tls_session->outlen_encoded);
 
-    XMEMFREE(tls_session->CA_cert->rawbytes.data);
-    tls_session->CA_cert->rawbytes.data = NULL;
+    XMEMFREE(tls_session->broker_cacert->rawbytes.data);
+    tls_session->broker_cacert->rawbytes.data = NULL;
     tls_session->tmpbuf.cert_req_ctx.data = NULL;
-    XMEMFREE(tls_session->CA_cert);
-    tls_session->CA_cert = NULL;
+    XMEMFREE(tls_session->broker_cacert);
+    tls_session->broker_cacert = NULL;
 } // end of TEST(tlsEncodeRecordLayer, certificate_fragments)
 
 TEST(tlsEncodeRecordLayer, cert_verify_fragments) {

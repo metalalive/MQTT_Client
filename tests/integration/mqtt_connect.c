@@ -6,7 +6,6 @@
 #define MQTT_TEST_THREAD_STACK_SIZE ((uint16_t)0x13e)
 
 static mqttTestPatt testPatternSet;
-static mqttCtx_t   *m_client;
 
 static mqttRespStatus mqttTestRunPatterns(
     mqttTestPatt *patt_in, mqttCtx_t *mctx
@@ -37,15 +36,19 @@ disconnect_server:
 } // end of mqttTestRunPatterns
 
 static void mqttTestStartFn(void *params) {
-    mqttRespStatus status = MQTT_RESP_ERR;
-    uint8_t        num_iter = 4;
-
+    mqttCtx_t     *m_client = params;
+    mqttRespStatus status = MQTT_RESP_OK;
     if (m_client->drbg == NULL) {
         status = mqttDRBGinit(&m_client->drbg);
         if (status != MQTT_RESP_OK) {
             goto end_of_main_test;
         }
     }
+    status = mqttSysNetInit();
+    if (status != MQTT_RESP_OK) {
+        goto end_of_main_test;
+    }
+    uint8_t num_iter = 4;
     XMEMSET(&testPatternSet, 0x00, sizeof(mqttTestPatt));
     testPatternSet.drbg = m_client->drbg;
     while (num_iter > 0) {
@@ -64,6 +67,7 @@ end_of_main_test:
         mqttDRBGdeinit(m_client->drbg);
         m_client->drbg = NULL;
     }
+    status = mqttSysNetDeInit();
     mqttClientDeinit(m_client);
     m_client = NULL;
 #ifdef MQTT_CFG_RUN_TEST_THREAD
@@ -72,16 +76,15 @@ end_of_main_test:
 } // end of mqttTestStartFn
 
 int main(int argc, char **argv) {
-    mqttRespStatus status = MQTT_RESP_ERR;
-    m_client = NULL;
-    status = mqttClientInit(&m_client, MQTT_TEST_CMD_TIMEOUT_MS);
+    mqttCtx_t     *m_client = NULL;
+    mqttRespStatus status = mqttClientInit(&m_client, MQTT_TEST_CMD_TIMEOUT_MS);
     if (status == MQTT_RESP_OK) {
 #ifdef MQTT_CFG_RUN_TEST_THREAD
         uint8_t       isPrivileged = 0x1;
         mqttSysThre_t new_thread;
         mqttSysThreadCreate(
-            "mqttTestStartFn", (mqttSysThreFn)mqttTestStartFn, NULL, MQTT_TEST_THREAD_STACK_SIZE,
-            MQTT_APPS_THREAD_PRIO_MIN, isPrivileged, &new_thread
+            "mqttTestStartFn", (mqttSysThreFn)mqttTestStartFn, m_client,
+            MQTT_TEST_THREAD_STACK_SIZE, MQTT_APPS_THREAD_PRIO_MIN, isPrivileged, &new_thread
         );
         mqttSysThreadWaitUntilExit(&new_thread, NULL);
 #else
@@ -91,4 +94,4 @@ int main(int argc, char **argv) {
         mqttClientDeinit(m_client);
     }
     return 0;
-} // end of main()
+}

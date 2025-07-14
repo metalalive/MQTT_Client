@@ -20,3 +20,6 @@ APPCFG_C_SOURCES = \
 # append more paths for libraries to build-in variable `APPCFG_LIBS_PATHS`
 # for application requirement .
 
+#$(info EXTRA_C_DEFS : $(EXTRA_C_DEFS))
+#$(info APPCFG_C_DEFS : $(APPCFG_C_DEFS))
+
