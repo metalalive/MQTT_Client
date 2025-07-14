@@ -480,7 +480,8 @@ typedef struct {
     int cmd_timeout_ms;
     // optional Deterministic Random Bit Generator (DRBG)
     mqttDRBG_t *drbg;
-    // for extension: server name indication
+    // for extension: server name indication, TODO, add struct type `mqttServerHost_t`
+    // which includes domain name and IP address
     mqttStr_t *server_name;
     // packet buffer
     tlsOpaque16b_t inbuf;     // buffer that store incoming bytes from remote peer

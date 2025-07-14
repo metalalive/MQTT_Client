@@ -1,15 +1,86 @@
 #include "mqtt_include.h"
 
+// Helper function to add a new SAN entry to the linked list
+static tlsRespStatus
+tlsX509AddSANEntry(tlsX509v3ext_t *ext_out, tlsX509SANtype stype, const byte *data, word32 len) {
+    tlsX509SANEntry_t *new_entry = (tlsX509SANEntry_t *)XCALLOC(1, sizeof(tlsX509SANEntry_t));
+    if (new_entry == NULL) {
+        return TLS_RESP_ERRMEM;
+    }
+    new_entry->stype = stype;
+    new_entry->next = NULL;
+
+    if (stype == X509_EXT_SAN_DOMAIN_NAME) {
+        new_entry->data.domain_name.len = (word16)len;
+        new_entry->data.domain_name.data = (byte *)XMALLOC(sizeof(byte) * len);
+        if (new_entry->data.domain_name.data == NULL) {
+            XMEMFREE(new_entry);
+            return TLS_RESP_ERRMEM;
+        }
+        XMEMCPY(new_entry->data.domain_name.data, data, len);
+    } else if (stype == X509_EXT_SAN_IP_ADDR) {
+        new_entry->data.ip_address.len = (byte)len;
+        new_entry->data.ip_address.data = (byte *)XMALLOC(sizeof(byte) * len);
+        if (new_entry->data.ip_address.data == NULL) {
+            XMEMFREE(new_entry);
+            return TLS_RESP_ERRMEM;
+        }
+        XMEMCPY(new_entry->data.ip_address.data, data, len);
+    } else {
+        // Unsupported SAN type, free the entry and return error or skip
+        XMEMFREE(new_entry);
+        return TLS_RESP_ERR_NOT_SUPPORT;
+    }
+    // Append to the end of the linked list
+    if (ext_out->subjAltNames == NULL) {
+        ext_out->subjAltNames = new_entry;
+    } else {
+        tlsX509SANEntry_t *curr = ext_out->subjAltNames;
+        while (curr->next != NULL) {
+            curr = curr->next;
+        }
+        curr->next = new_entry;
+    }
+    return TLS_RESP_OK;
+} // end of tlsX509AddSANEntry
+
+tlsX509SANEntry_t *tlsX509FindSubjAltName(tlsX509v3ext_t *ext, mqttStr_t *keyword) {
+    if (ext == NULL || keyword == NULL) {
+        return NULL;
+    }
+    tlsX509SANEntry_t *curr = ext->subjAltNames;
+
+    const char *s1 = NULL, *s2 = (const char *)keyword->data;
+    while (curr != NULL) {
+        s1 = NULL;
+        if (curr->stype == X509_EXT_SAN_DOMAIN_NAME) {
+            if (curr->data.domain_name.len == keyword->len) {
+                s1 = (const char *)curr->data.domain_name.data;
+            }
+        } else if (curr->stype == X509_EXT_SAN_IP_ADDR) {
+            // Cast curr->data.ip_address.len to word16 for consistent comparison with keyword->len
+            if ((word16)curr->data.ip_address.len == keyword->len) {
+                s1 = (const char *)curr->data.ip_address.data;
+            }
+        }
+        int cmp_res = XSTRNCMP(s1, s2, keyword->len);
+        if (cmp_res == 0) {
+            break;
+        } else {
+            curr = curr->next;
+        }
+    }
+    return curr;
+}
+
 tlsRespStatus
 tlsX509getExtensions(byte *in, word32 *inlen, tlsX509v3ext_t **ext_out, word32 *datalen) {
+    tlsRespStatus status = TLS_RESP_OK;
     if (in == NULL || inlen == NULL || ext_out == NULL || datalen == NULL) {
         return TLS_RESP_ERRARGS;
     }
-    const byte    oid_ext_prefix[4] = {(byte)ASN_PRIMDATA_OID, 0x3, 0x55, 0x1d};
-    word32        obj_idlen_sz = 0;
-    word32        obj_data_sz = 0;
-    word32        remain_sz = *inlen;
-    tlsRespStatus status = TLS_RESP_OK;
+    const byte oid_ext_prefix[4] = {(byte)ASN_PRIMDATA_OID, 0x3, 0x55, 0x1d};
+    word32     obj_idlen_sz = 0, obj_data_sz = 0, remain_sz = *inlen;
 
     *inlen = 0;
     *datalen = 0;
@@ -92,8 +163,8 @@ tlsX509getExtensions(byte *in, word32 *inlen, tlsX509v3ext_t **ext_out, word32 *
                 remain_sz -= obj_idlen_sz;
                 in += obj_idlen_sz;
                 // check OID & extension type
-                switch (ext_type
-                ) { // TODO: re-factor if we need to parse more x509 extensions in future
+                // TODO: re-factor if we need to parse more x509 extensions in future
+                switch (ext_type) {
                 case X509_EXT_TYPE_AUTH_ID:
                     obj_idlen_sz = remain_sz;
                     status = tlsASN1GetIDlen(
@@ -177,6 +248,54 @@ tlsX509getExtensions(byte *in, word32 *inlen, tlsX509v3ext_t **ext_out, word32 *
                         }
                     }
                     break;
+                case X509_EXT_TYPE_SUBJ_ALT_NAME:
+                    obj_idlen_sz = remain_sz;
+                    status = tlsASN1GetIDlen(
+                        in, &obj_idlen_sz, (ASN_PRIMDATA_SEQUENCE | ASN_TAG_CONSTRUCTED),
+                        &obj_data_sz
+                    );
+                    if (status < 0) {
+                        goto done;
+                    }
+                    remain_sz -= obj_idlen_sz;
+                    in += obj_idlen_sz;
+                    // Parse GeneralNames sequence, loop through each entry
+                    byte  *san_value_ptr = in;
+                    word32 san_remain_in_seq = obj_data_sz;
+                    while (san_remain_in_seq > 0) {
+                        word32 san_entry_data_sz = 0;
+                        byte   san_tag = san_value_ptr[0];
+                        obj_idlen_sz = san_remain_in_seq;
+                        // GeneralName entries are IMPLICITLY tagged, so the tag is the
+                        // context-specific one and the length directly follows.
+                        status = tlsASN1GetIDlen(
+                            san_value_ptr, &obj_idlen_sz, san_tag, &san_entry_data_sz
+                        );
+                        if (status < 0) {
+                            break; // Malformed SAN entry
+                        }
+                        san_remain_in_seq -= obj_idlen_sz;
+                        san_value_ptr += obj_idlen_sz;
+
+                        tlsX509SANtype general_name_type = (tlsX509SANtype)(san_tag & 0x1F);
+                        // Extract the context-specific tag number (e.g., 0x02, 0x07)
+                        if (general_name_type == X509_EXT_SAN_DOMAIN_NAME ||
+                            general_name_type == X509_EXT_SAN_IP_ADDR) {
+                            status = tlsX509AddSANEntry(
+                                *ext_out, general_name_type, san_value_ptr, san_entry_data_sz
+                            );
+                            if (status < 0) {
+                                goto done;
+                            }
+                        } else {
+                            // Skip unsupported GeneralName types (e.g., rfc822Name,
+                            // uniformResourceIdentifier, etc.) You might add logging here if
+                            // needed.
+                        }
+                        san_remain_in_seq -= san_entry_data_sz;
+                        san_value_ptr += san_entry_data_sz;
+                    } // end of while loop
+                    break;
                 default:
                     break;
                 } // end of switch case
@@ -190,14 +309,27 @@ done:
 } // end of tlsX509getExtensions
 
 void tlsX509FreeCertExt(tlsX509v3ext_t *in) {
-    if (in != NULL) {
-        if (in->subjKeyID.data != NULL) {
-            XMEMFREE(in->subjKeyID.data);
-            in->subjKeyID.data = NULL;
-        }
-        if (in->authKeyID.data != NULL) {
-            XMEMFREE(in->authKeyID.data);
-            in->authKeyID.data = NULL;
-        }
+    if (in == NULL) {
+        return;
     }
+    if (in->subjKeyID.data != NULL) {
+        XMEMFREE(in->subjKeyID.data);
+        in->subjKeyID.data = NULL;
+    }
+    if (in->authKeyID.data != NULL) {
+        XMEMFREE(in->authKeyID.data);
+        in->authKeyID.data = NULL;
+    }
+    tlsX509SANEntry_t *curr = in->subjAltNames;
+    while (curr != NULL) {
+        tlsX509SANEntry_t *next = curr->next;
+        if (curr->stype == X509_EXT_SAN_DOMAIN_NAME && curr->data.domain_name.data != NULL) {
+            XMEMFREE(curr->data.domain_name.data);
+        } else if (curr->stype == X509_EXT_SAN_IP_ADDR && curr->data.ip_address.data != NULL) {
+            XMEMFREE(curr->data.ip_address.data);
+        }
+        XMEMFREE(curr);
+        curr = next;
+    }
+    in->subjAltNames = NULL;
 } // end of tlsX509FreeCertExt

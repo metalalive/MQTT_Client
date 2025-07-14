@@ -97,6 +97,24 @@ end_of_decode:
     return status;
 } // end of tlsDecodeHSencryptedExt
 
+static tlsRespStatus tlsVerifyServerName(mqttStr_t *expect, tlsCert_t *actual_cert) {
+    // check whether the common name matches IP or domain name of MQTT broker.
+    const char *expect_addr = (const char *)expect->data;
+    const char *peer_addr = (const char *)actual_cert->subject.common_name;
+    // TODO: compare with subject alternative name (SAN) , return failure ONLY if
+    // all domain names and IP do not match the expect server name.
+    int cn_match = XSTRNCMP(peer_addr, expect_addr, expect->len);
+    if (cn_match == 0) {
+        return TLS_RESP_OK;
+    }
+    tlsX509SANEntry_t *san_entry = tlsX509FindSubjAltName(actual_cert->cert_exts, expect);
+    if (san_entry == NULL) {
+        return TLS_RESP_CERT_AUTH_FAIL;
+    } else {
+        return TLS_RESP_OK;
+    }
+} // end of tlsVerifyServerName
+
 // struct {
 //     select (certificate_type) {
 //         case RawPublicKey:
@@ -166,17 +184,9 @@ static tlsRespStatus tlsDecodeHScertificate(tlsSession_t *session) {
     // do not follow the protocol suggestion, which causes trouble that I need to collect all
     // the certificates before starting the verification
     if (session->sec.flgs.ct_final_frag != 0) {
-        // check whether the common name matches IP or domain name of MQTT broker.
-        const char *peer_addr = (const char *)session->peer_certs->subject.common_name;
-        const char *expect_addr = (const char *)session->server_name->data;
-        // TODO: compare with subject alternative name (SAN) , return failure ONLY if
-        // all domain names and IP do not match the expect server name.
-        int cn_match = XSTRNCMP(peer_addr, expect_addr, session->server_name->len);
-        if (cn_match != 0) {
-#if 0 
-            status = TLS_RESP_CERT_AUTH_FAIL;
+        status = tlsVerifyServerName(session->server_name, session->peer_certs);
+        if (status < 0) {
             goto end_of_decode;
-#endif
         }
         status = tlsVerifyCertChain(session->broker_cacert, session->peer_certs);
     }
