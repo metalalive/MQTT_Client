@@ -21,8 +21,8 @@ typedef enum {
 
 // for Subject Alternative Name entries
 typedef struct __tlsX509SANEntry {
-    struct __tlsX509SANEntry *next; // TODO, reuse `tlsListItem_t` in `tls_types.h`
-    tlsX509SANtype            stype;
+    tlsListItem_t  list_item; // Embed the generic list item
+    tlsX509SANtype stype;
     union {
         tlsOpaque16b_t domain_name; // For dNSName (IA5String)
         tlsOpaque8b_t  ip_address;  // For iPAddress (OCTET STRING)
@@ -32,9 +32,9 @@ typedef struct __tlsX509SANEntry {
 typedef struct {
     // subject key identifier
     // TODO: might not be necessary to store the key IDs below ?
-    tlsOpaque8b_t      subjKeyID;
-    tlsOpaque8b_t      authKeyID;    // authority key identifier
-    tlsX509SANEntry_t *subjAltNames; // list of Subject Alternative Names
+    tlsOpaque8b_t  subjKeyID;
+    tlsOpaque8b_t  authKeyID;    // authority key identifier
+    tlsListItem_t *subjAltNames; // list of Subject Alternative Names (now a generic list)
     struct {
         byte is_ca : 1; // CA certificate flgs
         struct {
@@ -55,7 +55,7 @@ tlsRespStatus tlsX509getExtensions(byte *in, word32 *inlen, tlsX509v3ext_t **out
 
 void tlsX509FreeCertExt(tlsX509v3ext_t *in);
 
-tlsX509SANEntry_t *tlsX509FindSubjAltName(tlsX509v3ext_t *, mqttStr_t *keyword);
+tlsX509SANEntry_t *tlsX509FindSubjAltName(tlsX509v3ext_t *, mqttHost_t *keyword);
 
 #ifdef __cplusplus
 }

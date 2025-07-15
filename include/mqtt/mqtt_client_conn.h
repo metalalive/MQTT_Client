@@ -38,8 +38,8 @@ typedef struct __mqttCtx {
     word32 rx_buf_len;
     // host can be either IP address or host name, TODO, add struct type `mqttServerHost_t`
     // which includes domain name and IP address, the IP address is 4 or 6 hex bytes
-    mqttStr_t *broker_host;
-    word16     broker_port;
+    mqttHost_t *broker_host;
+    word16      broker_port;
 
     int             cmd_timeout_ms;
     mqttCtrlPktType last_recv_cmdtype;

@@ -57,24 +57,23 @@ static tlsRespStatus tlsKeyExCopyPubValToExt(tlsOpaque16b_t *out, tlsKeyEx_t *ke
     return status;
 } // end of tlsKeyExCopyPubValToExt
 
-static tlsExtEntry_t *tlsGenExtsServerName(mqttStr_t *host) {
+static tlsExtEntry_t *tlsGenExtsServerName(mqttHost_t *host) {
     tlsExtEntry_t *out = NULL;
-    byte          *buf = NULL;
-    if ((host != NULL) && (host->data != NULL)) {
+    if ((host != NULL) && (host->domain_name.data != NULL)) {
         out = (tlsExtEntry_t *)XMALLOC(sizeof(tlsExtEntry_t));
         out->next = NULL;
         out->type = TLS_EXT_TYPE_SERVER_NAME;
-        out->content.len = host->len;
+        out->content.len = host->domain_name.len;
         out->content.len += 2; // server name list length
         out->content.len += 1; // server name type (usually host_name)
         out->content.len += 2; // server name length
-        buf = (byte *)XMALLOC(sizeof(byte) * out->content.len);
+        byte *buf = (byte *)XMALLOC(sizeof(byte) * out->content.len);
         out->content.data = buf;
         buf += tlsEncodeWord16(buf, (word16)(out->content.len - 2));
         buf[0] = 0x0; // server name type : host_name
         buf++;
-        buf += tlsEncodeWord16(buf, (word16)host->len);
-        XMEMCPY(buf, host->data, host->len);
+        buf += tlsEncodeWord16(buf, (word16)host->domain_name.len);
+        XMEMCPY(buf, host->domain_name.data, host->domain_name.len);
     }
     return out;
 } // end of tlsGenExtsServerName
@@ -428,7 +427,7 @@ static tlsExtEntry_t *tlsGenExtsClientHello(tlsSession_t *session) {
     if (session == NULL) {
         return NULL;
     }
-    if (session->server_name == NULL || session->server_name->data == NULL) {
+    if (session->server_name == NULL || session->server_name->domain_name.data == NULL) {
         return NULL;
     }
     tlsExtEntry_t *curr = NULL;

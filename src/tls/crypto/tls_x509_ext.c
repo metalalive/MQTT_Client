@@ -8,7 +8,6 @@ tlsX509AddSANEntry(tlsX509v3ext_t *ext_out, tlsX509SANtype stype, const byte *da
         return TLS_RESP_ERRMEM;
     }
     new_entry->stype = stype;
-    new_entry->next = NULL;
 
     if (stype == X509_EXT_SAN_DOMAIN_NAME) {
         new_entry->data.domain_name.len = (word16)len;
@@ -31,46 +30,59 @@ tlsX509AddSANEntry(tlsX509v3ext_t *ext_out, tlsX509SANtype stype, const byte *da
         XMEMFREE(new_entry);
         return TLS_RESP_ERR_NOT_SUPPORT;
     }
-    // Append to the end of the linked list
-    if (ext_out->subjAltNames == NULL) {
-        ext_out->subjAltNames = new_entry;
-    } else {
-        tlsX509SANEntry_t *curr = ext_out->subjAltNames;
-        while (curr->next != NULL) {
-            curr = curr->next;
+    // Append to the end of the linked list using the generic list function
+    tlsRespStatus status =
+        tlsAddItemToList((tlsListItem_t **)&ext_out->subjAltNames, &new_entry->list_item, 0);
+    if (status != TLS_RESP_OK) {
+        // Handle error if adding to list fails (e.g., memory error from within tlsAddItemToList)
+        // In this case, new_entry might not be freed by tlsAddItemToList, so we free it here.
+        if (new_entry->data.domain_name.data != NULL) {
+            XMEMFREE(new_entry->data.domain_name.data);
         }
-        curr->next = new_entry;
+        if (new_entry->data.ip_address.data != NULL) {
+            XMEMFREE(new_entry->data.ip_address.data);
+        }
+        XMEMFREE(new_entry);
     }
-    return TLS_RESP_OK;
+    return status;
 } // end of tlsX509AddSANEntry
 
-tlsX509SANEntry_t *tlsX509FindSubjAltName(tlsX509v3ext_t *ext, mqttStr_t *keyword) {
+tlsX509SANEntry_t *tlsX509FindSubjAltName(tlsX509v3ext_t *ext, mqttHost_t *keyword) {
     if (ext == NULL || keyword == NULL) {
         return NULL;
     }
-    tlsX509SANEntry_t *curr = ext->subjAltNames;
+    tlsListItem_t *curr_list_item = ext->subjAltNames;
 
-    const char *s1 = NULL, *s2 = (const char *)keyword->data;
-    while (curr != NULL) {
-        s1 = NULL;
+    const char *s1 = NULL, *s2 = NULL;
+    while (curr_list_item != NULL) {
+        tlsX509SANEntry_t *curr = (tlsX509SANEntry_t *)curr_list_item; // Cast back to specific type
+
+        word16 cmp_len = 0;
+        int    cmp_res = -1;
         if (curr->stype == X509_EXT_SAN_DOMAIN_NAME) {
-            if (curr->data.domain_name.len == keyword->len) {
-                s1 = (const char *)curr->data.domain_name.data;
+            s1 = (const char *)curr->data.domain_name.data;
+            s2 = (const char *)keyword->domain_name.data;
+            cmp_len = keyword->domain_name.len;
+
+            if (s1 != NULL && s2 != NULL && curr->data.domain_name.len == cmp_len) {
+                cmp_res = XSTRNCMP(s1, s2, cmp_len);
             }
         } else if (curr->stype == X509_EXT_SAN_IP_ADDR) {
-            // Cast curr->data.ip_address.len to word16 for consistent comparison with keyword->len
-            if ((word16)curr->data.ip_address.len == keyword->len) {
-                s1 = (const char *)curr->data.ip_address.data;
+            s1 = (const char *)curr->data.ip_address.data;
+            s2 = (const char *)keyword->ip_address.data;
+            cmp_len = keyword->ip_address.len;
+
+            if (s1 != NULL && s2 != NULL && curr->data.ip_address.len == cmp_len) {
+                cmp_res = XSTRNCMP(s1, s2, cmp_len);
             }
         }
-        int cmp_res = XSTRNCMP(s1, s2, keyword->len);
+
         if (cmp_res == 0) {
-            break;
-        } else {
-            curr = curr->next;
+            return curr; // Found a match
         }
+        curr_list_item = curr_list_item->next; // Advance the generic list item
     }
-    return curr;
+    return NULL; // No match found
 }
 
 tlsRespStatus
@@ -320,16 +332,18 @@ void tlsX509FreeCertExt(tlsX509v3ext_t *in) {
         XMEMFREE(in->authKeyID.data);
         in->authKeyID.data = NULL;
     }
-    tlsX509SANEntry_t *curr = in->subjAltNames;
-    while (curr != NULL) {
-        tlsX509SANEntry_t *next = curr->next;
+    tlsListItem_t *curr_list_item = in->subjAltNames;
+    while (curr_list_item != NULL) {
+        tlsListItem_t     *next_list_item = curr_list_item->next;
+        tlsX509SANEntry_t *curr = (tlsX509SANEntry_t *)curr_list_item; // Cast back to specific type
+
         if (curr->stype == X509_EXT_SAN_DOMAIN_NAME && curr->data.domain_name.data != NULL) {
             XMEMFREE(curr->data.domain_name.data);
         } else if (curr->stype == X509_EXT_SAN_IP_ADDR && curr->data.ip_address.data != NULL) {
             XMEMFREE(curr->data.ip_address.data);
         }
-        XMEMFREE(curr);
-        curr = next;
+        XMEMFREE(curr_list_item);        // Free the memory allocated for the entire struct
+        curr_list_item = next_list_item; // Advance the generic list item
     }
     in->subjAltNames = NULL;
 } // end of tlsX509FreeCertExt

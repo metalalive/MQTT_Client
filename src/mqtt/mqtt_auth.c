@@ -1,11 +1,11 @@
 #include "mqtt_include.h"
 
-extern mqttStr_t mqttAuthBrokerHostname;
-extern word16    mqttAuthBrokerPort;
-extern mqttStr_t mqttAuthWifiSSID;
-extern mqttStr_t mqttAuthWifiPasswd;
-extern mqttStr_t mqttAuthBrokerUsername;
-extern mqttStr_t mqttAuthBrokerPasswd;
+extern mqttHost_t mqttAuthBrokerHostname;
+extern word16     mqttAuthBrokerPort;
+extern mqttStr_t  mqttAuthWifiSSID;
+extern mqttStr_t  mqttAuthWifiPasswd;
+extern mqttStr_t  mqttAuthBrokerUsername;
+extern mqttStr_t  mqttAuthBrokerPasswd;
 
 #if defined(MQTT_CFG_USE_TLS)
 extern const byte   mqtt_auth_cacert4broker_rawbyte[];
@@ -25,11 +25,11 @@ mqttRespStatus mqttAuthGetWifiLoginInfo(mqttStr_t **ssid, mqttStr_t **passwd) {
     return MQTT_RESP_OK;
 }
 
-mqttRespStatus mqttAuthGetBrokerHost(mqttStr_t **hostname, word16 *port) {
-    if (hostname == NULL || port == NULL) {
+mqttRespStatus mqttAuthGetBrokerHost(mqttHost_t **host, word16 *port) {
+    if (host == NULL || port == NULL) {
         return MQTT_RESP_ERRARGS;
     }
-    *hostname = &mqttAuthBrokerHostname;
+    *host = &mqttAuthBrokerHostname;
     *port = mqttAuthBrokerPort;
     return MQTT_RESP_OK;
 }

@@ -2,7 +2,16 @@
 #include "mqtt_third_party_include.h"
 #include "mqtt/mqtt_types.h"
 
-mqttStr_t  mqttAuthBrokerHostname = { {{{ brokeraddr.value@strlen }}},       (byte *)&({{{ brokeraddr.value@wrapQuote }}}) };
+static const byte  _broker_ip_addr_rawbyte[] = {
+    {{{ brokeraddr.value@ipToHexChar@genCcharArray }}}
+};
+
+mqttHost_t  mqttAuthBrokerHostname = {
+    .domain_name = {.len = {{{ brokeraddr.value@strlen }}}, .data = (byte *)&({{{ brokeraddr.value@wrapQuote }}}) },
+    .ip_address = {
+        .len = {{{ brokeraddr.value@ipToHexChar@numlistitem }}}, .data = (byte *)&_broker_ip_addr_rawbyte
+    },
+};
 word16     mqttAuthBrokerPort     =   {{{ brokerport.value@numToStr }}}; // or default port 1883 if TLS feature is NOT enabled
 mqttStr_t  mqttAuthWifiSSID       = { {{{ wifiusername.value@strlen }}},     (byte *)&({{{ wifiusername.value@wrapQuote   }}}) };
 mqttStr_t  mqttAuthWifiPasswd     = { {{{ wifiuserpasswd.value@strlen }}},   (byte *)&({{{ wifiuserpasswd.value@wrapQuote }}}) };

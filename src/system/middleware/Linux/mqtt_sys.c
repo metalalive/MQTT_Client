@@ -71,15 +71,16 @@ mqttRespStatus mqttSysNetconnStart(mqttCtx_t *mctx) {
     if (mctx == NULL) {
         return MQTT_RESP_ERRARGS;
     }
-    int sockfd = -1;
-    int status = 0;
+    int sockfd = -1, status = 0;
     // get broker hostname & port
     struct sockaddr_in serv_addr;
     mqttAuthGetBrokerHost(&mctx->broker_host, &mctx->broker_port);
     XMEMSET(&serv_addr, 0x00, sizeof(serv_addr));
-    // check whether the given broker_host stores IP address or host name, or malformed char array.
-    status = inet_pton(AF_INET, (const char *)&mctx->broker_host->data[0], &serv_addr.sin_addr);
-    if (status == 1) { // success return value, the given broker_host stores IP address
+    // check whether the given broker host stores IP address or host name,
+    // or malformed char array. TODO, check ip address field first
+    const char *domainname = (const char *)&mctx->broker_host->domain_name.data[0];
+    status = inet_pton(AF_INET, domainname, &serv_addr.sin_addr);
+    if (status == 1) { // success return value, the given broker host stores IP address
         // prepare address & port number of the broker this client will connect
         serv_addr.sin_family = AF_INET;
         serv_addr.sin_port = htons(mctx->broker_port);
@@ -92,13 +93,12 @@ mqttRespStatus mqttSysNetconnStart(mqttCtx_t *mctx) {
         status = mqttSysSockCreate(&sockfd, ainfop);
         XMEMFREE((void *)ainfop);
     } else {
-        // the given broker_host stores host name, not IP address, which requires
-        // DNS lookup first
-        // TODO: test this part of code
+        // the given broker host stores either domain name or IP address, which requires
+        // DNS lookup first . TODO: test this part of code
         struct addrinfo *dnlu_result = NULL; // result linked list of domain name lookup
         struct addrinfo *idx = NULL;
         // convert host name to IP address, set service argument to NULL
-        status = getaddrinfo((const char *)&mctx->broker_host->data[0], NULL, NULL, &dnlu_result);
+        status = getaddrinfo(domainname, NULL, NULL, &dnlu_result);
         if (status != 0) {
             return MQTT_RESP_ERR_CONN;
         }

@@ -97,13 +97,13 @@ end_of_decode:
     return status;
 } // end of tlsDecodeHSencryptedExt
 
-static tlsRespStatus tlsVerifyServerName(mqttStr_t *expect, tlsCert_t *actual_cert) {
+static tlsRespStatus tlsVerifyServerName(mqttHost_t *expect, tlsCert_t *actual_cert) {
     // check whether the common name matches IP or domain name of MQTT broker.
-    const char *expect_addr = (const char *)expect->data;
+    const char *expect_addr = (const char *)expect->domain_name.data;
     const char *peer_addr = (const char *)actual_cert->subject.common_name;
     // TODO: compare with subject alternative name (SAN) , return failure ONLY if
     // all domain names and IP do not match the expect server name.
-    int cn_match = XSTRNCMP(peer_addr, expect_addr, expect->len);
+    int cn_match = XSTRNCMP(peer_addr, expect_addr, expect->domain_name.len);
     if (cn_match == 0) {
         return TLS_RESP_OK;
     }

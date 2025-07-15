@@ -482,7 +482,7 @@ typedef struct {
     mqttDRBG_t *drbg;
     // for extension: server name indication, TODO, add struct type `mqttServerHost_t`
     // which includes domain name and IP address
-    mqttStr_t *server_name;
+    mqttHost_t *server_name;
     // packet buffer
     tlsOpaque16b_t inbuf;     // buffer that store incoming bytes from remote peer
     tlsOpaque16b_t outbuf;    // buffer that store bytes & will be delivered to remote peer

@@ -254,10 +254,13 @@ static espRes_t mqttSysCreateTCPconn(mqttCtx_t *mctx) {
     }
     // get broker hostname & port
     mqttAuthGetBrokerHost(&mctx->broker_host, &mctx->broker_port);
+    // retrieve domain name or stringified IP address required for AT command
+    const char *const domain_str = (const char *const)mctx->broker_host->domain_name.data;
     // establish new TCP connection between ESP device and remote peer (MQTT broker)
+    word16 domain_sz = mctx->broker_host->domain_name.len;
     response = eESPconnClientStart(
-        conn, ESP_CONN_TYPE_TCP, (const char *const)mctx->broker_host->data, mctx->broker_host->len,
-        mctx->broker_port, eESPdefaultEvtCallBack, NULL, NULL, ESP_AT_CMD_BLOCKING
+        conn, ESP_CONN_TYPE_TCP, domain_str, domain_sz, mctx->broker_port, eESPdefaultEvtCallBack,
+        NULL, NULL, ESP_AT_CMD_BLOCKING
     );
     if (response == espOK) {
         espNetconn = pxESPnetconnCreate(conn);

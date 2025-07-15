@@ -7,7 +7,7 @@ extern "C" {
 
 mqttRespStatus mqttAuthGetWifiLoginInfo(mqttStr_t **ssid, mqttStr_t **passwd);
 
-mqttRespStatus mqttAuthGetBrokerHost(mqttStr_t **hostname, word16 *port);
+mqttRespStatus mqttAuthGetBrokerHost(mqttHost_t **, word16 *port);
 
 mqttRespStatus mqttAuthGetBrokerLoginInfo(mqttStr_t **username, mqttStr_t **passwd);
 

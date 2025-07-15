@@ -205,6 +205,11 @@ typedef struct {
     byte  *data;
 } mqttStr_t;
 
+typedef struct {
+    mqttStr_t domain_name;
+    mqttStr_t ip_address;
+} mqttHost_t;
+
 // Date time byte sequence in Binary-Coded-Decimal representation
 typedef struct {
     byte year[2];
