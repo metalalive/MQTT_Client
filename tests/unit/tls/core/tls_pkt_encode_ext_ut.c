@@ -436,15 +436,16 @@ TEST_TEAR_DOWN(tlsEncodeExtensions) {
 }
 
 TEST(tlsGenExtensions, clienthello_ext_ok) {
-    mqttStr_t      mock_server_name = {17, (byte *)&("www.yourbroker.io")};
-    tlsExtEntry_t *actual_ext_list = NULL;
-    tlsExtEntry_t *extitem = NULL;
-    tlsPSK_t      *mock_psk_list = NULL;
-    tlsPSK_t      *pskitem = NULL;
-    byte          *buf = NULL;
-    word32         expect_value = 0;
-    word32         actual_value = 0;
-    word16         idx, jdx = 0;
+    mqttHost_t mock_server_name = {
+        .domain_name = {.len = 17, .data = (byte *)&("www.yourbroker.io")},
+        .ip_address = {.len = 0, .data = NULL},
+    };
+    tlsExtEntry_t *actual_ext_list = NULL, *extitem = NULL;
+    tlsPSK_t      *mock_psk_list = NULL, *pskitem = NULL;
+
+    word32 expect_value = 0, actual_value = 0;
+    word16 idx, jdx = 0;
+    byte  *buf = NULL;
 
     tls_session->flgs.hello_retry = 0;
     tls_session->hs_state = TLS_HS_TYPE_CLIENT_HELLO;
@@ -489,7 +490,8 @@ TEST(tlsGenExtensions, clienthello_ext_ok) {
         switch (extitem->type) {
         case TLS_EXT_TYPE_SERVER_NAME:
             TEST_ASSERT_EQUAL_STRING_LEN(
-                &mock_server_name.data[0], &buf[2 + 1 + 2], mock_server_name.len
+                &mock_server_name.domain_name.data[0], &buf[2 + 1 + 2],
+                mock_server_name.domain_name.len
             );
             break;
         case TLS_EXT_TYPE_SUPPORTED_VERSIONS:
@@ -577,7 +579,10 @@ TEST(tlsGenExtensions, clienthello_ext_ok) {
 } // end of TEST(tlsGenExtensions, clienthello_ext_ok)
 
 TEST(tlsGenExtensions, clienthello_gen_keyshare_fail) {
-    mqttStr_t      mock_server_name = {16, (byte *)&("www.hisbroker.io")};
+    mqttHost_t mock_server_name = {
+        .domain_name = {.len = 16, .data = (byte *)&("www.hisbroker.io")},
+        .ip_address = {.len = 0, .data = NULL}
+    };
     tlsExtEntry_t *actual_ext_list = NULL;
 
     tls_session->flgs.hello_retry = 0;

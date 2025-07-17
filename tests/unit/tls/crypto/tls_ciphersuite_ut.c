@@ -26,15 +26,13 @@ TEST_GROUP_RUNNER(tlsCipherSuite) {
 }
 
 TEST(tlsCipherSuite, aes_encryption) {
-    tlsSecurityElements_t *sec = NULL;
-    byte                  *ct_start = NULL;
-    word32                 ct_len = 0;
-    tlsRespStatus          status = TLS_RESP_OK;
-    const byte             isDecrypt = 0;
+    byte      *ct_start = NULL;
+    word32     ct_len = 0;
+    const byte isDecrypt = 0;
 
-    sec = &tls_session->sec;
+    tlsSecurityElements_t *sec = &tls_session->sec;
     sec->chosen_ciphersuite = &tls_supported_cipher_suites[1];
-    status = sec->chosen_ciphersuite->init_fn(sec, isDecrypt);
+    tlsRespStatus status = sec->chosen_ciphersuite->init_fn(sec, isDecrypt);
     TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
     TEST_ASSERT_NOT_EQUAL(NULL, sec->encrypt_ctx);
     // the first fragment
@@ -154,11 +152,11 @@ TEST(tlsCipherSuite, aes_decryption) {
     status = sec->chosen_ciphersuite->decrypt_fn(sec, ct_start, ct_start, &ct_len);
     TEST_ASSERT_EQUAL_INT(TLS_RESP_ERRMEM, status);
     // ... assume incorrect MAC code was received
+    mock_aes_gcm_mac_data = expect_gcm_mac;
     ct_len = tls_session->inlen_unprocessed;
     status = sec->chosen_ciphersuite->decrypt_fn(sec, ct_start, ct_start, &ct_len);
     TEST_ASSERT_EQUAL_INT(TLS_RESP_ERR_ENAUTH_FAIL, status);
     // ... assume correct MAC code was received
-    mock_aes_gcm_mac_data = expect_gcm_mac;
     XMEMCPY(&tls_session->inbuf.data[0], expect_gcm_mac, sec->chosen_ciphersuite->tagSize);
     status = sec->chosen_ciphersuite->decrypt_fn(sec, ct_start, ct_start, &ct_len);
     TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);

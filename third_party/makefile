@@ -12,7 +12,7 @@ gen_3pty_libs: file_subst
 	$(COMMON_3PARTY_BUILD_CMD)
 
 file_subst:
-	$(COMMON_3PARTY_FILE_SUBST_CMD)
+	@$(COMMON_3PARTY_FILE_SUBST_CMD)
 
 clean:
 	$(COMMON_3PARTY_CLEAN_BUILT_CMD)

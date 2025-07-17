@@ -32,7 +32,9 @@ else
     THIRD_PARTY_LIBS_PATH = {{{ *.metadata.path.include.libs@ListAppendWhitespace }}}
 endif # end of if MAKECMDGOALS is utest_helper
 
-ifeq ($(strip $(filter utest_helper clean config, $(MAKECMDGOALS))), )
+_EXCLUDE_CMDS_MIDDLEWARE_INCLUDE = utest utest_helper clean config
+
+ifeq ($(strip $(filter $(_EXCLUDE_CMDS_MIDDLEWARE_INCLUDE), $(MAKECMDGOALS))), )
     #### include hardware platfrom specific files, (NOTE) don't use cross-compile toolchain in unit test
     include  ${PWD}/auto/platform/$(HW_PLATFORM).makefile
     #### include middleware files, the middleware can be any API software integrated

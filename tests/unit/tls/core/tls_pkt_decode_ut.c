@@ -5,7 +5,10 @@
 static tlsSession_t *tls_session;
 static byte          mock_finish_verify_data[8];
 static word32        mock_sys_get_time_ms;
-static mqttStr_t     mock_server_addr = {10, "123.45.6.7"};
+static mqttHost_t    mock_server_addr = {
+       .domain_name = {.len = 10, .data = (byte *)&"tokio.hot.curve.alpaca"},
+       .ip_address = {.len = 0, .data = NULL},
+};
 
 static tlsRespStatus mock_tlsAESGCMinit(tlsSecurityElements_t *sec, byte isDecrypt) {
     return TLS_RESP_OK;
@@ -447,7 +450,7 @@ tlsRespStatus tlsDecodeCerts(tlsCert_t *cert, byte final_item_rdy) {
             cert->hashed_holder_info.data = XMALLOC(0x8); // only for testing purpose
             XMEMCPY(&cert->hashed_holder_info.data[0], &cert->rawbytes.data[0], 0x4);
             XMEMCPY(&cert->hashed_holder_info.data[4], &cert->rawbytes.data[cert_sz - 4], 0x4);
-            cert->subject.common_name = mock_server_addr.data;
+            cert->subject.common_name = mock_server_addr.domain_name.data;
         }
         cert = cert->next;
     } // end of while-loop
@@ -516,6 +519,17 @@ tlsRespStatus tlsHKDFexpandLabel(
 }
 
 word32 mqttSysGetTimeMs(void) { return mock_sys_get_time_ms; }
+
+// Mock function for tlsX509FindSubjAltName
+tlsX509SANEntry_t *tlsX509FindSubjAltName(tlsX509v3ext_t *ext, mqttHost_t *keyword) {
+    // This is a mock implementation for unit testing purposes.
+    // By default, it returns NULL, simulating that no matching Subject Alternative Name was found.
+    // If a test needs to simulate a successful find, it would typically set up a static
+    // variable in this file to be returned by this mock.
+    (void)ext;     // Suppress unused parameter warning
+    (void)keyword; // Suppress unused parameter warning
+    return NULL;
+}
 
 // -----------------------------------------------------------------------------------
 TEST_GROUP(tlsPktDecodeMisc);
