@@ -83,7 +83,7 @@ word32 tlsGetListItemSz(tlsListItem_t *list) {
 } // end of tlsGetListItemSz
 
 tlsRespStatus tlsRemoveItemFromList(tlsListItem_t **list, tlsListItem_t *removing_item) {
-    if ((list == NULL) && (removing_item == NULL)) {
+    if ((list == NULL) || (removing_item == NULL)) {
         return TLS_RESP_ERRARGS;
     }
     tlsListItem_t *idx = NULL;

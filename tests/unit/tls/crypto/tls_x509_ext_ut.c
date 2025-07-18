@@ -339,9 +339,11 @@ TEST(tlsX509getExtensions, corrupted_raw) {
     tlsRespStatus   status = tlsX509getExtensions(buf, &inlen, &x509ext_obj, &datalen);
     TEST_ASSERT_TRUE(status < 0);
     TEST_ASSERT_EQUAL_INT(TLS_RESP_ERR_DECODE, status);
-    // TODO / FIXME
-    // Ensure x509ext_obj remains NULL as allocation should not happen on this error path
-    // TEST_ASSERT_EQUAL(NULL, x509ext_obj);
+    TEST_ASSERT_NOT_EQUAL(NULL, x509ext_obj);
+
+    tlsX509FreeCertExt(x509ext_obj);
+    XMEMFREE(x509ext_obj);
+    x509ext_obj = NULL;
 }
 
 static void RunAllTestGroups(void) {
