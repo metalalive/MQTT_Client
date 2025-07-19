@@ -43,6 +43,13 @@ void *pvPortRealloc(void *old, size_t size) {
     void *new_ptr = NULL;
     if (size != 0) {
         new_ptr = pvPortMalloc(size);
+        // function signature of `realloc` in standard library does not include
+        // size of old pointer, here the new size is used for copy operation,
+        // callers should reset content ONLY in newly allocated space afterwards.
+        // TODO: better approach ?
+        if (old != NULL) {
+            memcpy(new_ptr, old, size);
+        }
     }
     if (old != NULL) {
         vPortFree(old);
@@ -163,22 +170,18 @@ static espRes_t mqttSysRespCvtToESPresp(mqttRespStatus in) {
     return out;
 } // end of  mqttSysRespCvtToESPresp
 
-static espRes_t mqttSysConnectToAP(
-    espIp_t *out_ip, espMac_t *out_mac
-) { // we better determine maximum number of times to rescan APs or reconnect to the preferred AP
+static espRes_t mqttSysConnectToAP(espIp_t *out_ip, espMac_t *out_mac) {
+// determine maximum number of times to rescan APs, reconnect to the preferred AP
 #define MQTT_SYS_MAXTIMES_RECONNECT_AP 2
 #define MQTT_SYS_MAXTIMES_RESCAN_APS   3
-    mqttStr_t *wifiSSID = NULL;
-    mqttStr_t *wifiPasswd = NULL;
+    mqttStr_t *wifiSSID = NULL, *wifiPasswd = NULL;
     espIp_t    dummy_ip;
     espMac_t   dummy_mac;
     espRes_t   response = espOK;
     uint16_t   num_ap_found = 0;
-    uint8_t    ap_connected = 0;
-    uint8_t    tried_conn = 0;
-    uint8_t    num_times_reconnect_ap = 0;
-    uint8_t    num_times_rescan_aps = 0;
-    uint8_t    idx;
+
+    uint8_t ap_connected = 0, tried_conn = 0, idx = 0;
+    uint8_t num_times_reconnect_ap = 0, num_times_rescan_aps = 0;
 
     mqttAuthGetWifiLoginInfo(&wifiSSID, &wifiPasswd);
 
@@ -251,10 +254,13 @@ static espRes_t mqttSysCreateTCPconn(mqttCtx_t *mctx) {
     }
     // get broker hostname & port
     mqttAuthGetBrokerHost(&mctx->broker_host, &mctx->broker_port);
+    // retrieve domain name or stringified IP address required for AT command
+    const char *const domain_str = (const char *const)mctx->broker_host->domain_name.data;
     // establish new TCP connection between ESP device and remote peer (MQTT broker)
+    word16 domain_sz = mctx->broker_host->domain_name.len;
     response = eESPconnClientStart(
-        conn, ESP_CONN_TYPE_TCP, (const char *const)mctx->broker_host->data, mctx->broker_host->len,
-        mctx->broker_port, eESPdefaultEvtCallBack, NULL, NULL, ESP_AT_CMD_BLOCKING
+        conn, ESP_CONN_TYPE_TCP, domain_str, domain_sz, mctx->broker_port, eESPdefaultEvtCallBack,
+        NULL, NULL, ESP_AT_CMD_BLOCKING
     );
     if (response == espOK) {
         espNetconn = pxESPnetconnCreate(conn);
@@ -338,18 +344,12 @@ mqttRespStatus mqttSysThreadDelete(mqttSysThre_t *thre_in) {
     return mqttSysRespCvtFromESPresp(response);
 } // end of mqttSysThreadDelete
 
-mqttRespStatus
-mqttSysThreadWaitUntilExit(mqttSysThre_t *thre_in, void **return_p) { // dummy function
+mqttRespStatus mqttSysThreadWaitUntilExit(mqttSysThre_t *thre_in, void **return_p) {
     return MQTT_RESP_OK;
-} // end of mqttSysThreadWaitUntilExit
+}
 
-mqttRespStatus mqttSysNetconnStart(mqttCtx_t *mctx) {
+mqttRespStatus mqttSysNetInit(void) {
     espRes_t response = espOK;
-    if (mctx == NULL) {
-        return MQTT_RESP_ERRARGS;
-    }
-    mqtt_sys_esp_unfinish_rd_pktbuf = NULL;
-    mqtt_sys_esp_unfinish_rd_pktbuf_head = NULL;
 #if (ESP_CFG_RST_ON_INIT == 0)
     // reset & configure the ESP device.
     response = eESPresetWithDelay(1, NULL, NULL);
@@ -358,12 +358,28 @@ mqttRespStatus mqttSysNetconnStart(mqttCtx_t *mctx) {
         // scan all available APs , connect to the AP specified by user if found
         response = mqttSysConnectToAP(&mqtt_esp_curr_ip, &mqtt_esp_curr_mac);
     }
+    return mqttSysRespCvtFromESPresp(response);
+}
+
+mqttRespStatus mqttSysNetDeInit(void) {
+    // quit from AP, reset ESP device again
+    espRes_t response = eESPcloseDevice();
+    return mqttSysRespCvtFromESPresp(response);
+}
+
+mqttRespStatus mqttSysNetconnStart(mqttCtx_t *mctx) {
+    if (mctx == NULL) {
+        return MQTT_RESP_ERRARGS;
+    }
+    espRes_t response = espOK;
+    mqtt_sys_esp_unfinish_rd_pktbuf = NULL;
+    mqtt_sys_esp_unfinish_rd_pktbuf_head = NULL;
     if (response == espOK) {
         // set up a TCP connection to remote peer (MQTT broker, in this case)
         response = mqttSysCreateTCPconn(mctx);
     }
     return mqttSysRespCvtFromESPresp(response);
-} // end of mqttSysNetconnStart
+}
 
 mqttRespStatus mqttSysNetconnStop(mqttCtx_t *mctx) {
     espNetConnPtr netconn = NULL;
@@ -380,8 +396,6 @@ mqttRespStatus mqttSysNetconnStop(mqttCtx_t *mctx) {
     }
     // close TCP connection
     eESPconnClientClose(conn, NULL, NULL, ESP_AT_CMD_BLOCKING);
-    // quit from AP, reset ESP device again
-    eESPcloseDevice();
     // de-initialize network connection object used in ESP parser.
     eESPnetconnDelete(netconn);
     // there might be packet buffer chain that hasn't been deallocated, clean up all of them if

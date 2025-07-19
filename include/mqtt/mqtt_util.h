@@ -77,6 +77,15 @@ extern "C" {
 
 #define XGET_BITMASK(len) ((0x1 << (len)) - 0x1)
 
+// element encoders / decoders
+// 16-bit number from/to consecutive given 2 bytes
+word32 mqttDecodeWord16(byte *buf, word16 *value);
+word32 mqttEncodeWord16(byte *buf, word16 value);
+
+// 32-bit number from/to consecutive given 4 bytes
+word32 mqttDecodeWord32(byte *buf, word32 *value);
+word32 mqttEncodeWord32(byte *buf, word32 value);
+
 // find property structure with given type, by looking for a given linked list,
 // return the property item whenever it is found.
 mqttProp_t *mqttGetPropByType(mqttProp_t *head, mqttPropertyType type);

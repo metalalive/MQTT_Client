@@ -50,22 +50,6 @@ tlsHashAlgoID TLScipherSuiteGetHashID(const tlsCipherSpec_t *cs_in) {
     return TLS_HASH_ALGO_NOT_NEGO;
 } // end of TLScipherSuiteGetHashID
 
-word16 mqttHashGetOutlenBytes(mqttHashLenType type) {
-    word16 out = 0;
-    switch (type) {
-    case MQTT_HASH_SHA256:
-        out = 256; // unit: bit(s)
-        break;
-    case MQTT_HASH_SHA384:
-        out = 384; // unit: bit(s)
-        break;
-    default:
-        break;
-    }
-    out = out >> 3;
-    return out;
-} // end of mqttHashGetOutlenBits
-
 tlsRespStatus tlsChkFragStateOutMsg(tlsSession_t *session) {
     tlsRespStatus status = TLS_RESP_OK;
     if (session == NULL) {

@@ -27,11 +27,6 @@ static tlsRespStatus mock_decode_new_session_ticket_return_val;
 static byte mock_enable_client_cert_verify;
 static byte mock_enable_server_cert_verify;
 
-static const tlsNamedGrp mock_tls_supported_named_groups[] = {
-    TLS_NAMED_GRP_SECP256R1,
-    TLS_NAMED_GRP_X25519,
-};
-
 static tlsRespStatus mock_tlsAESGCMinit(tlsSecurityElements_t *sec, byte isDecrypt) {
     return TLS_RESP_OK;
 }
@@ -148,11 +143,6 @@ void tlsDecrementFragNumInMsg(tlsSession_t *session) {
         }
     }
 } // end of tlsDecrementFragNumInMsg
-
-byte tlsGetSupportedKeyExGrpSize(void) {
-    byte out = XGETARRAYSIZE(mock_tls_supported_named_groups);
-    return out;
-} // end of tlsGetSupportedKeyExGrpSize
 
 tlsRespStatus tlsEncodeRecordLayer(tlsSession_t *session) {
     tlsRespStatus status = TLS_RESP_OK;
@@ -306,22 +296,6 @@ tlsHashAlgoID TLScipherSuiteGetHashID(const tlsCipherSpec_t *cs_in) {
     }
     return TLS_HASH_ALGO_NOT_NEGO;
 } // end of TLScipherSuiteGetHashID
-
-word16 mqttHashGetOutlenBytes(mqttHashLenType type) {
-    word16 out = 0;
-    switch (type) {
-    case MQTT_HASH_SHA256:
-        out = 256; // unit: bit(s)
-        break;
-    case MQTT_HASH_SHA384:
-        out = 384; // unit: bit(s)
-        break;
-    default:
-        break;
-    }
-    out = out >> 3;
-    return out;
-} // end of mqttHashGetOutlenBits
 
 tlsRespStatus tlsTranscrptHashInit(tlsSecurityElements_t *sec) { return TLS_RESP_OK; }
 

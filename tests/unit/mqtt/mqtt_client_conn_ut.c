@@ -160,70 +160,11 @@ int mqttEncodePktUnsubscribe(byte *tx_buf, word32 tx_buf_len, mqttPktUnsubs_t *u
 
 int mqttEncodePktPing(byte *tx_buf, word32 tx_buf_len) { return mock_encode_pkt_return_val; }
 
-mqttProp_t *mqttGetPropByType(mqttProp_t *head, mqttPropertyType type) {
-    if (type == MQTT_PROP_NONE) {
-        return NULL;
-    }
-    mqttProp_t *curr_node = NULL;
-
-    for (curr_node = head; curr_node != NULL; curr_node = curr_node->next) {
-        if (curr_node->type == type) {
-            break;
-        }
-    } // end of for-loop
-    return curr_node;
-} // end of mqttGetPropByType
-
 word16 mqttGetPktID(void) { return mock_mqtt_pkt_id; }
 
 #if defined(MQTT_CFG_USE_TLS)
-tlsRespStatus tlsModifyReadMsgTimeout(tlsSession_t *session, int new_val) {
-    return TLS_RESP_OK;
-} // end of tlsModifyReadMsgTimeout
-
-mqttRespStatus tlsRespCvtToMqttResp(tlsRespStatus in) {
-    mqttRespStatus out;
-    switch (in) {
-    case TLS_RESP_OK:
-    case TLS_RESP_REQ_MOREDATA:
-        out = MQTT_RESP_OK;
-        break;
-    case TLS_RESP_ERRARGS:
-        out = MQTT_RESP_ERRARGS;
-        break;
-    case TLS_RESP_ERRMEM:
-        out = MQTT_RESP_ERRMEM;
-        break;
-    case TLS_RESP_TIMEOUT:
-        out = MQTT_RESP_TIMEOUT;
-        break;
-    case TLS_RESP_MALFORMED_PKT:
-        out = MQTT_RESP_MALFORMED_DATA;
-        break;
-    case TLS_RESP_ERR_ENCODE:
-    case TLS_RESP_ERR_DECODE:
-    case TLS_RESP_ERR_KEYGEN:
-        out = MQTT_RESP_ERR_SECURE_CONN;
-        break;
-    case TLS_RESP_ERR_SYS_SEND_PKT:
-    case TLS_RESP_ERR_SYS_RECV_PKT:
-        out = MQTT_RESP_ERR_TRANSMIT;
-        break;
-    case TLS_RESP_ERR_EXCEED_MAX_REC_SZ:
-        out = MQTT_RESP_ERR_EXCEED_PKT_SZ;
-        break;
-    case TLS_RESP_ERR:
-    default:
-        out = MQTT_RESP_ERR;
-        break;
-    } // end of switch-case statement
-    return out;
-} // end of tlsRespCvtToMqttResp
-
 tlsRespStatus tlsClientInit(mqttCtx_t *mctx) { return mock_tlsinit_return_val; }
-
-void tlsClientDeInit(mqttCtx_t *mctx) {}
-
+void          tlsClientDeInit(mqttCtx_t *mctx) {}
 #endif // end of MQTT_CFG_USE_TLS
 
 static mqttRespStatus mock_mqttAuthSetupCallback(

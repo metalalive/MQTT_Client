@@ -43,117 +43,6 @@ const tlsCipherSpec_t tls_supported_cipher_suites[] = {
     },
 };
 
-word32 tlsEncodeWord24(byte *buf, word32 value) {
-    if (buf != NULL) {
-        buf[0] = (value >> 16) & 0xff;
-        buf[1] = (value >> 8) & 0xff;
-        buf[2] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)3;
-} // end of tlsEncodeWord24
-
-word32 tlsDecodeWord24(byte *buf, word32 *value) {
-    if ((buf != NULL) && (value != NULL)) {
-        *value = buf[2];
-        *value |= buf[1] << 8;
-        *value |= buf[0] << 16;
-    }
-    return (word32)3;
-} // end of tlsDecodeWord24
-
-word32 mqttEncodeWord16(byte *buf, word16 value) {
-    if (buf != NULL) {
-        buf[0] = value >> 8;
-        buf[1] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)2;
-} // end of mqttEncodeWord16
-
-word32 mqttDecodeWord16(byte *buf, word16 *value) {
-    if ((buf != NULL) && (value != NULL)) {
-        *value = buf[1];
-        *value |= buf[0] << 8;
-    }
-    return (word32)2;
-} // end of mqttDecodeWord16
-
-tlsRespStatus tlsAddItemToList(tlsListItem_t **list, tlsListItem_t *item, byte insert_to_front) {
-    if ((list == NULL) || (item == NULL)) {
-        return TLS_RESP_ERRARGS;
-    }
-    if (insert_to_front != 0) {
-        item->next = *list;
-        *list = item; // always change head item
-    } else {
-        tlsListItem_t *final = NULL;
-        final = tlsGetFinalItemFromList(*list);
-        if (final == NULL) {
-            *list = item;
-        } else {
-            final->next = item;
-        }
-    }
-    return TLS_RESP_OK;
-} // tlsAddItemToList
-
-tlsRespStatus tlsRemoveItemFromList(tlsListItem_t **list, tlsListItem_t *removing_item) {
-    if ((list == NULL) && (removing_item == NULL)) {
-        return TLS_RESP_ERRARGS;
-    }
-    tlsListItem_t *idx = NULL;
-    tlsListItem_t *prev = NULL;
-    for (idx = *list; idx != NULL; idx = idx->next) {
-        if (removing_item == idx) {
-            if (prev != NULL) {
-                prev->next = removing_item->next;
-            } else {
-                *list = removing_item->next;
-            }
-            break;
-        }
-        prev = idx;
-    } // end of for-loop
-    return TLS_RESP_OK;
-} // end of tlsRemoveItemFromList
-
-tlsListItem_t *tlsGetFinalItemFromList(tlsListItem_t *list) {
-    tlsListItem_t *idx = NULL;
-    tlsListItem_t *prev = NULL;
-    for (idx = list; idx != NULL; idx = idx->next) {
-        prev = idx;
-    }
-    return prev;
-} // end of tlsGetFinalItemFromList
-
-tlsRespStatus tlsFreeExtEntry(tlsExtEntry_t *in) {
-    if (in == NULL) {
-        return TLS_RESP_ERRARGS;
-    }
-    XMEMFREE((void *)in->content.data);
-    in->content.data = NULL;
-    in->next = NULL;
-    XMEMFREE((void *)in);
-    return TLS_RESP_OK;
-} // end of tlsFreeExtEntry
-
-word16 mqttHashGetOutlenBytes(mqttHashLenType type) {
-    word16 out = 0;
-    switch (type) {
-    case MQTT_HASH_SHA256:
-        out = 256; // unit: bit(s)
-        break;
-    case MQTT_HASH_SHA384:
-        out = 384; // unit: bit(s)
-        break;
-    default:
-        break;
-    }
-    out = out >> 3;
-    return out;
-} // end of mqttHashGetOutlenBits
-
 tlsRespStatus tlsParseExtensions(tlsSession_t *session, tlsExtEntry_t **out) {
     if ((session == NULL) || (out == NULL)) {
         return TLS_RESP_ERRARGS;
@@ -790,7 +679,7 @@ TEST(tlsVerifyCertChain, with_issuer_cert) {
     word16        idx = 0;
     tlsRespStatus status = TLS_RESP_OK;
 
-    tls_session->CA_cert = mockInitCAcerts();
+    tls_session->broker_cacert = mockInitCAcerts();
 
     for (idx = 0; idx < NUM_CA_CERTS; idx++) {
         mock_cert_subject_hashed_dn[idx] = &mock_cert_hashed_dn[NUM_PEER_CERTS + idx][0];
@@ -799,7 +688,7 @@ TEST(tlsVerifyCertChain, with_issuer_cert) {
         mock_cert_issuer_hashed_dn[idx - 1] = mock_cert_subject_hashed_dn[idx];
     } // end of for loop
     mock_cert_issuer_hashed_dn[NUM_CA_CERTS - 1] = mock_cert_subject_hashed_dn[NUM_CA_CERTS - 1];
-    for (idx = 0, curr_cert = tls_session->CA_cert; curr_cert != NULL;
+    for (idx = 0, curr_cert = tls_session->broker_cacert; curr_cert != NULL;
          idx++, curr_cert = curr_cert->next) {
         XMEMCPY(
             curr_cert->issuer.hashed_dn, &mock_cert_issuer_hashed_dn[idx],
@@ -846,7 +735,7 @@ TEST(tlsVerifyCertChain, with_issuer_cert) {
         curr_cert->flgs.self_signed = 0;
     } // end of for loop
 
-    status = tlsVerifyCertChain(tls_session->CA_cert, tls_session->peer_certs);
+    status = tlsVerifyCertChain(tls_session->broker_cacert, tls_session->peer_certs);
     TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
     for (curr_cert = tls_session->peer_certs; curr_cert != NULL; curr_cert = curr_cert->next) {
         TEST_ASSERT_EQUAL_UINT8(1, curr_cert->flgs.auth_done);
@@ -854,8 +743,8 @@ TEST(tlsVerifyCertChain, with_issuer_cert) {
         TEST_ASSERT_EQUAL_UINT8(0, curr_cert->flgs.self_signed);
     } // end of for loop
 
-    tlsFreeCertChain(tls_session->CA_cert, TLS_FREE_CERT_ENTRY_ALL);
-    tls_session->CA_cert = NULL;
+    tlsFreeCertChain(tls_session->broker_cacert, TLS_FREE_CERT_ENTRY_ALL);
+    tls_session->broker_cacert = NULL;
 } // end of TEST(tlsVerifyCertChain, with_issuer_cert)
 
 TEST(tlsCertVerifyGenDigitalSig, server_side) {
@@ -894,7 +783,7 @@ TEST(tlsSignCertSignature, rsa_pss) {
     tlsRSApss_t    rsapssSig = {0, 0};
     tlsRespStatus  status = TLS_RESP_OK;
 
-    tls_session->CA_priv_key = XCALLOC(0x1, sizeof(tlsRSAkey_t));
+    tls_session->client_privkey = XCALLOC(0x1, sizeof(tlsRSAkey_t));
     tls_session->drbg = XCALLOC(0x1, sizeof(mqttDRBG_t));
     // currently this implementation only supports rsa_pss_rsae_sha256 for signing & verifying
     // signature on Certificate & CertificateVerify, which is mandatory in RFC 8446, section 9.1
@@ -908,16 +797,16 @@ TEST(tlsSignCertSignature, rsa_pss) {
     ); // assume it's  digital signature generated by tlsCertVerifyGenDigitalSig()
 
     status = tlsSignCertSignature(
-        tls_session->CA_priv_key, tls_session->drbg, &digiSig, &tls_session->client_signed_sig,
+        tls_session->client_privkey, tls_session->drbg, &digiSig, &tls_session->client_signed_sig,
         TLS_ALGO_OID_RSASSA_PSS, &rsapssSig
     );
     TEST_ASSERT_EQUAL_INT(TLS_RESP_OK, status);
 
-    XMEMFREE(tls_session->CA_priv_key);
+    XMEMFREE(tls_session->client_privkey);
     XMEMFREE(tls_session->drbg);
     XMEMFREE(tls_session->client_signed_sig.data);
     XMEMFREE(digiSig.data);
-    tls_session->CA_priv_key = NULL;
+    tls_session->client_privkey = NULL;
     tls_session->drbg = NULL;
     tls_session->client_signed_sig.data = NULL;
     digiSig.data = NULL;

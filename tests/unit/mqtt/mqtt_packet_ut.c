@@ -1,7 +1,7 @@
 #include "mqtt_include.h"
 
-#define MAX_RAWBYTE_READ_BUF_SZ \
-    0x100 // internal parameter for read buffer, DO NOT modify this value
+// internal parameter for read buffer, DO NOT modify this value
+#define MAX_RAWBYTE_READ_BUF_SZ 0x100
 
 static mqttCtx_t *unittest_mctx;
 static int        mock_net_pktwrite_return_val;
@@ -106,10 +106,6 @@ void mqttPropertyDel(mqttProp_t *head) {
     } // end of loop
 } // end of mqttPropertyDel
 
-mqttRespStatus mqttChkReasonCode(mqttReasonCode reason_code) {
-    return (reason_code <= MQTT_GREATEST_NORMAL_REASON_CODE ? MQTT_RESP_OK : MQTT_RESP_ERR);
-} // end of mqttChkReasonCode
-
 mqttRespStatus mqttPropErrChk(mqttCtx_t *mctx, mqttCtrlPktType cmdtype, mqttProp_t *prop_head) {
     return MQTT_RESP_OK;
 }
@@ -211,36 +207,22 @@ TEST_GROUP_RUNNER(mqttDecodePkt) {
 }
 
 TEST_SETUP(mqttEncodeElement) {}
-
 TEST_SETUP(mqttDecodeElement) {}
-
 TEST_SETUP(mqttGetPktID) {}
-
 TEST_SETUP(mqttCalPktLenThenEncode) {}
-
 TEST_SETUP(mqttDecodeSingleCommand) {}
-
 TEST_SETUP(mqttPacketIO) {}
-
 TEST_SETUP(mqttDecodePkt) {}
-
 TEST_TEAR_DOWN(mqttEncodeElement) {}
-
 TEST_TEAR_DOWN(mqttDecodeElement) {}
-
 TEST_TEAR_DOWN(mqttGetPktID) {}
-
 TEST_TEAR_DOWN(mqttCalPktLenThenEncode) {}
-
 TEST_TEAR_DOWN(mqttDecodeSingleCommand) {}
-
 TEST_TEAR_DOWN(mqttPacketIO) {}
-
 TEST_TEAR_DOWN(mqttDecodePkt) {}
 
 TEST(mqttEncodeElement, mqttEncodeVarBytes) {
-    word32 value = 0;
-    word32 nbytes_encoded = 0;
+    word32 value = 0, nbytes_encoded = 0;
 
     value = 0x7f;
     nbytes_encoded = mqttEncodeVarBytes(&unittest_mctx->tx_buf[0], value);
@@ -283,16 +265,14 @@ TEST(mqttEncodeElement, mqttEncodeVarBytes) {
 } // end of TEST(mqttEncodeElement, mqttEncodeVarBytes)
 
 TEST(mqttEncodeElement, mqttEncodeWord16) {
-    word32 nbytes_encoded = 0;
-    nbytes_encoded = mqttEncodeWord16(&unittest_mctx->tx_buf[0], (word16)0xba98);
+    word32 nbytes_encoded = mqttEncodeWord16(&unittest_mctx->tx_buf[0], (word16)0xba98);
     TEST_ASSERT_EQUAL_UINT32(0x2, nbytes_encoded);
     TEST_ASSERT_EQUAL_UINT8(0xba, unittest_mctx->tx_buf[0]);
     TEST_ASSERT_EQUAL_UINT8(0x98, unittest_mctx->tx_buf[1]);
 } // end of TEST(mqttEncodeElement, mqttEncodeWord16)
 
 TEST(mqttEncodeElement, mqttEncodeWord32) {
-    word32 nbytes_encoded = 0;
-    nbytes_encoded = mqttEncodeWord32(&unittest_mctx->tx_buf[0], (word32)0x876ba98d);
+    word32 nbytes_encoded = mqttEncodeWord32(&unittest_mctx->tx_buf[0], (word32)0x876ba98d);
     TEST_ASSERT_EQUAL_UINT32(0x4, nbytes_encoded);
     TEST_ASSERT_EQUAL_UINT8(0x87, unittest_mctx->tx_buf[0]);
     TEST_ASSERT_EQUAL_UINT8(0x6b, unittest_mctx->tx_buf[1]);
@@ -317,8 +297,7 @@ TEST(mqttEncodeElement, mqttEncodeStr) {
 } // end of TEST(mqttEncodeElement, mqttEncodeStr)
 
 TEST(mqttDecodeElement, mqttDecodeVarBytes) {
-    word32 value = 0;
-    word32 nbytes_decoded = 0;
+    word32 value = 0, nbytes_decoded = 0;
 
     unittest_mctx->rx_buf[0] = 0x7f;
     nbytes_decoded = mqttDecodeVarBytes((const byte *)&unittest_mctx->rx_buf[0], (word32 *)&value);
@@ -380,8 +359,7 @@ TEST(mqttDecodeElement, mqttDecodeWord16) {
 } // end of TEST(mqttDecodeElement, mqttDecodeWord16)
 
 TEST(mqttDecodeElement, mqttDecodeWord32) {
-    word32 value = 0;
-    word32 nbytes_decoded = 0;
+    word32 value = 0, nbytes_decoded = 0;
 
     unittest_mctx->rx_buf[0] = 0xde;
     unittest_mctx->rx_buf[1] = 0xad;
@@ -412,11 +390,10 @@ TEST(mqttDecodeElement, mqttDecodeStr) {
 } // end of TEST(mqttDecodeElement, mqttDecodeStr)
 
 TEST(mqttEncodeElement, mqttEncodeProps) {
-    mqttProp_t *props = NULL;
-    mqttProp_t *tmp_prop = NULL;
-    byte       *buf = NULL;
-    int         expected_nbytes_encoded = 0;
-    int         actual_nbytes_encoded = 0;
+    mqttProp_t *props = NULL, *tmp_prop = NULL, *nxt_prop = NULL;
+
+    int   expected_nbytes_encoded = 0, actual_nbytes_encoded = 0;
+    byte *buf = NULL, idx = 0;
     // different data type of properties tested at here : MQTT_DATA_TYPE_BYTE, MQTT_DATA_TYPE_SHORT,
     // MQTT_DATA_TYPE_INT, MQTT_DATA_TYPE_VAR_INT,  MQTT_DATA_TYPE_BINARY,  MQTT_DATA_TYPE_STRING,
     // MQTT_DATA_TYPE_STRING_PAIR,
@@ -430,7 +407,6 @@ TEST(mqttEncodeElement, mqttEncodeProps) {
     }; // NOTE: the list is ONLY for this unit test, it's practically impossible to have all these
        // properties in any single MQTT command packet
     const byte nproptypes = sizeof(prop_types) / sizeof(prop_types[0]);
-    byte       idx = 0;
 
     actual_nbytes_encoded = mqttEncodeProps(NULL, props);
     TEST_ASSERT_EQUAL_INT32(0, actual_nbytes_encoded);
@@ -440,7 +416,7 @@ TEST(mqttEncodeElement, mqttEncodeProps) {
     for (idx = 0; idx < (nproptypes - 1); idx++) {
         tmp_prop->next = (mqttProp_t *)XMALLOC(sizeof(mqttProp_t));
         tmp_prop = tmp_prop->next;
-    } // end of for loop
+    }
     tmp_prop->next = NULL;
 
     expected_nbytes_encoded = 0;
@@ -502,26 +478,22 @@ TEST(mqttEncodeElement, mqttEncodeProps) {
     TEST_ASSERT_EQUAL_UINT8(0x09, buf[2]);
     TEST_ASSERT_EQUAL_STRING_LEN(&("Do-Mi-Sol"), &buf[3], 9);
 
-    for (tmp_prop = props; tmp_prop != NULL; tmp_prop = tmp_prop->next) {
+    for (tmp_prop = props; tmp_prop != NULL; tmp_prop = nxt_prop) {
+        nxt_prop = tmp_prop->next;
         XMEMFREE(tmp_prop);
-    } // end of for loop
+    }
 } // end of TEST(mqttEncodeElement, mqttEncodeProps)
 
 TEST(mqttDecodeElement, mqttDecodeProps) {
-    mqttProp_t *props = NULL;
-    mqttProp_t *tmp_prop = NULL;
-    byte       *buf = NULL;
-    int         expected_nbytes_decoded = 0;
-    int         actual_nbytes_decoded = 0;
+    mqttProp_t *props = NULL, *tmp_prop = NULL;
+    int         expected_nbytes_decoded = 0, actual_nbytes_decoded = 0;
 
     const byte *reason_str = (const byte *)&("decoded reason string");
     const byte *user_label_str = (const byte *)&("user label");
     const byte *user_data_str = (const byte *)&("user data");
-    word16      reason_str_len = 21;
-    word16      user_label_len = 10;
-    word16      user_data_len = 9;
+    word16      reason_str_len = 21, user_label_len = 10, user_data_len = 9;
 
-    buf = &unittest_mctx->rx_buf[0];
+    byte *buf = &unittest_mctx->rx_buf[0];
     buf += mqttEncodeVarBytes(buf, MQTT_PROP_REASON_STR);
     buf += mqttEncodeStr(buf, reason_str, reason_str_len);
     buf += mqttEncodeVarBytes(buf, MQTT_PROP_USER_PROPERTY);
@@ -583,14 +555,11 @@ TEST(mqttGetPktID, increment_packet_id) {
 
 TEST(mqttCalPktLenThenEncode, connect) {
     mqttProp_t *tmp_prop = NULL;
-    mqttConn_t *conn = NULL;
+    mqttConn_t *conn = &unittest_mctx->send_pkt.conn;
     byte       *buf = NULL;
     int         expected_nbytes_encoded = 10; // for first 10 bytes of variable header in CONNECT
     int         actual_nbytes_encoded = 0;
-    word32      remain_len = 0;
-    word32      props_len = 0;
-
-    conn = &unittest_mctx->send_pkt.conn;
+    word32      remain_len = 0, props_len = 0;
 
     conn->props = NULL;
     tmp_prop = mqttPropertyCreate(&conn->props, MQTT_PROP_RECV_MAX);
@@ -731,13 +700,12 @@ TEST(mqttCalPktLenThenEncode, connect) {
 } // end of TEST(mqttCalPktLenThenEncode, connect)
 
 TEST(mqttCalPktLenThenEncode, publish_message) {
-    mqttMsg_t *msg = NULL;
-    byte      *buf = NULL;
-    int        expected_nbytes_encoded = 0;
-    int        actual_nbytes_encoded = 0;
-    word32     remain_len = 0;
+    byte  *buf = NULL;
+    int    expected_nbytes_encoded = 0;
+    int    actual_nbytes_encoded = 0;
+    word32 remain_len = 0;
 
-    msg = &unittest_mctx->send_pkt.pub_msg;
+    mqttMsg_t *msg = &unittest_mctx->send_pkt.pub_msg;
 
     msg->props = NULL;
     expected_nbytes_encoded += 1; // no property in this test
@@ -814,18 +782,14 @@ TEST(mqttCalPktLenThenEncode, publish_message) {
 } // end of TEST(mqttCalPktLenThenEncode, publish_message)
 
 TEST(mqttCalPktLenThenEncode, publish_response) {
-    mqttPktPubResp_t *resp = NULL;
-    mqttProp_t       *tmp_prop = NULL;
-    byte             *buf = NULL;
-    int               expected_nbytes_encoded = 0;
-    int               actual_nbytes_encoded = 0;
-    word32            remain_len = 0;
-    word32            props_len = 0;
+    byte  *buf = NULL;
+    int    expected_nbytes_encoded = 0, actual_nbytes_encoded = 0;
+    word32 remain_len = 0, props_len = 0;
 
-    resp = &unittest_mctx->send_pkt.pub_resp;
+    mqttPktPubResp_t *resp = &unittest_mctx->send_pkt.pub_resp;
 
     resp->props = NULL;
-    tmp_prop = mqttPropertyCreate(&resp->props, MQTT_PROP_REASON_STR);
+    mqttProp_t *tmp_prop = mqttPropertyCreate(&resp->props, MQTT_PROP_REASON_STR);
     tmp_prop->body.str.data = (byte *)&("reason_string");
     tmp_prop->body.str.len = 13;
     props_len = 1 + MQTT_DSIZE_STR_LEN + tmp_prop->body.str.len;
@@ -872,13 +836,12 @@ TEST(mqttCalPktLenThenEncode, publish_response) {
 } // end of TEST(mqttCalPktLenThenEncode, publish_response)
 
 TEST(mqttCalPktLenThenEncode, subscribe_unsubscribe) {
-    mqttPktSubs_t *subs = NULL;
-    byte          *buf = NULL;
-    int            expected_nbytes_encoded = 0;
-    int            actual_nbytes_encoded = 0;
-    word32         remain_len = 0;
+    byte  *buf = NULL;
+    int    expected_nbytes_encoded = 0;
+    int    actual_nbytes_encoded = 0;
+    word32 remain_len = 0;
 
-    subs = &unittest_mctx->send_pkt.subs;
+    mqttPktSubs_t *subs = &unittest_mctx->send_pkt.subs;
 
     subs->topic_cnt = 1;
     subs->topics = NULL;
@@ -955,18 +918,14 @@ TEST(mqttCalPktLenThenEncode, subscribe_unsubscribe) {
 } // end of TEST(mqttCalPktLenThenEncode, subscribe_unsubscribe)
 
 TEST(mqttCalPktLenThenEncode, disconnect) {
-    mqttPktDisconn_t *disconn = NULL;
-    mqttProp_t       *tmp_prop = NULL;
-    byte             *buf = NULL;
-    int               expected_nbytes_encoded = 0;
-    int               actual_nbytes_encoded = 0;
-    word32            remain_len = 0;
-    word32            props_len = 0;
+    byte  *buf = NULL;
+    int    expected_nbytes_encoded = 0, actual_nbytes_encoded = 0;
+    word32 remain_len = 0, props_len = 0;
 
-    disconn = &unittest_mctx->send_pkt.disconn;
+    mqttPktDisconn_t *disconn = &unittest_mctx->send_pkt.disconn;
 
     disconn->props = NULL;
-    tmp_prop = mqttPropertyCreate(&disconn->props, MQTT_PROP_REASON_STR);
+    mqttProp_t *tmp_prop = mqttPropertyCreate(&disconn->props, MQTT_PROP_REASON_STR);
     tmp_prop->body.str.data = (byte *)&("disconnect_reason");
     tmp_prop->body.str.len = 16;
     props_len = 1 + MQTT_DSIZE_STR_LEN + tmp_prop->body.str.len;
@@ -1007,19 +966,16 @@ TEST(mqttCalPktLenThenEncode, disconnect) {
 } // end of TEST(mqttCalPktLenThenEncode, disconnect)
 
 TEST(mqttCalPktLenThenEncode, enhanced_auth) {
-    mqttAuth_t *auth = NULL;
-    mqttProp_t *tmp_prop = NULL;
-    int         expected_nbytes_encoded = 0;
-    int         actual_nbytes_encoded = 0;
     const char *auth_mthd_str = (char *)&("design_your_auth_method");
     const char *auth_data_str = (char *)&("fill_in_your_auth_data");
-    word32      remain_len = 0;
-    word32      props_len = 0;
 
-    auth = &unittest_mctx->send_pkt.auth;
+    int    expected_nbytes_encoded = 0, actual_nbytes_encoded = 0;
+    word32 remain_len = 0, props_len = 0;
+
+    mqttAuth_t *auth = &unittest_mctx->send_pkt.auth;
 
     auth->props = NULL;
-    tmp_prop = mqttPropertyCreate(&auth->props, MQTT_PROP_AUTH_METHOD);
+    mqttProp_t *tmp_prop = mqttPropertyCreate(&auth->props, MQTT_PROP_AUTH_METHOD);
     tmp_prop->body.str.len = XSTRLEN(auth_mthd_str);
     tmp_prop->body.str.data = XMALLOC(sizeof(byte) * tmp_prop->body.str.len);
     XMEMCPY(tmp_prop->body.str.data, auth_mthd_str, tmp_prop->body.str.len);
@@ -1061,14 +1017,11 @@ TEST(mqttCalPktLenThenEncode, ping) {
 } // end of TEST(mqttCalPktLenThenEncode, ping)
 
 TEST(mqttDecodeSingleCommand, connack) {
-    mqttPktHeadConnack_t *connack = NULL;
-    int                   expected_nbytes_decoded = 0;
-    int                   actual_nbytes_decoded = 0;
-    byte                 *buf = NULL;
-    mqttReasonCode        expected_reason_code = MQTT_REASON_SUCCESS;
+    int   expected_nbytes_decoded = 0, actual_nbytes_decoded = 0;
+    byte *buf = unittest_mctx->rx_buf;
 
-    buf = unittest_mctx->rx_buf;
-    connack = &unittest_mctx->recv_pkt.connack;
+    mqttReasonCode        expected_reason_code = MQTT_REASON_SUCCESS;
+    mqttPktHeadConnack_t *connack = &unittest_mctx->recv_pkt.connack;
     XMEMSET(connack, 0x00, sizeof(mqttPktHeadConnack_t));
 
     buf[0] = 0;
@@ -1115,13 +1068,11 @@ TEST(mqttDecodeSingleCommand, connack) {
 } // end of TEST(mqttDecodeSingleCommand, connack)
 
 TEST(mqttDecodeSingleCommand, publish_message) {
-    mqttMsg_t *msg = NULL;
-    byte      *buf = NULL;
-    int        expected_nbytes_decoded = 0;
-    int        actual_nbytes_decoded = 0;
+    int   expected_nbytes_decoded = 0;
+    int   actual_nbytes_decoded = 0;
+    byte *buf = unittest_mctx->rx_buf;
 
-    buf = unittest_mctx->rx_buf;
-    msg = &unittest_mctx->recv_pkt.pub_msg;
+    mqttMsg_t *msg = &unittest_mctx->recv_pkt.pub_msg;
     XMEMSET(msg, 0x00, sizeof(mqttMsg_t));
 
     buf[0] = 0;

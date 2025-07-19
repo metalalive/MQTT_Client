@@ -46,7 +46,7 @@ C_DEFS = $(foreach def, $(EXTRA_C_DEFS), $(addprefix -D, $(def)) )
 
 C_HEADERS_PATHS =
 
-BUILD_DIR=build
+BUILD_DIR ?= build
 
 #---------------------------------------------------------
 # different files & paths for unit test, integration test 
@@ -54,6 +54,8 @@ BUILD_DIR=build
 
 ifeq ($(MAKECMDGOALS), utest_helper) # if unit test is enabled
     TEST_ENTRY_SOURCES = $(addprefix tests/unit/, $(LIB_C_SRCS:src/%.c=%_ut.c))
+	TEST_COMMON_SOURCES = src/tls/core/tls_util.c \
+						  src/mqtt/mqtt_util.c
 else
     ifeq ($(MAKECMDGOALS), demo)
         TEST_COMMON_SOURCES = tests/integration/pattern_generator.c \
@@ -89,7 +91,7 @@ endif
 
 # code reformat
 REFMT_SRC_DIRS := \
-	./src/system/middleware \
+	./src/system \
 	./include/integration   \
 	./include/mqtt    \
 	./include/system  \
@@ -165,12 +167,15 @@ $(TARGET_LIB_PATH): $(LIB_C_OBJS)
 gen_lib: $(BUILD_DIR)  $(TARGET_LIB_PATH)
 
 utest_helper : $(LIB_C_OBJS) $(TEST_COMMON_OBJECTS)  $(TEST_ENTRY_OBJECTS)
-	$(foreach atest, $(TEST_ENTRY_OBJECTS), $(CC) $(LDFLAGS) $(atest) $(atest:%_ut.o=%.o) $(TEST_COMMON_OBJECTS) -o $(atest:.o=.out);)
-	$(foreach atest, $(TEST_ENTRY_OBJECTS), $(atest:.o=.out);)
+	@$(foreach atest, $(LIB_C_OBJS), $(CC) $(LDFLAGS) $(atest) \
+		$(atest:$(BUILD_DIR)/src/%.o=$(BUILD_DIR)/tests/unit/%_ut.o) \
+		$(filter-out $(atest), $(TEST_COMMON_OBJECTS)) \
+		-o $(atest:$(BUILD_DIR)/src/%.o=$(BUILD_DIR)/tests/unit/%_ut.out); )
+	@$(foreach atest, $(TEST_ENTRY_OBJECTS),  $(atest:.o=.out);)
 
 # for unit test, no need to build library and test images using cross-compiler
 utest:
-	@make file_subst -C third_party;
+	@make file_subst -C ./third_party;
 	@make utest_helper EXTRA_C_DEFS="MQTT_UNIT_TEST_MODE" DEBUG=$(DEBUG);
 
 
@@ -191,6 +196,7 @@ config:
 dbg_server:
 	@$(DBG_SERVER_CMD)
 
+dbg_client: export RTOS_HW_BUILD_PATH := $(RTOS_HW_BUILD_PATH)
 dbg_client:
 	@$(DBG_CLIENT_CMD)
 

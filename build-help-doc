@@ -53,6 +53,20 @@ These commands are generally applicable regardless of the chosen middleware or p
     ```
 
 
+5.  make utest
+    Description:
+        Compiles and runs unit test cases on the host machine (not cross-compiling for a target device).
+
+    Variables:
+    *   DEBUG: Set to yes for a debug build.
+    *   BUILD_DIR: Specifies the build directory for unit test artifacts.
+
+    Example:
+    ```
+    make utest DEBUG=yes BUILD_DIR=build/utst
+    ```
+
+
 --- Linux Middleware Commands ---
 
 These commands are used when middleware is set to Linux in mqttclient.conf.
@@ -76,10 +90,11 @@ These commands are used when middleware is set to Linux in mqttclient.conf.
 
     Variables:
     *   DEBUG: Set to yes for a debug build.
+    *   BUILD_DIR: Specifies the build directory for object files and output library `libmqttclient.a`.
 
     Example:
     ```
-    make gen_lib DEBUG=yes
+    make gen_lib DEBUG=yes BUILD_DIR=build/itst
     ```
 
 
@@ -89,6 +104,7 @@ These commands are used when middleware is set to Linux in mqttclient.conf.
 
     Variables:
     *   DEBUG: Set to yes for a debug build.
+    *   BUILD_DIR: Specifies the build directory for object files and final executable application.
 
     Example:
     ```
@@ -133,6 +149,7 @@ Note:
 
     Variables:
     *   DEBUG: Set to yes for a debug build.
+    *   BUILD_DIR: Specifies the build directory for object files and output library `libmqttclient.a`.
     *   OS: Specifies the operating system (e.g., freertos-v10).
     *   HW_PLATFORM: Specifies the hardware platform (e.g., stm32f446).
     *   RTOS_HW_BUILD_PATH: Path to your RTOS hardware build environment.
@@ -142,7 +159,7 @@ Note:
 
     Example:
     ```
-    make gen_lib DEBUG=yes OS=freertos-v10 HW_PLATFORM=stm32f446 \
+    make gen_lib DEBUG=yes  BUILD_DIR=build/itst  OS=freertos-v10 HW_PLATFORM=stm32f446 \
         RTOS_HW_BUILD_PATH=/opt/mywork/tsunghan/Documents/os/rtos/rtos-playground \
         TOOLCHAIN_BASEPATH=/usr/local/arm-gnu/14.2.rel1 \
         ESP_PROJ_HOME=/opt/mywork/tsunghan/Documents/c/network/wifi/ESP8266_AT_parser \
@@ -156,6 +173,7 @@ Note:
 
     Variables:
     *   DEBUG: Set to yes for a debug build.
+    *   BUILD_DIR: Specifies the build directory for object files and final executable application.
     *   OS: Specifies the operating system.
     *   HW_PLATFORM: Specifies the hardware platform.
     *   RTOS_HW_BUILD_PATH: Path to your RTOS hardware build environment.
@@ -234,6 +252,7 @@ Here's a summary of important variables you might need to set on the command lin
 
 *   DEBUG: (yes/no, default no) Enables/disables debug symbols and potentially code coverage.
 *   MQC_PROJ_HOME: (Internal, set by $(shell pwd)) The absolute path to the root of the MQTT client project.
+*   BUILD_DIR: (Command line, default `build`) Determines the base path for all built object files, libraries, and executables. Can be applied to `make gen_lib`, `make buildapp`, and `make demo` for all supported middleware ports.
 *   MIDDLEWARE: (From mqttclient.conf) The chosen middleware (e.g., Linux, ESP8266_AT_parser).
 *   HW_PLATFORM: (From mqttclient.conf or command line) The specific hardware platform (e.g., stm32f446).
 *   OS: (From mqttclient.conf or command line) The operating system (e.g., freertos-v10).

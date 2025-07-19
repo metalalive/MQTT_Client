@@ -128,15 +128,6 @@ mqttRespStatus
 mqttPktRead(struct __mqttCtx *mctx, byte *buf, word32 buf_max_len, word32 *copied_len);
 mqttRespStatus mqttPktWrite(struct __mqttCtx *mctx, byte *buf, word32 buf_len);
 
-// element encoders / decoders
-// 16-bit number from/to consecutive given 2 bytes
-word32 mqttDecodeWord16(byte *buf, word16 *value);
-word32 mqttEncodeWord16(byte *buf, word16 value);
-
-// 32-bit number from/to consecutive given 4 bytes
-word32 mqttDecodeWord32(byte *buf, word32 *value);
-word32 mqttEncodeWord32(byte *buf, word32 value);
-
 // encode/decode string, with string length ahead
 word32 mqttDecodeStr(byte *buf, byte *str, word16 *strlen);
 word32 mqttEncodeStr(byte *buf, const byte *str, word16 strlen);

@@ -1,5 +1,43 @@
 #include "mqtt_include.h"
 
+word32 mqttEncodeWord16(byte *buf, word16 value) {
+    if (buf != NULL) {
+        buf[0] = value >> 8;
+        buf[1] = value & 0xff;
+    }
+    // return number of bytes used to store the encoded value
+    return (word32)2;
+}
+
+word32 mqttDecodeWord16(byte *buf, word16 *value) {
+    if ((buf != NULL) && (value != NULL)) {
+        *value = buf[1];
+        *value |= buf[0] << 8;
+    }
+    return (word32)2;
+}
+
+word32 mqttEncodeWord32(byte *buf, word32 value) {
+    if (buf != NULL) {
+        buf[0] = value >> 24;
+        buf[1] = (value >> 16) & 0xff;
+        buf[2] = (value >> 8) & 0xff;
+        buf[3] = value & 0xff;
+    }
+    // return number of bytes used to store the encoded value
+    return (word32)4;
+}
+
+word32 mqttDecodeWord32(byte *buf, word32 *value) {
+    if ((buf != NULL) && (value != NULL)) {
+        *value = buf[3];
+        *value |= buf[2] << 8;
+        *value |= buf[1] << 16;
+        *value |= buf[0] << 24;
+    }
+    return (word32)4;
+}
+
 mqttProp_t *mqttGetPropByType(mqttProp_t *head, mqttPropertyType type) {
     if (type == MQTT_PROP_NONE) {
         return NULL;
@@ -18,11 +56,9 @@ mqttRespStatus mqttChkReasonCode(mqttReasonCode reason_code) {
     return (reason_code <= MQTT_GREATEST_NORMAL_REASON_CODE ? MQTT_RESP_OK : MQTT_RESP_ERR);
 } // end of mqttChkReasonCode
 
-word32 mqttGetInterval(word32 now, word32 then) { return (now - then); } // end of mqttGetInterval
+word32 mqttGetInterval(word32 now, word32 then) { return (now - then); }
 
-byte mqttCvtDecimalToBCDbyte(byte in, byte base) {
-    return ((in / base) << 4) | (in % base);
-} // mqttCvtDecimalToBCDbyte
+byte mqttCvtDecimalToBCDbyte(byte in, byte base) { return ((in / base) << 4) | (in % base); }
 
 // the return value below means minimum number of bytes to store a given integer
 // Note: currently I only consider 32-bit CPU platform, so the possible return value
@@ -188,13 +224,11 @@ mqttRespStatus mqttUtilMultiByteUAdd(mqttStr_t *out, mqttStr_t *in1, mqttStr_t *
     if ((out->data == NULL) || (in1->data == NULL) || (in2->data == NULL)) {
         return MQTT_RESP_ERRARGS;
     }
-    int         mp_status = 0;
-    multiBint_t mp_in1;
-    multiBint_t mp_in2;
-    multiBint_t mp_out;
-    byte       *outbias = NULL;
-    size_t      outlenbias = 0;
-    size_t      written = 0;
+    multiBint_t mp_in1, mp_in2, mp_out;
+
+    int    mp_status = 0;
+    byte  *outbias = NULL;
+    size_t outlenbias = 0, written = 0;
     // TODO: find better way to init/deinit the multi-byte integer structure, since
     //       these operations will be performed a lot of times.
     mp_status = MQTT_CFG_MPBINT_FN_INIT(&mp_in1);
@@ -203,7 +237,6 @@ mqttRespStatus mqttUtilMultiByteUAdd(mqttStr_t *out, mqttStr_t *in1, mqttStr_t *
     if (mp_status != 0) {
         goto end_of_mb_math_ops;
     }
-
     mp_status =
         MQTT_CFG_MPBINT_FN_BIN2MPINT(&mp_in1, (const byte *)&in1->data[0], (size_t)in1->len);
     if (mp_status != 0) {
@@ -257,12 +290,11 @@ mqttRespStatus mqttUtilMultiByteUAddDG(mqttStr_t *out, mqttStr_t *in1, word32 in
         }
         return MQTT_RESP_OK;
     }
-    int         mp_status = 0;
-    size_t      written = 0;
-    multiBint_t mp_in1;
-    multiBint_t mp_out;
-    byte       *outbias = NULL;
-    size_t      outlenbias = 0;
+    multiBint_t mp_in1, mp_out;
+
+    int    mp_status = 0;
+    byte  *outbias = NULL;
+    size_t outlenbias = 0, written = 0;
     // TODO: find better way to init/deinit the multi-byte integer structure, since
     //       these operations will be performed a lot of times.
     mp_status = MQTT_CFG_MPBINT_FN_INIT(&mp_in1);

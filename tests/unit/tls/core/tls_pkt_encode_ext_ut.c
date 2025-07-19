@@ -4,6 +4,10 @@
 #define MAX_RAWBYTE_BUF_SZ       0x200
 #define TEST_NUM_EXTENSION_ITEMS 0x3
 
+extern const tlsVersionCode tls_supported_versions[];
+extern const tlsNamedGrp    tls_supported_named_groups[];
+extern const tlsSignScheme  tls_supported_sign_scheme[];
+
 static tlsSession_t *tls_session;
 static word32        mock_sys_get_time_ms;
 static byte          mock_keyshare_public_bytes[TLS_MAX_KEYSHR_ENTRIES_PER_CLIENTHELLO][0x80];
@@ -16,98 +20,9 @@ static const tlsExtType mock_extension_types[TEST_NUM_EXTENSION_ITEMS] = {
 
 static const word16 mock_extension_content_len[TEST_NUM_EXTENSION_ITEMS] = {0x43, 0x5f, 0x70};
 
-const tlsVersionCode tls_supported_versions[] = {
-    TLS_VERSION_ENCODE_1_0, // only for testing purpose, this implemetation doesn't support previous
-                            // version of TLS
-    TLS_VERSION_ENCODE_1_2, // only for testing purpose, this implemetation doesn't support previous
-                            // version of TLS
-    TLS_VERSION_ENCODE_1_3,
-};
-
-const tlsNamedGrp tls_supported_named_groups[] = {
-    TLS_NAMED_GRP_SECP256R1,
-    TLS_NAMED_GRP_X25519,
-    TLS_NAMED_GRP_SECP384R1,
-    TLS_NAMED_GRP_SECP521R1,
-};
-
-const tlsSignScheme tls_supported_sign_scheme[] = {
-    TLS_SIGNATURE_RSA_PKCS1_SHA256,
-    TLS_SIGNATURE_RSA_PKCS1_SHA384,
-    TLS_SIGNATURE_RSA_PSS_RSAE_SHA256,
-    TLS_SIGNATURE_RSA_PSS_RSAE_SHA384,
-
-    TLS_SIGNATURE_ED25519,
-    TLS_SIGNATURE_ED448,
-    TLS_SIGNATURE_RSA_PSS_PSS_SHA256,
-    TLS_SIGNATURE_RSA_PSS_PSS_SHA384,
-    TLS_SIGNATURE_RSA_PSS_PSS_SHA512,
-};
-
 tlsHandshakeType tlsGetHSexpectedState(tlsSession_t *session) {
     return (session == NULL ? TLS_HS_TYPE_HELLO_REQUEST_RESERVED : session->hs_state);
 } // end of tlsGetHSexpectedState
-
-byte tlsGetSupportedVersionListSize(void) {
-    return XGETARRAYSIZE(tls_supported_versions);
-} // end of tlsGetSupportedVersionListSize
-
-byte tlsGetSupportedKeyExGrpSize(void) {
-    byte out = XGETARRAYSIZE(tls_supported_named_groups);
-    return out;
-} // end of tlsGetSupportedKeyExGrpSize
-
-byte tlsGetSupportedSignSchemeListSize(void) {
-    return XGETARRAYSIZE(tls_supported_sign_scheme);
-} // end of tlsGetSupportedSignSchemeListSize
-
-word32 mqttEncodeWord16(byte *buf, word16 value) {
-    if (buf != NULL) {
-        buf[0] = value >> 8;
-        buf[1] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)2;
-} // end of mqttEncodeWord16
-
-word32 mqttDecodeWord16(byte *buf, word16 *value) {
-    if ((buf != NULL) && (value != NULL)) {
-        *value = buf[1];
-        *value |= buf[0] << 8;
-    }
-    return (word32)2;
-} // end of mqttDecodeWord16
-
-word32 mqttEncodeWord32(byte *buf, word32 value) {
-    if (buf != NULL) {
-        buf[0] = value >> 24;
-        buf[1] = (value >> 16) & 0xff;
-        buf[2] = (value >> 8) & 0xff;
-        buf[3] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)4;
-} // end of mqttEncodeWord32
-
-word32 mqttDecodeWord32(byte *buf, word32 *value) {
-    if ((buf != NULL) && (value != NULL)) {
-        *value = buf[3];
-        *value |= buf[2] << 8;
-        *value |= buf[1] << 16;
-        *value |= buf[0] << 24;
-    }
-    return (word32)4;
-} // end of mqttDecodeWord32
-
-word32 tlsEncodeWord24(byte *buf, word32 value) {
-    if (buf != NULL) {
-        buf[0] = (value >> 16) & 0xff;
-        buf[1] = (value >> 8) & 0xff;
-        buf[2] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)3;
-} // end of tlsEncodeWord24
 
 tlsRespStatus tlsChkFragStateOutMsg(tlsSession_t *session) {
     tlsRespStatus status = TLS_RESP_OK;
@@ -268,38 +183,6 @@ tlsRespStatus tlsGenEphemeralKeyPairs(mqttDRBG_t *drbg, tlsKeyEx_t *keyexp) {
     return status;
 } // end of tlsGenEphemeralKeyPairs
 
-word16 mqttHashGetOutlenBytes(mqttHashLenType type) {
-    word16 out = 0;
-    switch (type) {
-    case MQTT_HASH_SHA256:
-        out = 256; // unit: bit(s)
-        break;
-    case MQTT_HASH_SHA384:
-        out = 384; // unit: bit(s)
-        break;
-    default:
-        break;
-    }
-    out = out >> 3;
-    return out;
-} // end of mqttHashGetOutlenBits
-
-tlsHashAlgoID tlsGetHashAlgoIDBySize(word16 in) {
-    tlsHashAlgoID out = TLS_HASH_ALGO_UNKNOWN;
-    // this implementation currently only supports SHA256, SHA384, the input must be equal
-    // to the hash output of either  SHA256 or SHA384
-    word16 hash_sz = 0;
-    hash_sz = mqttHashGetOutlenBytes((mqttHashLenType)TLS_HASH_ALGO_SHA256);
-    if (hash_sz == in) {
-        out = TLS_HASH_ALGO_SHA256;
-    }
-    hash_sz = mqttHashGetOutlenBytes((mqttHashLenType)TLS_HASH_ALGO_SHA384);
-    if (hash_sz == in) {
-        out = TLS_HASH_ALGO_SHA384;
-    }
-    return out;
-} // end of tlsGetHashAlgoIDBySize
-
 tlsHashAlgoID TLScipherSuiteGetHashID(const tlsCipherSpec_t *cs_in) {
     if (cs_in != NULL) {
         if ((cs_in->flags & (1 << TLS_HASH_ALGO_SHA256)) != 0x0) {
@@ -312,53 +195,6 @@ tlsHashAlgoID TLScipherSuiteGetHashID(const tlsCipherSpec_t *cs_in) {
     }
     return TLS_HASH_ALGO_NOT_NEGO;
 } // end of TLScipherSuiteGetHashID
-
-tlsRespStatus tlsRemoveItemFromList(tlsListItem_t **list, tlsListItem_t *removing_item) {
-    if ((list == NULL) && (removing_item == NULL)) {
-        return TLS_RESP_ERRARGS;
-    }
-    tlsListItem_t *idx = NULL;
-    tlsListItem_t *prev = NULL;
-    for (idx = *list; idx != NULL; idx = idx->next) {
-        if (removing_item == idx) {
-            if (prev != NULL) {
-                prev->next = removing_item->next;
-            } else {
-                *list = removing_item->next;
-            }
-            break;
-        }
-        prev = idx;
-    } // end of for-loop
-    return TLS_RESP_OK;
-} // end of tlsRemoveItemFromList
-
-tlsRespStatus tlsFreePSKentry(tlsPSK_t *in) {
-    if (in == NULL) {
-        return TLS_RESP_ERRARGS;
-    }
-    if (in->key.data != NULL) {
-        XMEMFREE((void *)in->key.data);
-        in->key.data = NULL;
-        in->id.data = NULL;
-    }
-    in->next = NULL;
-    XMEMFREE((void *)in);
-    return TLS_RESP_OK;
-} // end of tlsFreePSKentry
-
-tlsRespStatus tlsFreeExtEntry(tlsExtEntry_t *in) {
-    if (in == NULL) {
-        return TLS_RESP_ERRARGS;
-    }
-    XMEMFREE((void *)in->content.data);
-    in->content.data = NULL;
-    in->next = NULL;
-    XMEMFREE((void *)in);
-    return TLS_RESP_OK;
-} // end of tlsFreeExtEntry
-
-word32 mqttGetInterval(word32 now, word32 then) { return (now - then); } // end of mqttGetInterval
 
 tlsRespStatus
 tlsExportPubValKeyShare(byte *out, tlsNamedGrp grp_id, void *chosen_key, word16 chosen_key_sz) {
@@ -436,15 +272,16 @@ TEST_TEAR_DOWN(tlsEncodeExtensions) {
 }
 
 TEST(tlsGenExtensions, clienthello_ext_ok) {
-    mqttStr_t      mock_server_name = {17, (byte *)&("www.yourbroker.io")};
-    tlsExtEntry_t *actual_ext_list = NULL;
-    tlsExtEntry_t *extitem = NULL;
-    tlsPSK_t      *mock_psk_list = NULL;
-    tlsPSK_t      *pskitem = NULL;
-    byte          *buf = NULL;
-    word32         expect_value = 0;
-    word32         actual_value = 0;
-    word16         idx, jdx = 0;
+    mqttHost_t mock_server_name = {
+        .domain_name = {.len = 17, .data = (byte *)&("www.yourbroker.io")},
+        .ip_address = {.len = 0, .data = NULL},
+    };
+    tlsExtEntry_t *actual_ext_list = NULL, *extitem = NULL;
+    tlsPSK_t      *mock_psk_list = NULL, *pskitem = NULL;
+
+    word32 expect_value = 0, actual_value = 0;
+    word16 idx, jdx = 0;
+    byte  *buf = NULL;
 
     tls_session->flgs.hello_retry = 0;
     tls_session->hs_state = TLS_HS_TYPE_CLIENT_HELLO;
@@ -489,7 +326,8 @@ TEST(tlsGenExtensions, clienthello_ext_ok) {
         switch (extitem->type) {
         case TLS_EXT_TYPE_SERVER_NAME:
             TEST_ASSERT_EQUAL_STRING_LEN(
-                &mock_server_name.data[0], &buf[2 + 1 + 2], mock_server_name.len
+                &mock_server_name.domain_name.data[0], &buf[2 + 1 + 2],
+                mock_server_name.domain_name.len
             );
             break;
         case TLS_EXT_TYPE_SUPPORTED_VERSIONS:
@@ -577,7 +415,10 @@ TEST(tlsGenExtensions, clienthello_ext_ok) {
 } // end of TEST(tlsGenExtensions, clienthello_ext_ok)
 
 TEST(tlsGenExtensions, clienthello_gen_keyshare_fail) {
-    mqttStr_t      mock_server_name = {16, (byte *)&("www.hisbroker.io")};
+    mqttHost_t mock_server_name = {
+        .domain_name = {.len = 16, .data = (byte *)&("www.hisbroker.io")},
+        .ip_address = {.len = 0, .data = NULL}
+    };
     tlsExtEntry_t *actual_ext_list = NULL;
 
     tls_session->flgs.hello_retry = 0;

@@ -25,41 +25,6 @@ const tlsCipherSpec_t tls_supported_cipher_suites[] = {
     },
 }; // end of tls_supported_cipher_suites
 
-tlsRespStatus tlsRespCvtFromMqttResp(mqttRespStatus in) {
-    tlsRespStatus out;
-    switch (in) {
-    case MQTT_RESP_OK:
-        out = TLS_RESP_OK;
-        break;
-    case MQTT_RESP_ERRARGS:
-        out = TLS_RESP_ERRARGS;
-        break;
-    case MQTT_RESP_ERRMEM:
-        out = TLS_RESP_ERRMEM;
-        break;
-    case MQTT_RESP_TIMEOUT:
-        out = TLS_RESP_TIMEOUT;
-        break;
-    case MQTT_RESP_ERR_SECURE_CONN:
-        out = TLS_RESP_PEER_CONN_FAIL;
-        break;
-    case MQTT_RESP_MALFORMED_DATA:
-        out = TLS_RESP_MALFORMED_PKT;
-        break;
-    case MQTT_RESP_ERR_TRANSMIT:
-        out = TLS_RESP_ERR_SYS_SEND_PKT;
-        break;
-    case MQTT_RESP_ERR_EXCEED_PKT_SZ:
-        out = TLS_RESP_ERR_EXCEED_MAX_REC_SZ;
-        break;
-    case MQTT_RESP_ERR:
-    default:
-        out = TLS_RESP_ERR;
-        break;
-    } // end of switch-case statement
-    return out;
-} // end of tlsRespCvtToMqttResp
-
 tlsRespStatus tlsVerifyDecodeRecordType(tlsContentType rec_type) {
     tlsRespStatus status = TLS_RESP_OK;
     switch (rec_type) {
@@ -90,23 +55,6 @@ tlsRespStatus tlsVerifyDecodeVersionCode(const byte *ver_in
     }
     return status;
 } // end of tlsVerifyDecodeVersionCode
-
-word32 mqttEncodeWord16(byte *buf, word16 value) {
-    if (buf != NULL) {
-        buf[0] = value >> 8;
-        buf[1] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)2;
-} // end of mqttEncodeWord16
-
-word32 mqttDecodeWord16(byte *buf, word16 *value) {
-    if ((buf != NULL) && (value != NULL)) {
-        *value = buf[1];
-        *value |= buf[0] << 8;
-    }
-    return (word32)2;
-} // end of mqttDecodeWord16
 
 int mqttSysPktWrite(void **extsysobjs, byte *buf, word32 buf_len) {
     mqttRespStatus status = mock_sys_pkt_write_return_val;

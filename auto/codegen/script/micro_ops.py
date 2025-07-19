@@ -1,4 +1,5 @@
 import os
+from typing import List
 
 class MicroOperations:
 
@@ -12,6 +13,9 @@ class MicroOperations:
             nbytes = len(inbytes)
         return nbytes
 
+    def _num_list_item(l : List) -> int:
+        return len(l)
+
     def _file_dump_hex(filepath):
         out = None
         with open(filepath, "rb") as f:
@@ -19,7 +23,7 @@ class MicroOperations:
         out = [hex(char) for char in out]
         return out
 
-    def _gen_C_char_array(hex_in):
+    def _gen_C_char_array(hex_in) -> str:
         out = hex_in
         if(isinstance(out, list)):
             out = ','.join(out)
@@ -88,23 +92,47 @@ class MicroOperations:
             in_str = ''.join(["\"", in_str,"\""])
         return in_str
 
-    def _convert_BCD(in_str):
-        if(isinstance(int(in_str), int)):
-            in_str = ''.join(['0x', in_str])
-        return in_str
-
     def _list_append_semicolon(in_list):
         return MicroOperations._list_append_pattern(in_list, ";")
 
     def _list_append_whitespace(in_list):
         return MicroOperations._list_append_pattern(in_list, " ")
 
+    def _convert_BCD(s: str) -> str:
+        if(isinstance(int(s), int)):
+            s = ''.join(['0x', s])
+        return s
+
     def _num_to_str(in_num):
         return str(in_num)
+
+    def _ipaddr_to_hex(s:str) -> List[str]:
+        # Default return for non-IP or invalid IP
+        default_return = ['0','0','0','0']
+
+        if not isinstance(s, str):
+            return default_return
+
+        parts = s.split('.')
+        if len(parts) != 4:
+            return default_return
+
+        hex_parts = []
+        for part in parts:
+            try:
+                num = int(part)
+                if not (0 <= num <= 255):
+                    return default_return # Not a valid octet (0-255)
+                hex_parts.append(hex(num))
+            except ValueError:
+                return default_return # Not a valid number in part
+
+        return hex_parts
 
     fn_map = {
         "numToStr"       : _num_to_str,
         "strlen"         : _strlen,
+        "numlistitem"    : _num_list_item,
         "filelen"        : os.path.getsize,
         "filedumphex"    : _file_dump_hex,
         "genCcharArray"  : _gen_C_char_array,
@@ -113,7 +141,7 @@ class MicroOperations:
         "getCinclude"    : _gen_C_include,
         "wrapQuote"      : _wrap_quote,
         "convertBCD"     : _convert_BCD,
+        "ipToHexChar"    : _ipaddr_to_hex,
         "ListAppendSemicolon"  : _list_append_semicolon,
         "ListAppendWhitespace" : _list_append_whitespace,
     }
-

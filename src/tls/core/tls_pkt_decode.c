@@ -97,6 +97,24 @@ end_of_decode:
     return status;
 } // end of tlsDecodeHSencryptedExt
 
+static tlsRespStatus tlsVerifyServerName(mqttHost_t *expect, tlsCert_t *actual_cert) {
+    // check whether the common name matches IP or domain name of MQTT broker.
+    const char *expect_addr = (const char *)expect->domain_name.data;
+    const char *peer_addr = (const char *)actual_cert->subject.common_name;
+    // TODO: compare with subject alternative name (SAN) , return failure ONLY if
+    // all domain names and IP do not match the expect server name.
+    int cn_match = XSTRNCMP(peer_addr, expect_addr, expect->domain_name.len);
+    if (cn_match == 0) {
+        return TLS_RESP_OK;
+    }
+    tlsX509SANEntry_t *san_entry = tlsX509FindSubjAltName(actual_cert->cert_exts, expect);
+    if (san_entry == NULL) {
+        return TLS_RESP_CERT_AUTH_FAIL;
+    } else {
+        return TLS_RESP_OK;
+    }
+} // end of tlsVerifyServerName
+
 // struct {
 //     select (certificate_type) {
 //         case RawPublicKey:
@@ -120,21 +138,22 @@ static tlsRespStatus tlsDecodeHScertificate(tlsSession_t *session) {
     if (session->sec.flgs.ct_first_frag != 0) {
         byte  *inbuf = &session->inbuf.data[0];
         word16 inlen_decoded = session->inlen_decoded;
-        word32 tmp = 0;
-        // certificate_request_context will be zero length for server authentication,
-        tmp = inbuf[inlen_decoded++]; // copy the length field of certificate_request_context
+        // certificate_request_context is zero length for server-only authentication,
+        // copy the length field of certificate_request_context
+        word32 tmp = inbuf[inlen_decoded++];
         // if this implementation , we will simply skip this part.
         inlen_decoded += tmp;
         inlen_decoded += tlsDecodeWord24(&inbuf[inlen_decoded], &tmp);
-        session->nbytes.total_certs =
-            tmp; // nbytes_remain at here means total #bytes of Certificate.certificate_list
+        // nbytes_remain at here means total #bytes of Certificate.certificate_list
+        session->nbytes.total_certs = tmp;
         session->inlen_decoded = inlen_decoded;
         if (session->nbytes.total_certs > TLS_MAX_BYTES_CERT_CHAIN) {
             status = TLS_RESP_ERR_CERT_OVFL;
             goto end_of_decode;
-        } else if (session->nbytes.total_certs ==
-                   0x0) {                // empty certificate_list is NOT allowed in TLS
-            status = TLS_RESP_REQ_ALERT; // abort the handshake with a "decode_error" alert
+        } else if (session->nbytes.total_certs == 0x0) {
+            // empty certificate_list is NOT allowed in TLS abort the handshake with a
+            // "decode_error" alert
+            status = TLS_RESP_REQ_ALERT;
             goto end_of_decode;
         }
         session->last_cpy_cert_len = 0;
@@ -155,28 +174,28 @@ static tlsRespStatus tlsDecodeHScertificate(tlsSession_t *session) {
     if (status < 0) {
         goto end_of_decode;
     }
-
     // verify peer's identity by verifying entire received certificate chain in the final fragment
+    //
+    // Note the entire chain is verified only in the final fragment since the information about
+    // issuers and subjects in the chain would come in arbitrary order.
+    //
+    // Accroding to RFC8446, each cert in the chain list should be verified by the one
+    // immediately after itself until final CA cert is reached . However some implementations
+    // do not follow the protocol suggestion, which causes trouble that I need to collect all
+    // the certificates before starting the verification
     if (session->sec.flgs.ct_final_frag != 0) {
-        // check whether the common name matches MQTT server IP or domain name. TODO: consider proxy
-        // server ?
-        const char *peer_addr = (const char *)session->peer_certs->subject.common_name;
-        const char *expect_addr = (const char *)session->server_name->data;
-        if (XSTRNCMP(peer_addr, expect_addr, session->server_name->len) != 0) {
-            status = TLS_RESP_CERT_AUTH_FAIL;
+        status = tlsVerifyServerName(session->server_name, session->peer_certs);
+        if (status < 0) {
             goto end_of_decode;
         }
-        // Note we can only verify this chain in the final fragment since the peer's cert chain
-        // would come in arbitrary order. Ideally each cert in the chain list can be certified by
-        // the one immediately proceding it (in the same chain) , however many TLS implementations
-        // don't work that way.
-        status = tlsVerifyCertChain(session->CA_cert, session->peer_certs);
+        status = tlsVerifyCertChain(session->broker_cacert, session->peer_certs);
     }
 end_of_decode:
+    // deallocate space from some members of the cert chain since they are no
+    // longer used in the session
     if ((status < 0) || (session->sec.flgs.ct_final_frag != 0)) {
         tlsFreeCertChain(session->peer_certs, TLS_FREE_CERT_ENTRY_SIGNATURE);
-    } // deallocate space from some members of the cert chain since they are no longer used in the
-      // session
+    }
     return status;
 } // end of tlsDecodeHScertificate
 

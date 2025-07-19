@@ -5,7 +5,10 @@
 static tlsSession_t *tls_session;
 static byte          mock_finish_verify_data[8];
 static word32        mock_sys_get_time_ms;
-static mqttStr_t     mock_server_addr = {10, "123.45.6.7"};
+static mqttHost_t    mock_server_addr = {
+       .domain_name = {.len = 10, .data = (byte *)&"tokio.hot.curve.alpaca"},
+       .ip_address = {.len = 0, .data = NULL},
+};
 
 static tlsRespStatus mock_tlsAESGCMinit(tlsSecurityElements_t *sec, byte isDecrypt) {
     return TLS_RESP_OK;
@@ -71,145 +74,6 @@ tlsRespStatus tlsChkFragStateInMsg(tlsSession_t *session) {
     return status;
 } // end of tlsChkFragStateInMsg
 
-word32 mqttEncodeWord16(byte *buf, word16 value) {
-    if (buf != NULL) {
-        buf[0] = value >> 8;
-        buf[1] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)2;
-} // end of mqttEncodeWord16
-
-word32 mqttDecodeWord16(byte *buf, word16 *value) {
-    if ((buf != NULL) && (value != NULL)) {
-        *value = buf[1];
-        *value |= buf[0] << 8;
-    }
-    return (word32)2;
-} // end of mqttDecodeWord16
-
-word32 tlsDecodeWord24(byte *buf, word32 *value) {
-    if ((buf != NULL) && (value != NULL)) {
-        *value = buf[2];
-        *value |= buf[1] << 8;
-        *value |= buf[0] << 16;
-    }
-    return (word32)3;
-} // end of tlsDecodeWord24
-
-word32 tlsEncodeWord24(byte *buf, word32 value) {
-    if (buf != NULL) {
-        buf[0] = (value >> 16) & 0xff;
-        buf[1] = (value >> 8) & 0xff;
-        buf[2] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)3;
-} // end of tlsEncodeWord24
-
-word32 mqttDecodeWord32(byte *buf, word32 *value) {
-    if ((buf != NULL) && (value != NULL)) {
-        *value = buf[3];
-        *value |= buf[2] << 8;
-        *value |= buf[1] << 16;
-        *value |= buf[0] << 24;
-    }
-    return (word32)4;
-} // end of mqttDecodeWord32
-
-word32 mqttEncodeWord32(byte *buf, word32 value) {
-    if (buf != NULL) {
-        buf[0] = value >> 24;
-        buf[1] = (value >> 16) & 0xff;
-        buf[2] = (value >> 8) & 0xff;
-        buf[3] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)4;
-} // end of mqttEncodeWord32
-
-tlsListItem_t *tlsGetFinalItemFromList(tlsListItem_t *list) {
-    tlsListItem_t *idx = NULL;
-    tlsListItem_t *prev = NULL;
-    for (idx = list; idx != NULL; idx = idx->next) {
-        prev = idx;
-    }
-    return prev;
-} // end of tlsGetFinalItemFromList
-
-tlsRespStatus tlsAddItemToList(tlsListItem_t **list, tlsListItem_t *item, byte insert_to_front) {
-    if ((list == NULL) || (item == NULL)) {
-        return TLS_RESP_ERRARGS;
-    }
-    if (insert_to_front != 0) {
-        item->next = *list;
-        *list = item; // always change head item
-    } else {
-        tlsListItem_t *final = NULL;
-        final = tlsGetFinalItemFromList(*list);
-        if (final == NULL) {
-            *list = item;
-        } else {
-            final->next = item;
-        }
-    }
-    return TLS_RESP_OK;
-} // tlsAddItemToList
-
-tlsRespStatus tlsRemoveItemFromList(tlsListItem_t **list, tlsListItem_t *removing_item) {
-    if ((list == NULL) && (removing_item == NULL)) {
-        return TLS_RESP_ERRARGS;
-    }
-    tlsListItem_t *idx = NULL;
-    tlsListItem_t *prev = NULL;
-    for (idx = *list; idx != NULL; idx = idx->next) {
-        if (removing_item == idx) {
-            if (prev != NULL) {
-                prev->next = removing_item->next;
-            } else {
-                *list = removing_item->next;
-            }
-            break;
-        }
-        prev = idx;
-    } // end of for-loop
-    return TLS_RESP_OK;
-} // end of tlsRemoveItemFromList
-
-tlsRespStatus tlsFreeExtEntry(tlsExtEntry_t *in) {
-    if (in == NULL) {
-        return TLS_RESP_ERRARGS;
-    }
-    XMEMFREE((void *)in->content.data);
-    in->content.data = NULL;
-    in->next = NULL;
-    XMEMFREE((void *)in);
-    return TLS_RESP_OK;
-} // end of tlsFreeExtEntry
-
-tlsRespStatus tlsFreePSKentry(tlsPSK_t *in) {
-    if (in == NULL) {
-        return TLS_RESP_ERRARGS;
-    }
-    if (in->key.data != NULL) {
-        XMEMFREE((void *)in->key.data);
-        in->key.data = NULL;
-        in->id.data = NULL;
-    }
-    in->next = NULL;
-    XMEMFREE((void *)in);
-    return TLS_RESP_OK;
-} // end of tlsFreePSKentry
-
-word32 tlsGetListItemSz(tlsListItem_t *list) {
-    tlsListItem_t *idx = NULL;
-    word32         out = 0;
-    for (idx = list; idx != NULL; idx = idx->next) {
-        out++;
-    }
-    return out;
-} // end of tlsGetListItemSz
-
 tlsHandshakeType tlsGetHSexpectedState(tlsSession_t *session) {
     return (session == NULL ? TLS_HS_TYPE_HELLO_REQUEST_RESERVED : session->hs_state);
 } // end of tlsGetHSexpectedState
@@ -218,33 +82,6 @@ byte tlsGetSupportedCipherSuiteListSize(void) {
     byte out = XGETARRAYSIZE(tls_supported_cipher_suites);
     return out;
 } // end of tlsGetSupportedCipherSuiteListSize
-
-tlsRespStatus tlsAlertTypeCvtToTlsResp(tlsAlertType in) {
-    tlsRespStatus out = TLS_RESP_OK;
-    switch (in) {
-    case TLS_ALERT_TYPE_CLOSE_NOTIFY:
-    case TLS_ALERT_TYPE_USER_CANCELED:
-        out = TLS_RESP_PEER_CONN_FAIL;
-        break;
-    case TLS_ALERT_TYPE_UNEXPECTED_MESSAGE:
-        out = TLS_RESP_MALFORMED_PKT;
-        break;
-    case TLS_ALERT_TYPE_RECORD_OVERFLOW:
-        out = TLS_RESP_ERR_EXCEED_MAX_REC_SZ;
-        break;
-    case TLS_ALERT_TYPE_ILLEGAL_PARAMETER:
-        out = TLS_RESP_ILLEGAL_PARAMS;
-        break;
-    case TLS_ALERT_TYPE_DECODE_ERROR:
-    case TLS_ALERT_TYPE_MISSING_EXTENSION:
-        out = TLS_RESP_ERR_DECODE;
-        break;
-    default:
-        out = TLS_RESP_ERR;
-        break;
-    } // end of switch-case statement
-    return out;
-} // end of tlsAlertTypeCvtToTlsResp
 
 const tlsCipherSpec_t *tlsGetCipherSuiteByID(word16 idcode) {
     const tlsCipherSpec_t *out = NULL;
@@ -271,22 +108,6 @@ tlsHashAlgoID TLScipherSuiteGetHashID(const tlsCipherSpec_t *cs_in) {
     }
     return TLS_HASH_ALGO_NOT_NEGO;
 } // end of TLScipherSuiteGetHashID
-
-word16 mqttHashGetOutlenBytes(mqttHashLenType type) {
-    word16 out = 0;
-    switch (type) {
-    case MQTT_HASH_SHA256:
-        out = 256; // unit: bit(s)
-        break;
-    case MQTT_HASH_SHA384:
-        out = 384; // unit: bit(s)
-        break;
-    default:
-        break;
-    }
-    out = out >> 3;
-    return out;
-} // end of mqttHashGetOutlenBits
 
 tlsRespStatus tlsParseExtensions(tlsSession_t *session, tlsExtEntry_t **out) {
     byte         *inbuf = &session->inbuf.data[0];
@@ -447,7 +268,7 @@ tlsRespStatus tlsDecodeCerts(tlsCert_t *cert, byte final_item_rdy) {
             cert->hashed_holder_info.data = XMALLOC(0x8); // only for testing purpose
             XMEMCPY(&cert->hashed_holder_info.data[0], &cert->rawbytes.data[0], 0x4);
             XMEMCPY(&cert->hashed_holder_info.data[4], &cert->rawbytes.data[cert_sz - 4], 0x4);
-            cert->subject.common_name = mock_server_addr.data;
+            cert->subject.common_name = mock_server_addr.domain_name.data;
         }
         cert = cert->next;
     } // end of while-loop
@@ -516,6 +337,17 @@ tlsRespStatus tlsHKDFexpandLabel(
 }
 
 word32 mqttSysGetTimeMs(void) { return mock_sys_get_time_ms; }
+
+// Mock function for tlsX509FindSubjAltName
+tlsX509SANEntry_t *tlsX509FindSubjAltName(tlsX509v3ext_t *ext, mqttHost_t *keyword) {
+    // This is a mock implementation for unit testing purposes.
+    // By default, it returns NULL, simulating that no matching Subject Alternative Name was found.
+    // If a test needs to simulate a successful find, it would typically set up a static
+    // variable in this file to be returned by this mock.
+    (void)ext;     // Suppress unused parameter warning
+    (void)keyword; // Suppress unused parameter warning
+    return NULL;
+}
 
 // -----------------------------------------------------------------------------------
 TEST_GROUP(tlsPktDecodeMisc);
