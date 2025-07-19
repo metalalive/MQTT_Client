@@ -46,13 +46,13 @@ static tlsRespStatus tlsDecodeExtsKeyShare(tlsSession_t *session, tlsExtEntry_t 
     }
     tlsRespStatus status = TLS_RESP_OK;
     tlsNamedGrp   srv_chosen_grp = 0;
-    byte         *buf = &ext_in->content.data[0];
     tlsKeyEx_t   *keyexp = &session->keyex;
-    byte          ngrps_max = keyexp->num_grps_total;
-    byte          idx = 0;
 
-    buf +=
-        tlsDecodeWord16(buf, (word16 *)&srv_chosen_grp); // read the only 2 bytes as selected group
+    byte *buf = &ext_in->content.data[0];
+    byte  ngrps_max = keyexp->num_grps_total;
+    byte  idx = 0;
+    // read the only 2 bytes as selected group
+    buf += tlsDecodeWord16(buf, (word16 *)&srv_chosen_grp);
     for (idx = 0; idx < ngrps_max; idx++) {
         // verify if the decoded (requested) named group was already in initial ClientHello
         if (srv_chosen_grp == tls_supported_named_groups[idx]) { // if srv_chosen_grp was added
@@ -92,9 +92,8 @@ static tlsRespStatus tlsDecodeExtsKeyShare(tlsSession_t *session, tlsExtEntry_t 
         status = tlsImportPubValKeyShare(
             buf, chosen_key_sz, srv_chosen_grp, &session->sec.ephemeralkeyremote
         );
-        XASSERT(
-            keyexp->keylist[keyexp->chosen_grp_idx] != NULL
-        ); // TODO: find better way to check this
+        // TODO: find better way to check this
+        XASSERT(keyexp->keylist[keyexp->chosen_grp_idx] != NULL);
         // ephemeral local key must point to the one negotiated and applied to current session
         session->sec.ephemeralkeylocal = keyexp->keylist[keyexp->chosen_grp_idx];
         keyexp->keylist[keyexp->chosen_grp_idx] = NULL;

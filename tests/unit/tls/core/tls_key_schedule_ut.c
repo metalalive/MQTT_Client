@@ -72,26 +72,10 @@ tlsHashAlgoID TLScipherSuiteGetHashID(const tlsCipherSpec_t *cs_in) {
     return TLS_HASH_ALGO_NOT_NEGO;
 } // end of TLScipherSuiteGetHashID
 
-word16 mqttHashGetOutlenBytes(mqttHashLenType type) {
-    word16 out = 0;
-    switch (type) {
-    case MQTT_HASH_SHA256:
-        out = 256; // unit: bit(s)
-        break;
-    case MQTT_HASH_SHA384:
-        out = 384; // unit: bit(s)
-        break;
-    default:
-        break;
-    }
-    out = out >> 3;
-    return out;
-} // end of mqttHashGetOutlenBits
-
 byte tlsGetSupportedCipherSuiteListSize(void) {
     byte out = XGETARRAYSIZE(tls_supported_cipher_suites);
     return out;
-} // end of tlsGetSupportedCipherSuiteListSize
+}
 
 const tlsCipherSpec_t *tlsGetCipherSuiteByID(word16 idcode) {
     const tlsCipherSpec_t *out = NULL;
@@ -105,22 +89,6 @@ const tlsCipherSpec_t *tlsGetCipherSuiteByID(word16 idcode) {
     }
     return out;
 } // end of tlsGetCipherSuite
-
-tlsHashAlgoID tlsGetHashAlgoIDBySize(word16 in) {
-    tlsHashAlgoID out = TLS_HASH_ALGO_UNKNOWN;
-    // this implementation currently only supports SHA256, SHA384, the input must be equal
-    // to the hash output of either  SHA256 or SHA384
-    word16 hash_sz = 0;
-    hash_sz = mqttHashGetOutlenBytes((mqttHashLenType)TLS_HASH_ALGO_SHA256);
-    if (hash_sz == in) {
-        out = TLS_HASH_ALGO_SHA256;
-    }
-    hash_sz = mqttHashGetOutlenBytes((mqttHashLenType)TLS_HASH_ALGO_SHA384);
-    if (hash_sz == in) {
-        out = TLS_HASH_ALGO_SHA384;
-    }
-    return out;
-} // end of tlsGetHashAlgoIDBySize
 
 tlsRespStatus tlsHKDFextract(
     tlsHashAlgoID hash_id, word16 hash_sz, tlsOpaque8b_t *out, tlsOpaque8b_t *ikm,

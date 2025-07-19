@@ -72,7 +72,13 @@ static mqttHost_t mock_mqtt_broker_host = {
     .ip_address = {.len = 0, .data = NULL},
 };
 
-mqttRespStatus mqttUtilRandByteSeq(mqttDRBG_t *drbg, byte *out, word16 outlen) {
+mqttRespStatus mqttDRBGgen(mqttDRBG_t *drbg, mqttStr_t *out, mqttStr_t *extra_in) {
+    (void)drbg;
+    (void)extra_in;
+    XASSERT(out->data);
+    out->data[0] = 't';
+    out->data[1] = 'w';
+    out->len = 2;
     return MQTT_RESP_OK;
 }
 
@@ -99,85 +105,6 @@ mqttRespStatus mqttAuthClientCertRaw(byte **out, word16 *len) {
     }
     return mock_auth_getcacert_return_val;
 }
-
-tlsRespStatus tlsRemoveItemFromList(tlsListItem_t **list, tlsListItem_t *removing_item) {
-    if ((list == NULL) && (removing_item == NULL)) {
-        return TLS_RESP_ERRARGS;
-    }
-    tlsListItem_t *idx = NULL;
-    tlsListItem_t *prev = NULL;
-    for (idx = *list; idx != NULL; idx = idx->next) {
-        if (removing_item == idx) {
-            if (prev != NULL) {
-                prev->next = removing_item->next;
-            } else {
-                *list = removing_item->next;
-            }
-            break;
-        }
-        prev = idx;
-    } // end of for-loop
-    return TLS_RESP_OK;
-} // end of tlsRemoveItemFromList
-
-mqttRespStatus tlsRespCvtToMqttResp(tlsRespStatus in) {
-    mqttRespStatus out;
-    switch (in) {
-    case TLS_RESP_OK:
-    case TLS_RESP_REQ_MOREDATA:
-        out = MQTT_RESP_OK;
-        break;
-    case TLS_RESP_ERRARGS:
-        out = MQTT_RESP_ERRARGS;
-        break;
-    case TLS_RESP_ERRMEM:
-        out = MQTT_RESP_ERRMEM;
-        break;
-    case TLS_RESP_TIMEOUT:
-        out = MQTT_RESP_TIMEOUT;
-        break;
-    case TLS_RESP_MALFORMED_PKT:
-        out = MQTT_RESP_MALFORMED_DATA;
-        break;
-    case TLS_RESP_ILLEGAL_PARAMS:
-    case TLS_RESP_ERR_ENCODE:
-    case TLS_RESP_ERR_DECODE:
-    case TLS_RESP_ERR_KEYGEN:
-    case TLS_RESP_CERT_AUTH_FAIL:
-    case TLS_RESP_HS_AUTH_FAIL:
-    case TLS_RESP_PEER_CONN_FAIL:
-        out = MQTT_RESP_ERR_SECURE_CONN;
-        break;
-    case TLS_RESP_ERR_SYS_SEND_PKT:
-    case TLS_RESP_ERR_SYS_RECV_PKT:
-        out = MQTT_RESP_ERR_TRANSMIT;
-        break;
-    case TLS_RESP_ERR:
-    default:
-        out = MQTT_RESP_ERR;
-        break;
-    } // end of switch-case statement
-    return out;
-} // end of tlsRespCvtToMqttResp
-
-tlsRespStatus tlsFreePSKentry(tlsPSK_t *in) {
-    if (in == NULL) {
-        return TLS_RESP_ERRARGS;
-    }
-    in->next = NULL;
-    XMEMFREE((void *)in);
-    return TLS_RESP_OK;
-} // end of tlsFreePSKentry
-
-word32 tlsEncodeWord24(byte *buf, word32 value) {
-    if (buf != NULL) {
-        buf[0] = (value >> 16) & 0xff;
-        buf[1] = (value >> 8) & 0xff;
-        buf[2] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)3;
-} // end of tlsEncodeWord24
 
 tlsRespStatus tlsRSAgetPrivKey(const byte *in, word16 inlen, void **privkey_p) {
     if (mock_rsa_extract_privkey_return_val == TLS_RESP_OK) {

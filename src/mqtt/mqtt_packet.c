@@ -36,44 +36,6 @@ word32 mqttDecodeVarBytes(const byte *buf, word32 *value) {
     return idx;
 } // end of mqttDecodeVarBytes
 
-word32 mqttEncodeWord16(byte *buf, word16 value) {
-    if (buf != NULL) {
-        buf[0] = value >> 8;
-        buf[1] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)2;
-} // end of mqttEncodeWord16
-
-word32 mqttDecodeWord16(byte *buf, word16 *value) {
-    if ((buf != NULL) && (value != NULL)) {
-        *value = buf[1];
-        *value |= buf[0] << 8;
-    }
-    return (word32)2;
-} // end of mqttDecodeWord16
-
-word32 mqttEncodeWord32(byte *buf, word32 value) {
-    if (buf != NULL) {
-        buf[0] = value >> 24;
-        buf[1] = (value >> 16) & 0xff;
-        buf[2] = (value >> 8) & 0xff;
-        buf[3] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)4;
-} // end of mqttEncodeWord32
-
-word32 mqttDecodeWord32(byte *buf, word32 *value) {
-    if ((buf != NULL) && (value != NULL)) {
-        *value = buf[3];
-        *value |= buf[2] << 8;
-        *value |= buf[1] << 16;
-        *value |= buf[0] << 24;
-    }
-    return (word32)4;
-} // end of mqttDecodeWord32
-
 word32 mqttEncodeStr(byte *buf, const byte *str, word16 strlen) {
     word32 len = 0;
     len = mqttEncodeWord16(buf, strlen);

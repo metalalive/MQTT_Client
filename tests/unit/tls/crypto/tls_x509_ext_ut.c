@@ -17,29 +17,6 @@ tlsRespStatus tlsASN1GetIDlen(const byte *in, word32 *inlen, byte expected_idtag
     return status;
 }
 
-// user application can call this function to add on specific PSK
-tlsRespStatus tlsAddItemToList(tlsListItem_t **list, tlsListItem_t *item, byte insert_to_front) {
-    if ((list == NULL) || (item == NULL)) {
-        return TLS_RESP_ERRARGS;
-    }
-    if (insert_to_front != 0) {
-        item->next = *list;
-        *list = item; // always change head item
-    } else {
-        tlsListItem_t *idx = NULL, *prev = NULL;
-        for (idx = *list; idx != NULL; idx = idx->next) {
-            prev = idx;
-        }
-        tlsListItem_t *final = prev;
-        if (final == NULL) {
-            *list = item;
-        } else {
-            final->next = item;
-        }
-    }
-    return TLS_RESP_OK;
-}
-
 // ------------------------------------------------------------
 TEST_GROUP(tlsX509getExtensions);
 

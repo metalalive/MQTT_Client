@@ -2,12 +2,7 @@
 
 static tlsSession_t *tls_session;
 
-const tlsNamedGrp tls_supported_named_groups[] = {
-    TLS_NAMED_GRP_SECP256R1,
-    TLS_NAMED_GRP_X25519,
-    TLS_NAMED_GRP_SECP384R1,
-    TLS_NAMED_GRP_SECP521R1,
-};
+extern const tlsNamedGrp tls_supported_named_groups[];
 
 static void tlsAllocSpaceBeforeKeyEx(tlsKeyEx_t *keyexp) {
     byte  *buf = NULL;
@@ -36,11 +31,6 @@ static void tlsCleanSpaceAfterKeyEx(tlsKeyEx_t *keyexp) {
         keyexp->keylist = NULL;
     }
 } // end of tlsCleanSpaceAfterKeyEx
-
-byte tlsGetSupportedKeyExGrpSize(void) {
-    byte out = XGETARRAYSIZE(tls_supported_named_groups);
-    return out;
-} // end of tlsGetSupportedKeyExGrpSize
 
 // -------------------------------------------------------------------------
 TEST_GROUP(tlsKeyExchange);

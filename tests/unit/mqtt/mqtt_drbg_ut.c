@@ -5,61 +5,10 @@
 
 static mqttCtx_t     *unittest_mctx;
 static mqttRespStatus mock_sys_get_entropy_return_val;
-static int            mock_hash_init_return_val;
-static int            mock_hash_update_return_val;
-static int            mock_hash_done_return_val;
 
 mqttRespStatus mqttSysGetEntropy(mqttStr_t *entropy_out) {
     return mock_sys_get_entropy_return_val;
 } // end of mqttSysGetEntropy
-
-word16 mqttHashGetOutlenBytes(mqttHashLenType type) { return 32; }
-
-// leave these mocked hash functions empty since it is NOT essential for this unit test file
-static int mock_mqttHashInitFn(mqttHash_t *md) { return mock_hash_init_return_val; }
-
-static int mock_mqttHashUpdateFn(mqttHash_t *md, const byte *in, unsigned long inlen) {
-    return mock_hash_update_return_val;
-}
-
-static int mock_mqttHashDoneFn(mqttHash_t *md, byte *out) { return mock_hash_done_return_val; }
-
-word32 mqttEncodeWord32(byte *buf, word32 value) {
-    if (buf != NULL) {
-        buf[0] = value >> 24;
-        buf[1] = (value >> 16) & 0xff;
-        buf[2] = (value >> 8) & 0xff;
-        buf[3] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)4;
-} // end of mqttEncodeWord32
-
-void *mqttHashFnSelect(mqttHashOpsType ops, mqttHashLenType type) {
-    void *out = NULL;
-    switch (ops) {
-    case MQTT_HASH_OPERATION_INIT:
-        out = (void *)mock_mqttHashInitFn;
-        break;
-    case MQTT_HASH_OPERATION_UPDATE:
-        out = (void *)mock_mqttHashUpdateFn;
-        break;
-    case MQTT_HASH_OPERATION_DONE:
-        out = (void *)mock_mqttHashDoneFn;
-        break;
-    default:
-        break;
-    } // end of switch-case statement
-    return out;
-} // end of mqttHashFnSelect
-
-mqttRespStatus mqttUtilMultiByteUAdd(mqttStr_t *out, mqttStr_t *in1, mqttStr_t *in2) {
-    return MQTT_RESP_OK;
-}
-
-mqttRespStatus mqttUtilMultiByteUAddDG(mqttStr_t *out, mqttStr_t *in1, word32 in2) {
-    return MQTT_RESP_OK;
-}
 
 // --------------------------------------------------
 TEST_GROUP(mqttDRBGinit);
@@ -86,32 +35,14 @@ TEST_TEAR_DOWN(mqttDRBGops) {}
 TEST(mqttDRBGinit, init_err) {
     mqttRespStatus status = MQTT_RESP_OK;
     mock_sys_get_entropy_return_val = MQTT_RESP_BUSY;
-    mock_hash_init_return_val = 0;
-    mock_hash_update_return_val = 0;
-    mock_hash_done_return_val = 0;
     status = mqttDRBGinit(&unittest_mctx->drbg);
     TEST_ASSERT_EQUAL_INT(mock_sys_get_entropy_return_val, status);
     TEST_ASSERT_EQUAL_UINT(NULL, unittest_mctx->drbg);
-
-    mock_sys_get_entropy_return_val = MQTT_RESP_OK;
-    mock_hash_update_return_val = 1;
-    status = mqttDRBGinit(&unittest_mctx->drbg);
-    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR, status);
-    TEST_ASSERT_EQUAL_UINT(NULL, unittest_mctx->drbg);
-
-    mock_hash_update_return_val = 0;
-    mock_hash_done_return_val = 1;
-    status = mqttDRBGinit(&unittest_mctx->drbg);
-    TEST_ASSERT_EQUAL_INT(MQTT_RESP_ERR, status);
-    TEST_ASSERT_EQUAL_UINT(NULL, unittest_mctx->drbg);
-} // end of TEST(mqttDRBGinit, init_err)
+}
 
 TEST(mqttDRBGinit, init_ok) {
     mqttRespStatus status = MQTT_RESP_OK;
     mock_sys_get_entropy_return_val = MQTT_RESP_OK;
-    mock_hash_init_return_val = 0;
-    mock_hash_update_return_val = 0;
-    mock_hash_done_return_val = 0;
 
     status = mqttDRBGinit(&unittest_mctx->drbg);
     TEST_ASSERT_EQUAL_INT(MQTT_RESP_OK, status);

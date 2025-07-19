@@ -18,22 +18,8 @@ static word16 mock_extension_content_len[TEST_NUM_EXTENSION_ITEMS] = {0x33, 0x4f
 static tlsExtEntry_t *mock_ext_list;
 static tlsPSK_t      *mock_psk_list;
 
-const tlsVersionCode tls_supported_versions[] = {
-    TLS_VERSION_ENCODE_1_0,
-    TLS_VERSION_ENCODE_1_3,
-};
-
-const tlsNamedGrp tls_supported_named_groups[] = {
-    TLS_NAMED_GRP_SECP256R1, TLS_NAMED_GRP_X25519,    TLS_NAMED_GRP_SECP384R1,
-    TLS_NAMED_GRP_SECP521R1, TLS_NAMED_GRP_X448,      TLS_NAMED_GRP_FFDHE2048,
-    TLS_NAMED_GRP_FFDHE3072, TLS_NAMED_GRP_FFDHE4096, TLS_NAMED_GRP_FFDHE6144,
-    TLS_NAMED_GRP_FFDHE8192,
-};
-
 static void util_reverse_linked_list(tlsListItem_t **listhead) {
-    tlsListItem_t *curr_item = NULL;
-    tlsListItem_t *prev_item = NULL;
-    tlsListItem_t *next_item = NULL;
+    tlsListItem_t *curr_item = NULL, *prev_item = NULL, *next_item = NULL;
 
     for (curr_item = *listhead; curr_item != NULL; curr_item = next_item) {
         next_item = curr_item->next; // preserve pointer of next item
@@ -41,82 +27,7 @@ static void util_reverse_linked_list(tlsListItem_t **listhead) {
         prev_item = curr_item;       // curr_item and  prev_item ,move forward to next item
     }
     *listhead = prev_item;
-} // end of util_reverse_linked_list
-
-byte tlsGetSupportedVersionListSize(void) {
-    return XGETARRAYSIZE(tls_supported_versions);
-} // end of tlsGetSupportedVersionListSize
-
-byte tlsGetSupportedKeyExGrpSize(void) {
-    byte out = XGETARRAYSIZE(tls_supported_named_groups);
-    return out;
-} // end of tlsGetSupportedKeyExGrpSize
-
-word32 mqttEncodeWord16(byte *buf, word16 value) {
-    if (buf != NULL) {
-        buf[0] = value >> 8;
-        buf[1] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)2;
-} // end of mqttEncodeWord16
-
-word32 mqttDecodeWord16(byte *buf, word16 *value) {
-    if ((buf != NULL) && (value != NULL)) {
-        *value = buf[1];
-        *value |= buf[0] << 8;
-    }
-    return (word32)2;
-} // end of mqttDecodeWord16
-
-tlsListItem_t *tlsGetFinalItemFromList(tlsListItem_t *list) {
-    tlsListItem_t *idx = NULL;
-    tlsListItem_t *prev = NULL;
-    for (idx = list; idx != NULL; idx = idx->next) {
-        prev = idx;
-    }
-    return prev;
-} // end of tlsGetFinalItemFromList
-
-// user application can call this function to add on specific PSK
-tlsRespStatus tlsAddItemToList(tlsListItem_t **list, tlsListItem_t *item, byte insert_to_front) {
-    if ((list == NULL) || (item == NULL)) {
-        return TLS_RESP_ERRARGS;
-    }
-    if (insert_to_front != 0) {
-        item->next = *list;
-        *list = item; // always change head item
-    } else {
-        tlsListItem_t *final = NULL;
-        final = tlsGetFinalItemFromList(*list);
-        if (final == NULL) {
-            *list = item;
-        } else {
-            final->next = item;
-        }
-    }
-    return TLS_RESP_OK;
-} // tlsAddItemToList
-
-tlsRespStatus tlsRemoveItemFromList(tlsListItem_t **list, tlsListItem_t *removing_item) {
-    if ((list == NULL) && (removing_item == NULL)) {
-        return TLS_RESP_ERRARGS;
-    }
-    tlsListItem_t *idx = NULL;
-    tlsListItem_t *prev = NULL;
-    for (idx = *list; idx != NULL; idx = idx->next) {
-        if (removing_item == idx) {
-            if (prev != NULL) {
-                prev->next = removing_item->next;
-            } else {
-                *list = removing_item->next;
-            }
-            break;
-        }
-        prev = idx;
-    } // end of for-loop
-    return TLS_RESP_OK;
-} // end of tlsRemoveItemFromList
+}
 
 word16 tlsGetExtListSize(tlsExtEntry_t *ext_head) {
     tlsExtEntry_t *curr = ext_head;
@@ -127,17 +38,6 @@ word16 tlsGetExtListSize(tlsExtEntry_t *ext_head) {
     } // end of while-loop
     return out_sz;
 } // end of tlsGetExtListSize
-
-tlsRespStatus tlsFreeExtEntry(tlsExtEntry_t *in) {
-    if (in == NULL) {
-        return TLS_RESP_ERRARGS;
-    }
-    XMEMFREE((void *)in->content.data);
-    in->content.data = NULL;
-    in->next = NULL;
-    XMEMFREE((void *)in);
-    return TLS_RESP_OK;
-} // end of tlsFreeExtEntry
 
 void tlsDeleteAllExtensions(tlsExtEntry_t *ext_head) {
     tlsExtEntry_t *curr = ext_head;
@@ -286,9 +186,9 @@ TEST_SETUP(tlsParseExtensions) {
 TEST_SETUP(tlsDecodeExtServerHello) {
     tlsExtEntry_t *extitem = NULL;
     tlsKeyEx_t    *keyexp = NULL;
-    byte          *buf = NULL;
-    word16         len = 0;
-    byte           idx = 0;
+
+    word16 len = 0;
+    byte  *buf = NULL, idx = 0;
 
     mock_extension_types[0] = TLS_EXT_TYPE_COOKIE;
     mock_extension_types[1] = TLS_EXT_TYPE_SUPPORTED_VERSIONS;
@@ -296,8 +196,8 @@ TEST_SETUP(tlsDecodeExtServerHello) {
     mock_extension_types[3] = TLS_EXT_TYPE_PRE_SHARED_KEY;
     mock_extension_content_len[0] = 16;
     mock_extension_content_len[1] = 2;
-    mock_extension_content_len[2] =
-        2 + 2 + 32;                    // named group ID field + key length field + key field
+    // named group ID field + key length field + key field
+    mock_extension_content_len[2] = 2 + 2 + 32;
     mock_extension_content_len[3] = 2; // chosen PSK index
     tls_session->exts =
         mock_createEmptyExtensionItem(mock_extension_types[0], mock_extension_content_len[0]);
@@ -401,6 +301,7 @@ TEST_TEAR_DOWN(tlsDecodeExtServerHello) {
     if (keyexp->grp_nego_state != NULL) {
         for (idx = 0; idx < keyexp->num_grps_total; idx++) {
             XMEMFREE((void *)keyexp->keylist[idx]);
+            keyexp->keylist[idx] = NULL;
         }
         XMEMFREE((void *)keyexp->grp_nego_state);
         keyexp->grp_nego_state = NULL;
@@ -808,10 +709,7 @@ TEST(tlsDecodeExtServerHello, chk_ok) {
     keyexp = &tls_session->keyex;
     keyexp->grp_nego_state[0] = TLS_KEYEX_STATE_NEGOTIATING;
     keyexp->grp_nego_state[1] = TLS_KEYEX_STATE_NEGOTIATING;
-    keyexp->grp_nego_state[2] = TLS_KEYEX_STATE_NEGOTIATING;
-    keyexp->grp_nego_state[3] = TLS_KEYEX_STATE_NOT_APPLY;
-    keyexp->grp_nego_state[4] = TLS_KEYEX_STATE_NEGOTIATING;
-    keyexp->grp_nego_state[5] = TLS_KEYEX_STATE_NOT_APPLY;
+    keyexp->grp_nego_state[2] = TLS_KEYEX_STATE_NOT_APPLY;
     tls_session->flgs.hello_retry = 0;
     for (extitem = tls_session->exts; extitem != NULL; extitem = extitem->next) {
         switch (extitem->type) {
@@ -819,13 +717,12 @@ TEST(tlsDecodeExtServerHello, chk_ok) {
             mqttEncodeWord16(&extitem->content.data[0], TLS_VERSION_ENCODE_1_3);
             break;
         case TLS_EXT_TYPE_KEY_SHARE:
-            mqttEncodeWord16(&extitem->content.data[0], TLS_NAMED_GRP_X25519);
+            mqttEncodeWord16(&extitem->content.data[0], TLS_NAMED_GRP_SECP256R1);
             mqttEncodeWord16(&extitem->content.data[2], 32);
             break;
         case TLS_EXT_TYPE_PRE_SHARED_KEY:
-            mqttEncodeWord16(
-                &extitem->content.data[0], 0x1
-            ); // assume there were 2 psk items sent in previous ClientHello
+            // assume there were 2 psk items sent in previous ClientHello
+            mqttEncodeWord16(&extitem->content.data[0], 0x1);
             break;
         default:
             break;
@@ -838,10 +735,7 @@ TEST(tlsDecodeExtServerHello, chk_ok) {
     TEST_ASSERT_EQUAL_UINT8(TLS_KEYEX_STATE_NOT_APPLY, keyexp->grp_nego_state[0]);
     TEST_ASSERT_EQUAL_UINT8(TLS_KEYEX_STATE_APPLIED, keyexp->grp_nego_state[1]);
     TEST_ASSERT_EQUAL_UINT8(TLS_KEYEX_STATE_NOT_APPLY, keyexp->grp_nego_state[2]);
-    TEST_ASSERT_EQUAL_UINT8(TLS_KEYEX_STATE_NOT_APPLY, keyexp->grp_nego_state[3]);
-    TEST_ASSERT_EQUAL_UINT8(TLS_KEYEX_STATE_NOT_APPLY, keyexp->grp_nego_state[4]);
-    TEST_ASSERT_EQUAL_UINT8(TLS_KEYEX_STATE_NOT_APPLY, keyexp->grp_nego_state[5]);
-    TEST_ASSERT_EQUAL_UINT8(TLS_KEYEX_STATE_NOT_NEGO_YET, keyexp->grp_nego_state[6]);
+    TEST_ASSERT_EQUAL_UINT8(TLS_KEYEX_STATE_NOT_NEGO_YET, keyexp->grp_nego_state[3]);
     TEST_ASSERT_EQUAL_UINT8(1, keyexp->chosen_grp_idx);
     TEST_ASSERT_EQUAL_UINT(NULL, keyexp->keylist[1]);
     TEST_ASSERT_NOT_EQUAL(NULL, tls_session->sec.ephemeralkeylocal);
@@ -850,11 +744,8 @@ TEST(tlsDecodeExtServerHello, chk_ok) {
 
 TEST(tlsDecodeExtServerHello, version_error) {
     tlsExtEntry_t *extitem = NULL;
-    tlsKeyEx_t    *keyexp = NULL;
-    tlsRespStatus  status = TLS_RESP_OK;
-
-    keyexp = &tls_session->keyex;
-    keyexp->grp_nego_state[5] = TLS_KEYEX_STATE_NEGOTIATING;
+    tlsKeyEx_t    *keyexp = &tls_session->keyex;
+    keyexp->grp_nego_state[3] = TLS_KEYEX_STATE_NEGOTIATING;
     tls_session->chosen_tls_ver = TLS_VERSION_ENCODE_1_3;
     tls_session->flgs.hello_retry = 0;
     for (extitem = tls_session->exts; extitem != NULL; extitem = extitem->next) {
@@ -873,22 +764,17 @@ TEST(tlsDecodeExtServerHello, version_error) {
             break;
         } // end of switch case
     } // end of for loop
-
-    status = tlsDecodeExtServerHello(tls_session);
+    tlsRespStatus status = tlsDecodeExtServerHello(tls_session);
     TEST_ASSERT_EQUAL_INT(TLS_RESP_REQ_ALERT, status);
 } // end of TEST(tlsDecodeExtServerHello, version_error)
 
 TEST(tlsDecodeExtServerHello, keyshare_error) {
     tlsExtEntry_t *extitem = NULL;
-    tlsKeyEx_t    *keyexp = NULL;
-    tlsRespStatus  status = TLS_RESP_OK;
-    const byte     origin_chosen_named_grp_id = 5;
-    // assume the client got HelloRetryRequest which specified TLS_NAMED_GRP_FFDHE2048 as key
+    const byte     origin_chosen_named_grp_id = 3;
+    // assume the client got HelloRetryRequest which specified `TLS_NAMED_GRP_SECP521R1` as key
     // exchange method, but the later received handshake message (ServerHello) specifies another
     // key exchange method, which must result in protocol error.
-    keyexp = &tls_session->keyex;
-    keyexp->grp_nego_state[3] = TLS_KEYEX_STATE_NEGOTIATING;
-    keyexp->grp_nego_state[6] = TLS_KEYEX_STATE_NEGOTIATING;
+    tlsKeyEx_t *keyexp = &tls_session->keyex;
     keyexp->grp_nego_state[origin_chosen_named_grp_id] = TLS_KEYEX_STATE_RENEGO_HRR;
     keyexp->chosen_grp_idx = origin_chosen_named_grp_id;
     tls_session->flgs.hello_retry = 0;
@@ -898,7 +784,7 @@ TEST(tlsDecodeExtServerHello, keyshare_error) {
             mqttEncodeWord16(&extitem->content.data[0], TLS_VERSION_ENCODE_1_3);
             break;
         case TLS_EXT_TYPE_KEY_SHARE:
-            mqttEncodeWord16(&extitem->content.data[0], TLS_NAMED_GRP_FFDHE6144);
+            mqttEncodeWord16(&extitem->content.data[0], TLS_NAMED_GRP_SECP384R1);
             mqttEncodeWord16(&extitem->content.data[2], 32);
             break;
         case TLS_EXT_TYPE_PRE_SHARED_KEY:
@@ -908,11 +794,8 @@ TEST(tlsDecodeExtServerHello, keyshare_error) {
             break;
         } // end of switch case
     } // end of for loop
-
-    status = tlsDecodeExtServerHello(tls_session);
+    tlsRespStatus status = tlsDecodeExtServerHello(tls_session);
     TEST_ASSERT_EQUAL_INT(TLS_RESP_REQ_ALERT, status);
-    TEST_ASSERT_EQUAL_UINT8(TLS_KEYEX_STATE_NOT_APPLY, keyexp->grp_nego_state[3]);
-    TEST_ASSERT_EQUAL_UINT8(TLS_KEYEX_STATE_NOT_APPLY, keyexp->grp_nego_state[6]);
     TEST_ASSERT_EQUAL_UINT8(
         TLS_KEYEX_STATE_NOT_APPLY, keyexp->grp_nego_state[origin_chosen_named_grp_id]
     );

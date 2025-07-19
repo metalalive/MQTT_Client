@@ -54,6 +54,8 @@ BUILD_DIR ?= build
 
 ifeq ($(MAKECMDGOALS), utest_helper) # if unit test is enabled
     TEST_ENTRY_SOURCES = $(addprefix tests/unit/, $(LIB_C_SRCS:src/%.c=%_ut.c))
+	TEST_COMMON_SOURCES = src/tls/core/tls_util.c \
+						  src/mqtt/mqtt_util.c
 else
     ifeq ($(MAKECMDGOALS), demo)
         TEST_COMMON_SOURCES = tests/integration/pattern_generator.c \
@@ -165,7 +167,10 @@ $(TARGET_LIB_PATH): $(LIB_C_OBJS)
 gen_lib: $(BUILD_DIR)  $(TARGET_LIB_PATH)
 
 utest_helper : $(LIB_C_OBJS) $(TEST_COMMON_OBJECTS)  $(TEST_ENTRY_OBJECTS)
-	@$(foreach atest, $(LIB_C_OBJS), $(CC) $(LDFLAGS) $(atest) $(atest:$(BUILD_DIR)/src/%.o=$(BUILD_DIR)/tests/unit/%_ut.o)  $(TEST_COMMON_OBJECTS) -o $(atest:$(BUILD_DIR)/src/%.o=$(BUILD_DIR)/tests/unit/%_ut.out);)
+	@$(foreach atest, $(LIB_C_OBJS), $(CC) $(LDFLAGS) $(atest) \
+		$(atest:$(BUILD_DIR)/src/%.o=$(BUILD_DIR)/tests/unit/%_ut.o) \
+		$(filter-out $(atest), $(TEST_COMMON_OBJECTS)) \
+		-o $(atest:$(BUILD_DIR)/src/%.o=$(BUILD_DIR)/tests/unit/%_ut.out); )
 	@$(foreach atest, $(TEST_ENTRY_OBJECTS),  $(atest:.o=.out);)
 
 # for unit test, no need to build library and test images using cross-compiler

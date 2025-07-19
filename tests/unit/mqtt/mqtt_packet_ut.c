@@ -106,10 +106,6 @@ void mqttPropertyDel(mqttProp_t *head) {
     } // end of loop
 } // end of mqttPropertyDel
 
-mqttRespStatus mqttChkReasonCode(mqttReasonCode reason_code) {
-    return (reason_code <= MQTT_GREATEST_NORMAL_REASON_CODE ? MQTT_RESP_OK : MQTT_RESP_ERR);
-} // end of mqttChkReasonCode
-
 mqttRespStatus mqttPropErrChk(mqttCtx_t *mctx, mqttCtrlPktType cmdtype, mqttProp_t *prop_head) {
     return MQTT_RESP_OK;
 }

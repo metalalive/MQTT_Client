@@ -259,92 +259,14 @@ static const byte mock_DER_encoded_crt_data[NUM_TEST_CERTS][1700] = {
 // clang-format on
 
 static const word32 mock_DER_encoded_crt_len[NUM_TEST_CERTS] = {1263, 1681};
+static tlsCert_t   *cert_obj;
 
-static tlsCert_t *cert_obj;
-static byte       mock_sys_gettime_year[2];
-static byte       mock_sys_gettime_month;
-static byte       mock_sys_gettime_date;
-static byte       mock_sys_gettime_hour;
-static byte       mock_sys_gettime_minute;
-static byte       mock_sys_gettime_second;
-
-word32 mqttDecodeWord16(byte *buf, word16 *value) {
-    if ((buf != NULL) && (value != NULL)) {
-        *value = buf[1];
-        *value |= buf[0] << 8;
-    }
-    return (word32)2;
-} // end of mqttDecodeWord16
-
-word32 tlsEncodeWord24(byte *buf, word32 value) {
-    if (buf != NULL) {
-        buf[0] = (value >> 16) & 0xff;
-        buf[1] = (value >> 8) & 0xff;
-        buf[2] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)3;
-} // end of tlsEncodeWord24
-
-word32 tlsDecodeWord24(byte *buf, word32 *value) {
-    if ((buf != NULL) && (value != NULL)) {
-        *value = buf[2];
-        *value |= buf[1] << 8;
-        *value |= buf[0] << 16;
-    }
-    return (word32)3;
-} // end of tlsDecodeWord24
-
-word16 mqttHashGetOutlenBytes(mqttHashLenType type) {
-    word16 out = 0;
-    switch (type) {
-    case MQTT_HASH_SHA256:
-        out = 256; // unit: bit(s)
-        break;
-    case MQTT_HASH_SHA384:
-        out = 384; // unit: bit(s)
-        break;
-    default:
-        break;
-    }
-    out = out >> 3;
-    return out;
-} // end of mqttHashGetOutlenBits
-
-tlsRespStatus tlsRespCvtFromMqttResp(mqttRespStatus in) {
-    tlsRespStatus out;
-    switch (in) {
-    case MQTT_RESP_OK:
-        out = TLS_RESP_OK;
-        break;
-    case MQTT_RESP_ERRARGS:
-        out = TLS_RESP_ERRARGS;
-        break;
-    case MQTT_RESP_ERRMEM:
-        out = TLS_RESP_ERRMEM;
-        break;
-    case MQTT_RESP_TIMEOUT:
-        out = TLS_RESP_TIMEOUT;
-        break;
-    case MQTT_RESP_ERR_SECURE_CONN:
-        out = TLS_RESP_PEER_CONN_FAIL;
-        break;
-    case MQTT_RESP_MALFORMED_DATA:
-        out = TLS_RESP_MALFORMED_PKT;
-        break;
-    case MQTT_RESP_ERR_TRANSMIT:
-        out = TLS_RESP_ERR_SYS_SEND_PKT;
-        break;
-    case MQTT_RESP_ERR_EXCEED_PKT_SZ:
-        out = TLS_RESP_ERR_EXCEED_MAX_REC_SZ;
-        break;
-    case MQTT_RESP_ERR:
-    default:
-        out = TLS_RESP_ERR;
-        break;
-    } // end of switch-case statement
-    return out;
-} // end of tlsRespCvtToMqttResp
+static byte mock_sys_gettime_year[2];
+static byte mock_sys_gettime_month;
+static byte mock_sys_gettime_date;
+static byte mock_sys_gettime_hour;
+static byte mock_sys_gettime_minute;
+static byte mock_sys_gettime_second;
 
 static tlsRespStatus tlsASN1GetOIDsum(const byte *in, word32 *inlen, tlsAlgoOID *oid) {
     word32        obj_idlen_sz = 0;

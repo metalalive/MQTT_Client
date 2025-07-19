@@ -63,77 +63,13 @@ const tlsCipherSpec_t tls_supported_cipher_suites[] = {
     },
 };
 
-const tlsNamedGrp tls_supported_named_groups[] = {
-    TLS_NAMED_GRP_SECP256R1,
-    TLS_NAMED_GRP_X25519,
-    TLS_NAMED_GRP_SECP384R1,
-    TLS_NAMED_GRP_SECP521R1,
-};
-
 byte tlsGetSupportedCipherSuiteListSize(void) {
     byte out = XGETARRAYSIZE(tls_supported_cipher_suites);
     return out;
 }
 
-byte tlsGetSupportedKeyExGrpSize(void) {
-    byte out = XGETARRAYSIZE(tls_supported_named_groups);
-    return out;
-}
-
 tlsHandshakeType tlsGetHSexpectedState(tlsSession_t *session) {
     return (session == NULL ? TLS_HS_TYPE_HELLO_REQUEST_RESERVED : session->hs_state);
-}
-
-word32 mqttEncodeWord16(byte *buf, word16 value) {
-    if (buf != NULL) {
-        buf[0] = value >> 8;
-        buf[1] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)2;
-}
-
-word32 mqttDecodeWord16(byte *buf, word16 *value) {
-    if ((buf != NULL) && (value != NULL)) {
-        *value = buf[1];
-        *value |= buf[0] << 8;
-    }
-    return (word32)2;
-}
-
-word32 tlsEncodeWord24(byte *buf, word32 value) {
-    if (buf != NULL) {
-        buf[0] = (value >> 16) & 0xff;
-        buf[1] = (value >> 8) & 0xff;
-        buf[2] = value & 0xff;
-    }
-    // return number of bytes used to store the encoded value
-    return (word32)3;
-}
-
-word32 tlsDecodeWord24(byte *buf, word32 *value) {
-    if ((buf != NULL) && (value != NULL)) {
-        *value = buf[2];
-        *value |= buf[1] << 8;
-        *value |= buf[0] << 16;
-    }
-    return (word32)3;
-}
-
-word16 mqttHashGetOutlenBytes(mqttHashLenType type) {
-    word16 out = 0;
-    switch (type) {
-    case MQTT_HASH_SHA256:
-        out = 256; // unit: bit(s)
-        break;
-    case MQTT_HASH_SHA384:
-        out = 384; // unit: bit(s)
-        break;
-    default:
-        break;
-    }
-    out = out >> 3;
-    return out;
 }
 
 tlsHashAlgoID TLScipherSuiteGetHashID(const tlsCipherSpec_t *cs_in) {
@@ -147,25 +83,6 @@ tlsHashAlgoID TLScipherSuiteGetHashID(const tlsCipherSpec_t *cs_in) {
         return TLS_HASH_ALGO_UNKNOWN; // cipher suite selected but cannot be recognized
     }
     return TLS_HASH_ALGO_NOT_NEGO;
-}
-
-tlsRespStatus tlsRemoveItemFromList(tlsListItem_t **list, tlsListItem_t *removing_item) {
-    if ((list == NULL) && (removing_item == NULL)) {
-        return TLS_RESP_ERRARGS;
-    }
-    tlsListItem_t *idx = NULL, *prev = NULL;
-    for (idx = *list; idx != NULL; idx = idx->next) {
-        if (removing_item == idx) {
-            if (prev != NULL) {
-                prev->next = removing_item->next;
-            } else {
-                *list = removing_item->next;
-            }
-            break;
-        }
-        prev = idx;
-    }
-    return TLS_RESP_OK;
 }
 
 tlsRespStatus tlsChkFragStateOutMsg(tlsSession_t *session) {
@@ -246,20 +163,10 @@ word16 tlsGetExtListSize(tlsExtEntry_t *ext_head) {
     return out_sz;
 }
 
-tlsRespStatus tlsFreeExtEntry(tlsExtEntry_t *in) {
-    if (in == NULL) {
-        return TLS_RESP_ERRARGS;
-    }
-    in->content.data = NULL;
-    in->next = NULL;
-    XMEMFREE((void *)in);
-    return TLS_RESP_OK;
-}
-
 tlsExtEntry_t *tlsGenExtensions(tlsSession_t *session) {
     tlsExtEntry_t *out = NULL, *curr = NULL, *prev = NULL;
 
-    byte  *buf = NULL, idx = 0;
+    byte   idx = 0;
     word16 len = 0;
     // generate a list of extension entries for this unit test
     for (idx = 0; (mock_encoding_extension_entries != NULL) &&
@@ -269,12 +176,11 @@ tlsExtEntry_t *tlsGenExtensions(tlsSession_t *session) {
         if (len == 0) {
             continue;
         }
-        buf = XMALLOC(sizeof(tlsExtEntry_t) + len);
-        curr = (tlsExtEntry_t *)&buf[0];
+        curr = XMALLOC(sizeof(tlsExtEntry_t));
         curr->next = NULL;
         curr->type = mock_encoding_extension_entries[idx].type;
-        curr->content.len = len;
-        curr->content.data = &buf[sizeof(tlsExtEntry_t)];
+        curr->content.len = sizeof(byte) * len;
+        curr->content.data = XMALLOC(sizeof(byte) * len);
         if (prev != NULL) {
             prev->next = curr;
         } else {
@@ -317,10 +223,10 @@ tlsRespStatus tlsEncodeExtensions(tlsSession_t *session) {
             );
             outlen_encoded += rdy_cpy_len;
             entry_copied_len += rdy_cpy_len;
-            if (entry_copied_len ==
-                (4 + curr_ext->content.len)) { // if entire entry is copied to outbuf
-                entry_copied_len =
-                    0; // finish parsing current extension entry & may iterate over again
+            if (entry_copied_len == (4 + curr_ext->content.len)) {
+                // if entire entry is copied to outbuf
+                // finish parsing current extension entry & may iterate over again
+                entry_copied_len = 0;
                 tlsExtEntry_t *prev_ext = curr_ext;
                 tlsRemoveItemFromList((tlsListItem_t **)&curr_ext, (tlsListItem_t *)curr_ext);
                 tlsFreeExtEntry(prev_ext);
@@ -356,7 +262,14 @@ tlsRespStatus tlsCertVerifyGenDigitalSig(
     return TLS_RESP_OK;
 }
 
-mqttRespStatus mqttUtilRandByteSeq(mqttDRBG_t *drbg, byte *out, word16 outlen) {
+mqttRespStatus mqttDRBGgen(mqttDRBG_t *drbg, mqttStr_t *out, mqttStr_t *extra_in) {
+    (void)drbg;
+    (void)extra_in;
+    XASSERT(out->data);
+    out->data[0] = 'R';
+    out->data[1] = 'n';
+    out->data[2] = 'd';
+    out->len = 3;
     return MQTT_RESP_OK;
 }
 
@@ -736,12 +649,16 @@ static void RunAllTestGroups(void) {
     XMEMSET(tls_session, 0x00, sizeof(tlsSession_t));
     tls_session->outbuf.len = MAX_RAWBYTE_BUF_SZ;
     tls_session->outbuf.data = (byte *)XMALLOC(sizeof(byte) * MAX_RAWBYTE_BUF_SZ);
+    tls_session->drbg = XMALLOC(sizeof(mqttDRBG_t));
+    XMEMSET(tls_session->drbg, 0x00, sizeof(mqttDRBG_t));
+    tls_session->drbg->cache.data = XMALLOC(sizeof(byte) * 16);
+    XMEMSET(tls_session->drbg->cache.data, 0x00, sizeof(byte) * 16);
     RUN_TEST_GROUP(tlsEncodeRecordLayer);
+    XMEMFREE(tls_session->drbg->cache.data);
+    XMEMFREE(tls_session->drbg);
     XMEMFREE(tls_session->outbuf.data);
     XMEMFREE(tls_session);
     tls_session = NULL;
 }
 
-int main(int argc, const char *argv[]) {
-    return UnityMain(argc, argv, RunAllTestGroups);
-} // end of main
+int main(int argc, const char *argv[]) { return UnityMain(argc, argv, RunAllTestGroups); }
