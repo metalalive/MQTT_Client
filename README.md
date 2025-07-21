@@ -1,5 +1,4 @@
 # MQTT v5.0 Client implementation
-[![Build Status](https://travis-ci.org/metalalive/MQTT_Client.svg?branch=master)](https://travis-ci.org/metalalive/MQTT_Client)
 [![codecov.io](http://codecov.io/github/metalalive/MQTT_Client/coverage.svg?branch=master)](http://codecov.io/github/metalalive/MQTT_Client?branch=master)
 
 ### Overview
@@ -25,11 +24,11 @@ This section guides you on integrating your custom application with this MQTT cl
   ```
 - Build them. For Linux:
   ```bash
-  make gen_3pty_libs
+  make gen_3pty_libs -C ./third_party
   ```
 - For embedded systems (e.g., ESP8266_AT_parser), you might need to specify platform variables if not set in `mqttclient.conf`:
   ```bash
-  make gen_3pty_libs HW_PLATFORM=<your_hw> \
+  make gen_3pty_libs -C ./third_party  HW_PLATFORM=<your_hw> \
       RTOS_HW_BUILD_PATH=<your_rtos_path> \
       TOOLCHAIN_BASEPATH=<your_toolchain_path>
   ```
