@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - 'build/doc/travis-ci-itest-hw-setup' # Use quotes for branches with slashes
     paths:
       - '.github/workflows/**'
       - 'auto/**'
