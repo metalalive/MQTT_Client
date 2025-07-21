@@ -3,15 +3,51 @@ language: c
 compiler:
     - gcc
 
+os: linux
+dist: noble # Ubuntu 24.04 "Noble Numbat"
+
+branches:
+  only:
+    - master
+    - build/doc/travis-ci-itest-hw-setup
+
+jobs:
+  include:
+    - arch: amd64
+
 before_install:
-    - make  download_3party
+    - pwd
+    - openssl version
+
+    - openssl genrsa -out ./ca4client-privkey.pem  2048
+    - openssl genrsa -out ./ca4server-privkey.pem  2048
+    - openssl req -new -x509 -days 145 -key ./ca4server-privkey.pem -keyform PEM  -out ./ca4server-crt.pem  -outform PEM -sha256 -subj "/C=HK/ST=ABC123 Province/L=Mongka/O=Imaginary Utopia/CN=ssr.jutopia.rs"
+    - openssl req -new -x509 -days 139 -key ./ca4client-privkey.pem -keyform PEM  -out ./ca4client-crt.pem  -outform PEM -sha256 -subj "/C=PS/ST=Palestain/L=Gaza/O=Ch1na Town/CN=www.ch1natown.io"
+    
+    - openssl rsa  -in ./ca4client-privkey.pem -inform PEM -out ./ca4client-privkey.der -outform DER
+    - openssl x509 -in ./ca4client-crt.pem -inform PEM -out ./ca4client-crt.der -outform DER
+    - openssl x509 -in ./ca4server-crt.pem -inform PEM -out ./ca4server-crt.der -outform DER
+
+    - touch ./mqttclient.conf
+    - echo "middleware Linux" >> ./mqttclient.conf
+    - echo "cryptolib  libtomcrypt" >> ./mqttclient.conf
+    - echo "tls  yes" >> ./mqttclient.conf
+    - echo "path_cacert_broker   /idk/proj/path/ca4server-crt.der" >> ./mqttclient.conf
+    - echo "path_client_cert     /idk/proj/path/ca4client-crt.der" >> ./mqttclient.conf
+    - echo "path_client_privkey  /idk/proj/path/ca4client-privkey.der" >> ./mqttclient.conf
+    - echo "brokeraddr    www.ch1natown.io" >> ./mqttclient.conf
+    - echo "brokerport    1883" >> ./mqttclient.conf
+    - echo "brokerusername    your-usrname" >> ./mqttclient.conf
+    - echo "brokeruserpasswd  your-passwd" >> ./mqttclient.conf
 
 script:
-    - make  clean -C third_party
-    - make  clean
-    - make  DEBUG=yes -C third_party
-    - make  demo   DEBUG=yes  PLUS_C_DEFS="MQTT_CFG_RUN_TEST_THREAD"
-    - make  utest  DEBUG=yes
+    - pwd
+    - make  config
+    - make  download_3party
+    - make  make gen_3pty_libs -C ./third_party  DEBUG=yes
+    - make  gen_lib  BUILD_DIR=build/itst
+    - make  demo    BUILD_DIR=build/itst
+    - make  utest   BUILD_DIR=build/utst
 
 after_success:
     - bash <(curl -s https://codecov.io/bash)
