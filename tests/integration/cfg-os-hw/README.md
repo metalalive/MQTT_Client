@@ -7,5 +7,5 @@ Note: In these test applciations, I use HC-SR04 sonar sensor to generate random 
 ### ESP8266-AT-Parser
 #### STM32F446 MCU board + ESP-12s
 
-![schematic diagram with STM32F446 and ESP-12s wifi sensor](./stm32f446-esp12-schema.svg)<img src="./stm32f446-esp12-schema.svg">
+![schematic diagram with STM32F446 and ESP-12s wifi sensor](./stm32f446-esp12-schema.svg)
 
