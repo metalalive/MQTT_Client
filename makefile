@@ -155,14 +155,14 @@ vpath %.s $(sort $(dir $(ITEST_ASM_SRCS)))
 # ----------------- Goals -------------------
 
 $(BUILD_DIR)/%.o: %.c makefile | $(BUILD_DIR)
-	mkdir -p $(dir $@)
-	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(<:.c=.lst) $< -o $@
+	@mkdir -p $(dir $@)
+	@$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(<:.c=.lst) $< -o $@
 
 $(BUILD_DIR)/%.o: %.s makefile | $(BUILD_DIR)
-	$(AS) -c $(CFLAGS) $< -o $@
+	@$(AS) -c $(CFLAGS) $< -o $@
 
 $(TARGET_LIB_PATH): $(LIB_C_OBJS)
-	$(AR)  rcs $@  $^
+	@$(AR)  rcs $@  $^
 
 gen_lib: $(BUILD_DIR)  $(TARGET_LIB_PATH)
 

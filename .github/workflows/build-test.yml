@@ -1,0 +1,67 @@
+name: MQTT / TLS client Unit Test
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/**'
+      - 'auto/**'
+      - 'include/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'makefile'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (build-essential, openssl)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential openssl
+
+      - name: Generate certificates and keys
+        run: |
+          openssl version
+          openssl genrsa -out ./ca4client-privkey.pem  2048
+          openssl genrsa -out ./ca4server-privkey.pem  2048
+          openssl req -new -x509 -days 145 -key ./ca4server-privkey.pem -keyform PEM  -out ./ca4server-crt.pem  -outform PEM -sha256 -subj "/C=HK/ST=ABC123 Province/L=Mongka/O=Imaginary Utopia/CN=ssr.jutopia.rs"
+          openssl req -new -x509 -days 139 -key ./ca4client-privkey.pem -keyform PEM  -out ./ca4client-crt.pem  -outform PEM -sha256 -subj "/C=PS/ST=Palestain/L=Gaza/O=Ch1na Town/CN=www.ch1natown.io"
+          openssl rsa  -in ./ca4client-privkey.pem -inform PEM -out ./ca4client-privkey.der -outform DER
+          openssl x509 -in ./ca4client-crt.pem -inform PEM -out ./ca4client-crt.der -outform DER
+          openssl x509 -in ./ca4server-crt.pem -inform PEM -out ./ca4server-crt.der -outform DER
+
+      - name: Create mqttclient.conf
+        run: |
+          touch ./mqttclient.conf
+          echo "middleware Linux" >> ./mqttclient.conf
+          echo "cryptolib  libtomcrypt" >> ./mqttclient.conf
+          echo "tls  yes" >> ./mqttclient.conf
+          echo "path_cacert_broker   ${{ github.workspace }}/ca4server-crt.der" >> ./mqttclient.conf
+          echo "path_client_cert     ${{ github.workspace }}/ca4client-crt.der" >> ./mqttclient.conf
+          echo "path_client_privkey  ${{ github.workspace }}/ca4client-privkey.der" >> ./mqttclient.conf
+          echo "brokeraddr    www.ch1natown.io" >> ./mqttclient.conf
+          echo "brokerport    1883" >> ./mqttclient.conf
+          echo "brokerusername    your-usrname" >> ./mqttclient.conf
+          echo "brokeruserpasswd  your-passwd" >> ./mqttclient.conf
+
+      - name: Configure and download 3rd-party code repositories
+        run: |
+          make config
+          make download_3party
+
+      - name: Build and Test
+        run: |
+          make gen_3pty_libs -C ./third_party DEBUG=yes
+          make gen_lib BUILD_DIR=build/itst
+          make demo BUILD_DIR=build/itst
+          make utest BUILD_DIR=build/utst
+
+      - name: Upload coverage to Codecov
+        if: success() # This step runs only if previous steps succeed
+        run: bash <(curl -s https://codecov.io/bash)
