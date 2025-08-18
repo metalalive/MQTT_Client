@@ -3,13 +3,17 @@ ITEST_FULLPATH = $(MQC_PROJ_HOME)/$(ITEST_REL_PATH)
 
 include  $(ITEST_FULLPATH)/cfg-os-hw/config.mk
 
+# TODO / FIXME
+# note that `APP_REQUIRED_C_HEADER_PATHS` and `APP_REQUIRED_C_SOURCE_FILES` are declared
+# in this code repository, ideally they should be encapsulated and never exposed to
+# external apps.
+
 APPCFG_C_INCLUDES = \
 	$(APP_REQUIRED_C_HEADER_PATHS) \
 	$(APPCFG_MIDDLEWARE_C_INCLUDES) \
     $(APPCFG_HW_C_INCLUDES)
 
-TEST_COMMON_SOURCES = $(ITEST_REL_PATH)/pattern_generator.c \
-					  generate/src/mqtt_generate.c
+TEST_COMMON_SOURCES = $(ITEST_REL_PATH)/pattern_generator.c
 
 APPCFG_C_SOURCES = \
 	$(APP_REQUIRED_C_SOURCE_FILES) \

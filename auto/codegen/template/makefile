@@ -36,12 +36,12 @@ _EXCLUDE_CMDS_MIDDLEWARE_INCLUDE = utest utest_helper clean config
 
 ifeq ($(strip $(filter $(_EXCLUDE_CMDS_MIDDLEWARE_INCLUDE), $(MAKECMDGOALS))), )
     #### include hardware platfrom specific files, (NOTE) don't use cross-compile toolchain in unit test
-    include  ${PWD}/auto/platform/$(HW_PLATFORM).makefile
+    include  $(MQC_PROJ_HOME)/auto/platform/$(HW_PLATFORM).makefile
     #### include middleware files, the middleware can be any API software integrated
     #### with OS (e.g. RTOS, Linux kernel) .
-    include  ${PWD}/auto/middleware/$(MIDDLEWARE).makefile
+    include  $(MQC_PROJ_HOME)/auto/middleware/$(MIDDLEWARE).makefile
 else  # when running unit-test, clean, config
-    include  ${PWD}/auto/middleware/unknown.makefile
+    include  $(MQC_PROJ_HOME)/auto/middleware/unknown.makefile
 endif
 
 COMMON_3PARTY_BUILD_CMD = {{{ *.metadata.cmd.build@ListAppendSemicolon }}}

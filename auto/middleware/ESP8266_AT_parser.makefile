@@ -28,8 +28,11 @@ endif
 # $(info FILTERED_GOALS : $(FILTERED_GOALS))
 # $(info ----- MQTT ESP8266-AT-parser integration end -----)
 
-_APPCFG_LIBS_PATHS = $(MQC_PROJ_HOME)/$(TARGET_LIB_PATH) \
-					 $(addprefix $(MQC_PROJ_HOME)/, $(THIRD_PARTY_LIBS_PATH))
+_APPCFG_LIBS_PATHS = $(TARGET_LIB_PATH) \
+	$(addprefix $(MQC_PROJ_HOME)/, $(THIRD_PARTY_LIBS_PATH))
+
+_APP_REQUIRED_C_SRC_FILES = $(ESP_C_SOURCES) \
+	$(MQC_PROJ_HOME)/generate/src/mqtt_generate.c
 
 # Get the list of application names from TEST_ENTRY_SOURCES
 # TEST_ENTRY_SOURCES is defined in the main makefile, which includes this one.
@@ -54,11 +57,10 @@ buildapp: export MQC_PROJ_HOME := $(MQC_PROJ_HOME)
 buildapp: export ESP_PROJ_HOME := $(ESP_PROJ_HOME)
 buildapp: export RTOS_HW_BUILD_PATH := $(RTOS_HW_BUILD_PATH)
 buildapp: export APP_REQUIRED_C_HEADER_PATHS := $(C_HEADERS_PATHS)
-buildapp: export APP_REQUIRED_C_SOURCE_FILES := $(ESP_C_SOURCES)
+buildapp: export APP_REQUIRED_C_SOURCE_FILES := $(_APP_REQUIRED_C_SRC_FILES)
 buildapp:
 	@make -C $(RTOS_HW_BUILD_PATH)  startbuild \
-          DEBUG=$(_DBG_FLG_RTOS_HW_PLATFORM) \
-		  BUILD_DIR=$(MQC_PROJ_HOME)/$(BUILD_DIR) \
+          DEBUG=$(_DBG_FLG_RTOS_HW_PLATFORM)  BUILD_DIR=$(BUILD_DIR) \
 		  OS=$(OS)  HW_PLATFORM=$(HW_PLATFORM) \
 		  APP_NAME=$(APP_NAME) APPCFG_PATH=$(APP_BASEPATH) \
 		  TOOLCHAIN_BASEPATH=$(TOOLCHAIN_BASEPATH) \

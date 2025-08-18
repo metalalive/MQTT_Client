@@ -22,7 +22,11 @@ GDB_CMD = gdb
 
 DBG_CLIENT_CMD = $(GDB_CMD)
 
-demo : $(TARGET_LIB_PATH)  $(TEST_COMMON_OBJECTS)  $(TEST_ENTRY_OBJECTS) $(ITEST_ASM_OBJS) \
+_AUTOGEN_C_SRCS = $(MQC_PROJ_HOME)/generate/src/mqtt_generate.c
+_AUTOGEN_OBJS = $(addprefix $(BUILD_DIR)/, $(_AUTOGEN_C_SRCS:.c=.o))
+
+demo : $(TARGET_LIB_PATH)  $(TEST_COMMON_OBJECTS)  $(TEST_ENTRY_OBJECTS) \
+	   $(ITEST_ASM_OBJS) $(_AUTOGEN_OBJS)  \
        $(foreach atest, $(TEST_ENTRY_OBJECTS), $(atest:.o=).elf  $(atest:.o=).hex  $(atest:.o=).text  $(atest:.o=).bin)
 
 

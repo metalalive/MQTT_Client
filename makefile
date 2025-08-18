@@ -7,7 +7,7 @@ EXTRA_C_DEFS ?=
 
 DEBUG ?= no
 
-MQC_PROJ_HOME = $(shell pwd)
+MQC_PROJ_HOME ?= $(shell pwd)
 MQC_CFG_FULLPATH ?=
 
 ######################################
@@ -176,8 +176,8 @@ utest_helper : $(LIB_C_OBJS) $(TEST_COMMON_OBJECTS)  $(TEST_ENTRY_OBJECTS)
 
 # for unit test, no need to build library and test images using cross-compiler
 utest:
-	@make file_subst -C ./third_party;
-	@make utest_helper EXTRA_C_DEFS="MQTT_UNIT_TEST_MODE" DEBUG=$(DEBUG);
+	@make file_subst -C ./third_party MQC_PROJ_HOME=$(MQC_PROJ_HOME);
+	@make utest_helper DEBUG=$(DEBUG) EXTRA_C_DEFS="MQTT_UNIT_TEST_MODE";
 
 
 $(BUILD_DIR):
@@ -185,11 +185,8 @@ $(BUILD_DIR):
 
 clean:
 	@rm -rf $(BUILD_DIR)
-	@make clean -C ./third_party
+	@make clean -C ./third_party MQC_PROJ_HOME=$(MQC_PROJ_HOME)
 	@make clean -C auto/codegen/script  MQC_PROJ_HOME=$(MQC_PROJ_HOME)
-  
-download_3party:
-	@make download_3party -C  third_party
 
 config:
 	@if [ -z "$(MQC_CFG_FULLPATH)" ]; then \
@@ -202,6 +199,12 @@ config:
 		exit 1; \
 	fi
 	@make config -C  auto/codegen/script  MQC_PROJ_HOME=$(MQC_PROJ_HOME) MQC_CFG_FULLPATH=$(MQC_CFG_FULLPATH)
+  
+download_3party:
+	@make download_3party -C  third_party MQC_PROJ_HOME=$(MQC_PROJ_HOME)
+
+gen_3pty_libs:
+	@make gen_3pty_libs -C ./third_party  DEBUG=$(DEBUG) MQC_PROJ_HOME=$(MQC_PROJ_HOME)
 
 dbg_server:
 	@$(DBG_SERVER_CMD)
