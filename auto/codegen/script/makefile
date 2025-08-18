@@ -6,7 +6,7 @@ GENED_FULLPATHS = $(addprefix $(GENED_CODE_BASEPATH)/, $(GENED_SUB_FOLDERS))
 
 config:
 	@mkdir -p  $(GENED_FULLPATHS)
-	@python3 codegen.py
+	@python3 codegen.py --cfg-path=$(MQC_CFG_FULLPATH)
 
 clean:
 	@rm -rf  $(GENED_FULLPATHS)

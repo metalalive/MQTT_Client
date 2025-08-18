@@ -8,6 +8,7 @@ EXTRA_C_DEFS ?=
 DEBUG ?= no
 
 MQC_PROJ_HOME = $(shell pwd)
+MQC_CFG_FULLPATH ?=
 
 ######################################
 # source
@@ -191,7 +192,16 @@ download_3party:
 	@make download_3party -C  third_party
 
 config:
-	@make config -C  auto/codegen/script  MQC_PROJ_HOME=$(MQC_PROJ_HOME)
+	@if [ -z "$(MQC_CFG_FULLPATH)" ]; then \
+		echo "Error: MQC_CFG_FULLPATH must be specified for 'config' target."; \
+		echo "Usage: make config MQC_CFG_FULLPATH=/path/to/your.conf"; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(MQC_CFG_FULLPATH)" ]; then \
+		echo "Error: Configuration file not found at: $(MQC_CFG_FULLPATH)"; \
+		exit 1; \
+	fi
+	@make config -C  auto/codegen/script  MQC_PROJ_HOME=$(MQC_PROJ_HOME) MQC_CFG_FULLPATH=$(MQC_CFG_FULLPATH)
 
 dbg_server:
 	@$(DBG_SERVER_CMD)

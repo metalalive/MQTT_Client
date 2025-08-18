@@ -24,11 +24,14 @@ These commands are generally applicable regardless of the chosen middleware or p
 
 2.  make config
     Description:
-        Runs the code generation script (auto/codegen/script/codegen.py) to generate middleware-specific Makefiles and header files based on the settings in mqttclient.conf. This must be run after any changes to mqttclient.conf.
+        Runs the code generation script (auto/codegen/script/codegen.py) to generate middleware-specific Makefiles and header files based on the settings in the specified configuration file. This must be run after any changes to the configuration file.
+
+    Variables:
+    *   MQC_CFG_FULLPATH: The absolute path to the project's configuration file (e.g., mqttclient.conf). This variable is mandatory for this target.
 
     Example:
     ```
-    make config
+    make config MQC_CFG_FULLPATH=$PWD/mqttclient.conf
     ```
 
 
@@ -252,6 +255,7 @@ Here's a summary of important variables you might need to set on the command lin
 
 *   DEBUG: (yes/no, default no) Enables/disables debug symbols and potentially code coverage.
 *   MQC_PROJ_HOME: (Internal, set by $(shell pwd)) The absolute path to the root of the MQTT client project.
+*   MQC_CFG_FULLPATH: (Command line) The absolute path to the project configuration file. Mandatory for the `make config` target.
 *   BUILD_DIR: (Command line, default `build`) Determines the base path for all built object files, libraries, and executables. Can be applied to `make gen_lib`, `make buildapp`, and `make demo` for all supported middleware ports.
 *   MIDDLEWARE: (From mqttclient.conf) The chosen middleware (e.g., Linux, ESP8266_AT_parser).
 *   HW_PLATFORM: (From mqttclient.conf or command line) The specific hardware platform (e.g., stm32f446).
