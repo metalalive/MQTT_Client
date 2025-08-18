@@ -52,7 +52,7 @@ jobs:
 
       - name: Configure and download 3rd-party code repositories
         run: |
-          make config
+          make config  MQC_CFG_FULLPATH=${{ github.workspace }}/mqttclient.conf
           make download_3party
 
       - name: Build and Test
