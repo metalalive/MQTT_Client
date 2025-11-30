@@ -218,6 +218,10 @@ mqttRespStatus mqttSecureNetconnStart(mqttCtx_t *mctx) {
     }
     if (tls_status < 0) {
         mctx->secure_session = NULL;
+        if (mctx->drbg != NULL) {
+            mqttDRBGdeinit(mctx->drbg);
+            mctx->drbg = NULL;
+        }
         tlsClientSessionDelete(session);
     }
     status = tlsRespCvtToMqttResp(tls_status);
