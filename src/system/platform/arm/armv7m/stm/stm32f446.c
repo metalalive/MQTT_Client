@@ -143,12 +143,10 @@ done:
 
 mqttRespStatus mqttPlatformPktRecvEnable(void) {
     mqttRespStatus      response = MQTT_RESP_OK;
-    HAL_StatusTypeDef   status_chk = HAL_ERROR;
     UART_HandleTypeDef *uart_cfg = STM32_config_UART();
-    dma_buf_num_char_copied = 0;
-    dma_buf_cpy_offset_next = 0;
-    dma_buf_cpy_offset_curr = 0;
-    status_chk =
+    dma_buf_num_char_copied = dma_buf_cpy_offset_next = dma_buf_cpy_offset_curr = 0;
+    __HAL_UART_ENABLE(uart_cfg);
+    HAL_StatusTypeDef status_chk =
         HAL_UART_Receive_DMA(uart_cfg, (uint8_t *)&recv_data_buf[0], HAL_DMA_RECV_BUF_SIZE);
     switch (status_chk) {
     case HAL_OK:
@@ -172,10 +170,9 @@ mqttRespStatus mqttPlatformPktRecvEnable(void) {
 
 mqttRespStatus mqttPlatformPktRecvDisable(void) {
     mqttRespStatus      response = MQTT_RESP_OK;
-    HAL_StatusTypeDef   status_chk = HAL_ERROR;
     UART_HandleTypeDef *uart_cfg = STM32_config_UART();
-    status_chk = HAL_UART_DMAStop(uart_cfg);
-    ESP_MEMSET((void *)&recv_data_buf, 0x00, HAL_DMA_RECV_BUF_SIZE);
+    HAL_UART_AbortReceive(uart_cfg);
+    HAL_StatusTypeDef status_chk = HAL_UART_DMAStop(uart_cfg);
     switch (status_chk) {
     case HAL_OK:
         response = MQTT_RESP_OK;
