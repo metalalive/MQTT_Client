@@ -277,23 +277,31 @@ done:
 espRes_t eESPlowLvlRecvStartFn(void) {
     mqttRespStatus response = mqttPlatformPktRecvEnable();
     return mqttSysRespCvtToESPresp(response);
-} // end of  eESPlowLvlRecvStartFn
+}
 
-void vESPlowLvlRecvStopFn(void) { mqttPlatformPktRecvDisable(); } // end of vESPlowLvlRecvStopFn
+void vESPlowLvlRecvStopFn(void) { mqttPlatformPktRecvDisable(); }
 
 // the low-level functions that will be called when ESP AT parser (running on
 // host MCU board) sends raw bytes out .
 espRes_t eESPlowLvlSendFn(void *data, size_t len, uint32_t timeout) {
     mqttRespStatus response = mqttPlatformPktSend(data, len, timeout);
     return mqttSysRespCvtToESPresp(response);
-} // end of eESPlowLvlSendFn
+}
 
 // the low-level functions that will be called when MCU board reset (the hardware state)
 // of the ESP wifi module through hardware reset pin.
 espRes_t eESPlowLvlRstFn(uint8_t state) {
     mqttRespStatus response = mqttPlatformNetworkModRst(state);
     return mqttSysRespCvtToESPresp(response);
-} // end of eESPlowLvlRstFn
+}
+
+__attribute__((weak)) espRes_t eESPlowLvlPower(espFnEn_t en) {
+    // for usage or application example,
+    // check `tests/integration/src/hardware/stm32f446/stm32f446_config.c`
+    // in `ESP8266_AT_parser` code repository.
+    (void)en;
+    return espOK;
+}
 
 espRes_t eESPlowLvlDevInit(void *params) {
     mqttRespStatus response = mqttPlatformInit();
